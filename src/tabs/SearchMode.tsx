@@ -1,0 +1,338 @@
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
+import { KeyboardEvents } from 'react-native-keyboard-controller';
+import Animated, {
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
+
+import { ClearButton } from './ClearButton';
+import { TabBadge } from './TabBadge';
+import { TabIcon } from './TabIcon';
+import { useSearchHost } from './search';
+import type { TabSpec } from './triggers';
+import type { useGlassPress } from './useGlassPress';
+import { AnimatedNativeGlassBlur } from '../glass/NativeGlass';
+import { useLucentTheme } from '../theme/LucentProvider';
+import { layout, motion, searchFieldText, space, typography } from '../theme/tokens';
+
+const fullHeight = layout.tabBarHeight;
+const modeHeight = layout.searchModeHeight;
+const modeInset = (fullHeight - modeHeight) / 2;
+const backCenter = modeInset + modeHeight / 2;
+const glyphCenter =
+  modeInset + modeHeight + layout.searchModeGap + layout.searchFieldInset + layout.searchFieldIconSize / 2;
+const glyphFromScale = layout.searchIconSize / layout.searchFieldIconSize;
+const textFrom = -(layout.searchFieldIconSize + space[4]);
+const fieldLeft = modeInset + modeHeight + layout.searchModeGap;
+const fieldRight = modeInset + modeHeight + layout.searchModeGap;
+
+const clamp01 = (value: number) => {
+  'worklet';
+  return Math.min(1, Math.max(0, value));
+};
+
+const lerp = (from: number, to: number, t: number) => {
+  'worklet';
+  return from + (to - from) * t;
+};
+
+interface Props {
+  active: boolean;
+  mode: SharedValue<number>;
+  backTab: TabSpec;
+  searchTab: TabSpec;
+  tintColor?: string;
+  badgeColor?: string;
+  badgeTextColor?: string;
+  backPress: ReturnType<typeof useGlassPress>;
+  travel: {
+    index: number;
+    slotWidth: SharedValue<number>;
+    width: SharedValue<number>;
+    circle: SharedValue<number>;
+    press: SharedValue<number>;
+    target: SharedValue<number>;
+    fit: SharedValue<{ scale: number; x: number; y: number }>;
+  };
+  onBack: () => void;
+  backDrag: PanGesture;
+  keyboard: SharedValue<number>;
+  spread: SharedValue<number>;
+  reach: number;
+  sink: SharedValue<number>;
+  dip: SharedValue<number>;
+}
+
+export const SearchMode = ({
+  active,
+  mode,
+  backTab,
+  searchTab,
+  tintColor,
+  badgeColor,
+  badgeTextColor,
+  backPress,
+  travel,
+  onBack,
+  backDrag,
+  keyboard,
+  spread,
+  reach,
+  sink,
+  dip,
+}: Props) => {
+  const { color, scheme } = useLucentTheme(tintColor);
+  const iconDim = motion.pressIconDim[scheme];
+  const { query, setQuery, props: searchProps, emit, attach } = useSearchHost();
+  const placeholder = searchProps.placeholder ?? '';
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  const wide = useSharedValue(0);
+
+  useEffect(() => {
+    const subscriptions = [
+      KeyboardEvents.addListener('keyboardWillShow', () => {
+        setKeyboardUp(true);
+        wide.set(1);
+      }),
+      KeyboardEvents.addListener('keyboardWillHide', () => setKeyboardUp(false)),
+      KeyboardEvents.addListener('keyboardDidHide', () => wide.set(0)),
+    ];
+    return () => subscriptions.forEach((subscription) => subscription.remove());
+  }, [wide]);
+
+  useEffect(
+    () =>
+      attach({
+        focus: active ? () => input.current?.focus() : undefined,
+        blur: () => input.current?.blur(),
+        cancel: () => {
+          setQuery('');
+          input.current?.blur();
+        },
+      }),
+    [active, attach, setQuery],
+  );
+
+  useEffect(() => {
+    if (!active) {
+      input.current?.blur();
+      return;
+    }
+    if (!searchTab.automaticallyActivatesSearch) {
+      return;
+    }
+    const timer = setTimeout(() => input.current?.focus(), motion.searchKeyboard.focusDelay);
+    return () => clearTimeout(timer);
+  }, [active, searchTab.automaticallyActivatesSearch]);
+
+  const clearQuery = () => {
+    setQuery('');
+    input.current?.focus();
+  };
+
+  const { index: travelIndex, slotWidth, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
+  const backStyle = useAnimatedStyle(() => ({
+    opacity: mode.get() > motion.backTravel.handoff ? 1 : 0,
+    transform: [{ translateY: sink.get() }, { scale: 1 + backPress.press.get() * motion.pressGrow }],
+  }));
+  const backOutlineStyle = useAnimatedStyle(() => ({
+    opacity: target.get() === 0 ? 0 : 1,
+  }));
+  const backFilledStyle = useAnimatedStyle(() => ({
+    opacity: target.get() === 0 ? 1 : 0,
+  }));
+  const backFillStyle = useAnimatedStyle(() => ({
+    opacity: target.get() === 0 ? 0 : backPress.press.get(),
+  }));
+  const backInkStyle = useAnimatedStyle(() => {
+    const away = 1 - clamp01(mode.get());
+    const fit = rowFit.get();
+    const settled = 1 - away;
+    const width = Math.max(barWidth.get(), 1);
+    const slot = layout.tabBarInlinePadding + (travelIndex + 0.5) * slotWidth.get();
+    const ride = modeInset * settled + (lerp(width, modeHeight, settled) / width) * slot;
+    const rideEnd = modeInset + (modeHeight / width) * slot;
+    const fromX = ride - backCenter - (rideEnd - backCenter) * settled;
+    const fromY = fit.y + fit.scale * (fullHeight - layout.tabLabelHeight) * 0.5 - backCenter;
+    return {
+      opacity: 1 - backPress.press.get() * iconDim,
+      transform: [{ translateX: fromX }, { translateY: fromY * away }],
+    };
+  });
+  const wideShift = modeHeight + layout.searchModeGap + reach;
+  const fieldStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX:
+          (circle.get() - glyphCenter) * (1 - clamp01(mode.get())) -
+          (modeHeight + layout.searchModeGap) * clamp01(keyboard.get()) * clamp01(mode.get()) -
+          spread.get() +
+          wideShift * wide.get(),
+      },
+      { translateY: dip.get() },
+    ],
+    left: fieldLeft - wideShift * wide.get(),
+    right: fieldRight - reach * wide.get(),
+  }));
+  const glyphStyle = useAnimatedStyle(() => ({
+    opacity: mode.get() > motion.backTravel.handoff ? 1 : 0,
+    transform: [
+      {
+        scale: 1 + (glyphFromScale * (1 + travelPress.get() * motion.pressGrow) - 1) * (1 - clamp01(mode.get())),
+      },
+    ],
+  }));
+  const glyphAccentStyle = useAnimatedStyle(() => ({
+    opacity: target.get() === 1 ? 1 - clamp01(mode.get() * motion.searchTabs.pressFade) : 0,
+  }));
+  const textStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: textFrom * (1 - clamp01(mode.get())) }],
+    opacity:
+      mode.get() >= motion.backTravel.settle
+        ? 0
+        : target.get() === 1
+          ? clamp01(mode.get() * motion.backTravel.textRate - motion.backTravel.textDelay)
+          : clamp01((mode.get() - motion.searchClose.fadeFrom) / (1 - motion.searchClose.fadeFrom)),
+  }));
+  const inputStyle = useAnimatedStyle(() => ({
+    opacity: mode.get() >= motion.backTravel.settle ? 1 : 0,
+  }));
+  const textBlurProps = useAnimatedProps(() => ({
+    radius: (1 - clamp01(mode.get())) * motion.searchTabs.textBlur,
+  }));
+
+  const goBack = () => {
+    Keyboard.dismiss();
+    onBack();
+  };
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents={active ? 'box-none' : 'none'}>
+      <GestureDetector gesture={backDrag}>
+        <Pressable
+          style={styles.back}
+          pointerEvents={keyboardUp ? 'none' : 'auto'}
+          onPress={goBack}
+          onPressIn={backPress.onPressIn}
+          onPressOut={backPress.onPressOut}
+          accessibilityRole="button"
+          accessibilityLabel={backTab.label}>
+          <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>
+            <Animated.View style={[styles.fill, { backgroundColor: color.pressFill }, backFillStyle]} />
+            <Animated.View style={[styles.center, backInkStyle]}>
+              <Animated.View style={backOutlineStyle}>
+                <TabIcon icon={backTab.icon} selected={false} size={layout.tabIconSize} color={color.text} />
+              </Animated.View>
+              <Animated.View style={[StyleSheet.absoluteFill, styles.center, backFilledStyle]}>
+                <TabIcon icon={backTab.icon} selected size={layout.tabIconSize} color={color.tint} />
+              </Animated.View>
+              {backTab.badge !== undefined ? (
+                <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
+                  <View style={styles.iconBox}>
+                    <TabBadge
+                      text={backTab.badge}
+                      color={badgeColor ?? color.badge}
+                      textColor={badgeTextColor ?? color.badgeText}
+                      offsetX={layout.backBadgeOffsetX}
+                      rise={layout.backBadgeRise}
+                    />
+                  </View>
+                </View>
+              ) : null}
+            </Animated.View>
+          </Animated.View>
+        </Pressable>
+      </GestureDetector>
+      <Animated.View style={[styles.field, fieldStyle]}>
+        <Animated.View style={glyphStyle}>
+          <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.text} />
+          <Animated.View style={[StyleSheet.absoluteFill, glyphAccentStyle]}>
+            <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
+          </Animated.View>
+        </Animated.View>
+        <View style={styles.text}>
+          <Animated.View style={[styles.layer, inputStyle]}>
+            <TextInput
+              ref={input}
+              style={[styles.input, searchFieldText[scheme], { color: color.text }]}
+              value={query}
+              onChangeText={setQuery}
+              placeholder={placeholder}
+              placeholderTextColor={color.placeholder}
+              selectionColor={searchProps.tintColor ?? color.tint}
+              cursorColor={searchProps.tintColor ?? color.tint}
+              autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
+              onFocus={() => emit('onFocus')}
+              onBlur={() => emit('onBlur')}
+              onSubmitEditing={() => emit('onSearchButtonPress')}
+              returnKeyType="search"
+              autoCorrect={false}
+              numberOfLines={1}
+            />
+          </Animated.View>
+          <AnimatedNativeGlassBlur style={[styles.layer, textStyle]} animatedProps={textBlurProps} pointerEvents="none">
+            <Text
+              style={[styles.input, searchFieldText[scheme], { color: query ? color.text : color.placeholder }]}
+              numberOfLines={1}>
+              {query || placeholder}
+            </Text>
+          </AnimatedNativeGlassBlur>
+        </View>
+        {query ? <ClearButton color={color.clearButton} glyphColor={color.clearGlyph} onPress={clearQuery} /> : null}
+      </Animated.View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  back: {
+    position: 'absolute',
+    left: modeInset,
+    top: modeInset,
+    width: modeHeight,
+    height: modeHeight,
+  },
+  field: {
+    position: 'absolute',
+    left: fieldLeft,
+    right: fieldRight,
+    top: modeInset,
+    height: modeHeight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[4],
+    paddingHorizontal: layout.searchFieldInset,
+  },
+  fill: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: modeHeight / 2,
+  },
+  center: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBox: {
+    width: layout.tabIconSize,
+    height: layout.tabIconSize,
+  },
+  text: {
+    flex: 1,
+    alignSelf: 'stretch',
+  },
+  layer: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'center',
+  },
+  input: {
+    fontSize: typography.body.fontSize,
+    paddingVertical: 0,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+});
