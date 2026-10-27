@@ -4,10 +4,12 @@ export interface LucentColors {
   tint: string;
   text: string;
   placeholder: string;
+  placeholderActive: string;
   barTint: string;
   barFallback: string;
   barShadow: string;
   barRim: string;
+  glassOutline: string;
   lens: string;
   lensActive: string;
   lensRim: string;
@@ -26,7 +28,6 @@ export interface LucentColors {
   badge: string;
   badgeText: string;
   clearButton: string;
-  clearGlyph: string;
 }
 
 export type LucentColorOverrides = Partial<Record<LucentScheme, Partial<LucentColors>>>;
@@ -39,11 +40,13 @@ export const systemTint: Record<LucentScheme, string> = {
 const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' | 'tabActive' | 'tabActiveOver'>> = {
   dark: {
     text: '#FFFFFF',
-    placeholder: 'rgba(235, 235, 245, 0.3)',
+    placeholder: 'rgba(255, 255, 255, 0.3)',
+    placeholderActive: 'rgba(255, 255, 255, 0.38)',
     barTint: 'rgba(90, 90, 90, 0)',
     barFallback: '#2F2F32',
     barShadow: 'rgba(0, 0, 0, 0.12)',
     barRim: 'rgba(255, 255, 255, 0)',
+    glassOutline: 'rgba(0, 0, 0, 0.8)',
     lens: 'rgba(0, 0, 0, 0)',
     lensActive: 'rgba(0, 0, 0, 0)',
     lensRim: 'rgba(255, 255, 255, 0.16)',
@@ -59,15 +62,16 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     badge: '#FF4245',
     badgeText: '#FFFFFF',
     clearButton: '#FFFFFF',
-    clearGlyph: '#202020',
   },
   light: {
     text: '#000000',
-    placeholder: 'rgba(60, 60, 67, 0.3)',
-    barTint: 'rgba(245, 245, 245, 0.52)',
+    placeholder: 'rgba(60, 60, 67, 0.6)',
+    placeholderActive: '#808080',
+    barTint: 'rgba(245, 245, 245, 0.54)',
     barFallback: '#F4F5F9',
     barShadow: 'rgba(0, 0, 0, 0.012)',
     barRim: 'rgba(0, 0, 0, 0.12)',
+    glassOutline: 'rgba(0, 0, 0, 0.16)',
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
     lensRim: 'rgba(0, 0, 0, 0.16)',
@@ -83,7 +87,6 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     badge: '#FF383C',
     badgeText: '#FFFFFF',
     clearButton: '#000000',
-    clearGlyph: '#FDFDFD',
   },
 };
 

@@ -43,6 +43,7 @@ export interface NativeGlassViewProps extends ViewProps {
   rimWidth?: number;
   rimOutside?: boolean;
   rimSide?: number;
+  rimCrisp?: boolean;
   edgeAxis?: number;
   prismAxis?: number;
   prismShift?: number;
@@ -102,10 +103,14 @@ export interface NativeGlassViewProps extends ViewProps {
   outset?: number;
   presence?: number;
   glassTint?: ColorValue;
+  tintDarken?: number;
+  tintMix?: number;
   interactive?: boolean;
   pressScale?: number;
+  pressGrow?: number;
   pressGlow?: number;
   pressGlowSpread?: number;
+  pressShapes?: number[];
 }
 
 interface NativeGlassBlurProps extends ViewProps {

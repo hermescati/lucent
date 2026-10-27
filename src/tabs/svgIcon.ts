@@ -4,7 +4,7 @@ import type { LucentNativeTabsTriggerIconProps, LucentSvgIconProps } from './typ
 import { vectorIconSource } from '../icons/vectorIcon';
 import { layout } from '../theme/tokens';
 
-const isSvgIcon = (props: LucentNativeTabsTriggerIconProps): props is LucentSvgIconProps => 'svg' in props;
+export const isSvgIcon = (props: LucentNativeTabsTriggerIconProps): props is LucentSvgIconProps => 'svg' in props;
 
 export const resolveTabIcon = (props: LucentNativeTabsTriggerIconProps): NativeTabsTriggerIconProps => {
   if (!isSvgIcon(props)) {

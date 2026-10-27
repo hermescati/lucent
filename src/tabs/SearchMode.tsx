@@ -5,7 +5,7 @@ import { KeyboardEvents } from 'react-native-keyboard-controller';
 import Animated, {
   useAnimatedProps,
   useAnimatedStyle,
-  useSharedValue,
+  useDerivedValue,
   type SharedValue,
 } from 'react-native-reanimated';
 
@@ -17,7 +17,7 @@ import type { TabSpec } from './triggers';
 import type { useGlassPress } from './useGlassPress';
 import { AnimatedNativeGlassBlur } from '../glass/NativeGlass';
 import { useLucentTheme } from '../theme/LucentProvider';
-import { layout, motion, searchFieldText, space, typography } from '../theme/tokens';
+import { layout, motion, placeholderBlend, searchFieldText, space, typography } from '../theme/tokens';
 
 const fullHeight = layout.tabBarHeight;
 const modeHeight = layout.searchModeHeight;
@@ -91,19 +91,16 @@ export const SearchMode = ({
   const placeholder = searchProps.placeholder ?? '';
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const [keyboardUp, setKeyboardUp] = useState(false);
-  const wide = useSharedValue(0);
+  const wide = useDerivedValue(() => clamp01(keyboard.get()));
 
   useEffect(() => {
     const subscriptions = [
-      KeyboardEvents.addListener('keyboardWillShow', () => {
-        setKeyboardUp(true);
-        wide.set(1);
-      }),
+      KeyboardEvents.addListener('keyboardWillShow', () => setKeyboardUp(true)),
       KeyboardEvents.addListener('keyboardWillHide', () => setKeyboardUp(false)),
-      KeyboardEvents.addListener('keyboardDidHide', () => wide.set(0)),
+      KeyboardEvents.addListener('keyboardDidHide', () => setKeyboardUp(false)),
     ];
     return () => subscriptions.forEach((subscription) => subscription.remove());
-  }, [wide]);
+  }, []);
 
   useEffect(
     () =>
@@ -137,7 +134,7 @@ export const SearchMode = ({
 
   const { index: travelIndex, slotWidth, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
   const backStyle = useAnimatedStyle(() => ({
-    opacity: mode.get() > motion.backTravel.handoff ? 1 : 0,
+    opacity: (mode.get() > motion.backTravel.handoff ? 1 : 0) * (1 - wide.get()),
     transform: [{ translateY: sink.get() }, { scale: 1 + backPress.press.get() * motion.pressGrow }],
   }));
   const backOutlineStyle = useAnimatedStyle(() => ({
@@ -263,7 +260,7 @@ export const SearchMode = ({
               value={query}
               onChangeText={setQuery}
               placeholder={placeholder}
-              placeholderTextColor={color.placeholder}
+              placeholderTextColor="transparent"
               selectionColor={searchProps.tintColor ?? color.tint}
               cursorColor={searchProps.tintColor ?? color.tint}
               autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
@@ -274,6 +271,13 @@ export const SearchMode = ({
               autoCorrect={false}
               numberOfLines={1}
             />
+            {query ? null : (
+              <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
+                <Text style={[styles.input, searchFieldText[scheme], { color: color.placeholderActive }]} numberOfLines={1}>
+                  {placeholder}
+                </Text>
+              </View>
+            )}
           </Animated.View>
           <AnimatedNativeGlassBlur style={[styles.layer, textStyle]} animatedProps={textBlurProps} pointerEvents="none">
             <Text
@@ -283,7 +287,7 @@ export const SearchMode = ({
             </Text>
           </AnimatedNativeGlassBlur>
         </View>
-        {query ? <ClearButton color={color.clearButton} glyphColor={color.clearGlyph} onPress={clearQuery} /> : null}
+        {query ? <ClearButton color={color.clearButton} onPress={clearQuery} /> : null}
       </Animated.View>
     </View>
   );
@@ -332,6 +336,7 @@ const styles = StyleSheet.create({
   input: {
     fontSize: typography.body.fontSize,
     paddingVertical: 0,
+    paddingHorizontal: 0,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },

@@ -33,6 +33,7 @@ import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -77,6 +78,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var rimPrism = 0f
   var rimWidth = 2f
   var rimOutside = false
+  var rimCrisp = false
   var rimSide = 1f
   var edgeAxis = 0f
   var prismAxis = 0f
@@ -151,10 +153,14 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var outset = 0f
   var presence = 1f
   var effectTint: Color = TRANSPARENT
+  var tintDarken = 0f
+  var tintMix = 0f
   var interactive = false
   var pressScale = 1f
+  var pressGrow = 0f
   var pressGlow = 0f
   var pressGlowSpread = 0f
+  var pressShapes: FloatArray? = null
 
   private var host: GlassBackdropView? = null
   private var drawingLifted = false
@@ -173,11 +179,15 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   private var press = 0f
   private var pressVelocity = 0f
   private var pressTarget = 0f
+  private var glowLevel = 0f
   private var touchX = 0f
   private var touchY = 0f
   private var glowFollowX = 0f
   private var glowFollowY = 0f
   private var lastFrame = 0L
+  private var pressedShape = -1
+  private var pressedChild: View? = null
+  private val pressedRect = RectF()
 
   private val density = resources.displayMetrics.density
   private val selfToGlobal = Matrix()
@@ -284,9 +294,10 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
 
   override fun dispatchTouchEvent(event: MotionEvent): Boolean {
     val handled = super.dispatchTouchEvent(event)
-    if (!interactive) return handled
+    if (!interactive && !pressesShapes) return handled
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
+        if (pressesShapes && !pickShape(event.x / density, event.y / density)) return handled
         touchX = event.x / density
         touchY = event.y / density
         glowFollowX = touchX
@@ -306,25 +317,173 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
 
   private fun stepPress() {
     val now = SystemClock.uptimeMillis()
-    val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1000f).coerceAtMost(MAX_STEP)
+    val elapsed = if (lastFrame == 0L) 0f else (now - lastFrame) / 1000f
     lastFrame = now
-    if (dt <= 0f) return
-    val omega = 2f * Math.PI.toFloat() / PRESS_PERIOD
-    val pull = omega * omega * (pressTarget - press) - 2f * omega * pressVelocity
-    pressVelocity += pull * dt
-    press += pressVelocity * dt
+    if (elapsed <= 0f) return
+    val dt = if (elapsed > IDLE_GAP) FRAME_STEP else elapsed.coerceAtMost(MAX_STEP)
+    val pressing = pressTarget > 0.5f
+    val omega = if (pressing) PRESS_IN_OMEGA else PRESS_OUT_OMEGA
+    val damping = if (pressing) PRESS_IN_DAMPING else PRESS_OUT_DAMPING
+    val steps = kotlin.math.ceil(dt / SUB_STEP).toInt().coerceAtLeast(1)
+    val h = dt / steps
+    repeat(steps) {
+      val pull = omega * omega * (pressTarget - press) - 2f * damping * omega * pressVelocity
+      pressVelocity += pull * h
+      press += pressVelocity * h
+    }
     if (kotlin.math.abs(press - pressTarget) < 1e-3f && kotlin.math.abs(pressVelocity) < 1e-2f) {
       press = pressTarget
       pressVelocity = 0f
     }
+    val glowTarget = if (!pressing) 0f else 1f - (1f - GLOW_OUTSIDE) * (touchOutside / OUTSIDE_REACH).coerceIn(0f, 1f)
+    val glowTime = if (glowTarget > glowLevel) GLOW_RISE else if (pressing) GLOW_DIM else GLOW_FALL
+    glowLevel += (glowTarget - glowLevel) * (1f - exp(-dt / glowTime))
+    if (kotlin.math.abs(glowLevel - glowTarget) < 1e-3f) glowLevel = glowTarget
     val follow = 1f - exp(-dt / FOLLOW_TIME)
     glowFollowX += (touchX - glowFollowX) * follow
     glowFollowY += (touchY - glowFollowY) * follow
-    if (interactive) updateEffect()
+    if (pressesShapes) pressShapeChild()
+    if (interactive || pressesShapes) updateEffect()
+  }
+
+  private val pressesShapes: Boolean
+    get() = pressShapes?.any { it > 0f } == true && (shapes?.size ?: 0) >= 4
+
+  private fun pickShape(x: Float, y: Float): Boolean {
+    val source = shapes ?: return false
+    val flags = pressShapes ?: return false
+    for (k in 0 until minOf(source.size / 4, flags.size, MAX_SHAPES)) {
+      if (flags[k] <= 0f) continue
+      if (x >= source[k * 4] && x <= source[k * 4 + 2] && y >= source[k * 4 + 1] && y <= source[k * 4 + 3]) {
+        if (k != pressedShape) {
+          pressedChild?.let { resetChild(it) }
+          press = 0f
+          pressVelocity = 0f
+          glowLevel = 0f
+        }
+        pressedShape = k
+        pressedRect.set(source[k * 4], source[k * 4 + 1], source[k * 4 + 2], source[k * 4 + 3])
+        pressedChild = childAt(pressedRect)
+        return true
+      }
+    }
+    return false
+  }
+
+  private fun childAt(rect: RectF): View? {
+    for (c in 0 until childCount) {
+      val child = getChildAt(c)
+      if (kotlin.math.abs(child.left / density - rect.left) < 1f && kotlin.math.abs(child.top / density - rect.top) < 1f) return child
+    }
+    return null
+  }
+
+  private fun resetChild(child: View) {
+    child.scaleX = 1f
+    child.scaleY = 1f
+    child.translationX = 0f
+    child.translationY = 0f
+  }
+
+  private fun pressShapeChild() {
+    val child = pressedChild ?: return
+    val (sx, sy) = shapeScale()
+    child.scaleX = sx
+    child.scaleY = sy
+    child.translationX = shapeLeanX * PRESS_LEAN * density
+    child.translationY = shapeLeanY * PRESS_LEAN * density
+    if (press == 0f && pressTarget == 0f) {
+      resetChild(child)
+      pressedChild = null
+      pressedShape = -1
+    }
+  }
+
+  private fun shapeScale(): Pair<Float, Float> {
+    val side = max(pressedRect.width(), pressedRect.height())
+    val scale = if (side > 0f) 1f + pressGrow / side * press else 1f
+    val lx = kotlin.math.abs(shapeLeanX)
+    val ly = kotlin.math.abs(shapeLeanY)
+    return Pair(scale * (1f + PRESS_STRETCH * lx - PRESS_STRETCH * ly), scale * (1f + PRESS_STRETCH * ly - PRESS_STRETCH * lx))
+  }
+
+  private val shapeHalf: Float
+    get() = max(pressedRect.width(), pressedRect.height()) * 0.5f
+
+  private val shapeLeanX: Float
+    get() = if (pressedShape < 0) 0f else leanOf(glowFollowX - pressedRect.centerX(), shapeHalf)
+
+  private val shapeLeanY: Float
+    get() = if (pressedShape < 0) 0f else leanOf(glowFollowY - pressedRect.centerY(), shapeHalf)
+
+  private fun shapeLight(follow: Float, center: Float): Float {
+    val half = shapeHalf
+    return if (half <= 0f) center else center + half * kotlin.math.tanh((follow - center) / half) * LIGHT_FOLLOW
   }
 
   private val currentScale: Float
-    get() = 1f + (pressScale - 1f) * press
+    get() {
+      if (pressesShapes) return 1f
+      val side = max(width, height) / density
+      val target = if (pressGrow > 0f && side > 0f) 1f + pressGrow / side else pressScale
+      return 1f + (target - 1f) * press
+    }
+
+  private val touchOutside: Float
+    get() {
+      val l = if (pressedShape >= 0) pressedRect.left else 0f
+      val t = if (pressedShape >= 0) pressedRect.top else 0f
+      val w = if (pressedShape >= 0) pressedRect.right else width / density
+      val h = if (pressedShape >= 0) pressedRect.bottom else height / density
+      val dx = max(max(l - touchX, touchX - w), 0f)
+      val dy = max(max(t - touchY, touchY - h), 0f)
+      return kotlin.math.sqrt(dx * dx + dy * dy)
+    }
+
+  private fun lightOf(follow: Float, extent: Float): Float {
+    val half = max(width, height) * 0.5f / density
+    val center = extent * 0.5f / density
+    return if (half <= 0f) center else center + half * kotlin.math.tanh((follow - center) / half) * LIGHT_FOLLOW
+  }
+
+  private fun leanOf(offset: Float, half: Float): Float =
+    if (half <= 0f) 0f else kotlin.math.tanh(offset / half) * press
+
+  private val leanX: Float
+    get() = if (pressGrow > 0f && !pressesShapes) leanOf(glowFollowX - width * 0.5f / density, max(width, height) * 0.5f / density) else 0f
+
+  private val leanY: Float
+    get() = if (pressGrow > 0f && !pressesShapes) leanOf(glowFollowY - height * 0.5f / density, max(width, height) * 0.5f / density) else 0f
+
+  private fun applyPress(canvas: Canvas) {
+    val scale = currentScale
+    val lx = leanX
+    val ly = leanY
+    if (lx != 0f || ly != 0f) canvas.translate(lx * PRESS_LEAN * density, ly * PRESS_LEAN * density)
+    if (scale != 1f || lx != 0f || ly != 0f) {
+      canvas.scale(
+        scale * (1f + PRESS_STRETCH * kotlin.math.abs(lx) - PRESS_STRETCH * kotlin.math.abs(ly)),
+        scale * (1f + PRESS_STRETCH * kotlin.math.abs(ly) - PRESS_STRETCH * kotlin.math.abs(lx)),
+        width * 0.5f,
+        height * 0.5f,
+      )
+    }
+  }
+
+  private fun applyPress(matrix: Matrix) {
+    val scale = currentScale
+    val lx = leanX
+    val ly = leanY
+    if (lx != 0f || ly != 0f) matrix.preTranslate(lx * PRESS_LEAN * density, ly * PRESS_LEAN * density)
+    if (scale != 1f || lx != 0f || ly != 0f) {
+      matrix.preScale(
+        scale * (1f + PRESS_STRETCH * kotlin.math.abs(lx) - PRESS_STRETCH * kotlin.math.abs(ly)),
+        scale * (1f + PRESS_STRETCH * kotlin.math.abs(ly) - PRESS_STRETCH * kotlin.math.abs(lx)),
+        width * 0.5f,
+        height * 0.5f,
+      )
+    }
+  }
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
@@ -419,6 +578,18 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     for (i in 0 until count * 4) {
       shapeBuffer[i] = quantize(source[i] * density + outPx)
     }
+    if (pressedShape in 0 until count && press != 0f) {
+      val (sx, sy) = shapeScale()
+      val cx = (pressedRect.centerX() + shapeLeanX * PRESS_LEAN) * density + outPx
+      val cy = (pressedRect.centerY() + shapeLeanY * PRESS_LEAN) * density + outPx
+      val hw = pressedRect.width() * 0.5f * sx * density
+      val hh = pressedRect.height() * 0.5f * sy * density
+      val k = pressedShape * 4
+      shapeBuffer[k] = cx - hw
+      shapeBuffer[k + 1] = cy - hh
+      shapeBuffer[k + 2] = cx + hw
+      shapeBuffer[k + 3] = cy + hh
+    }
     for (i in count * 4 until shapeBuffer.size) {
       shapeBuffer[i] = 0f
     }
@@ -486,7 +657,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     shapeBuffer.copyInto(state, i)
     i += shapeBuffer.size
     state[i++] = count.toFloat()
-    state[i++] = cornerRadius * density
+    state[i++] = cornerRadius * density * (if (pressedShape >= 0 && press != 0f) max(shapeScale().first, shapeScale().second) else 1f)
     state[i++] = blend * density
     state[i++] = bezelPx
     state[i++] = refractionPx
@@ -506,10 +677,11 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = edgeSoft
     state[i++] = sharpWidth * density
     state[i++] = softWidth * density
-    state[i++] = (if (interactive) glowFollowX else glowX) * density + outPx
-    state[i++] = (if (interactive) glowFollowY else glowY) * density + outPx
-    state[i++] = (if (interactive) pressGlowSpread else glowSpread) * density
-    state[i++] = if (opaque) 0f else if (interactive) pressGlow * press else glowStrength
+    val shapePress = pressedShape >= 0
+    state[i++] = (if (shapePress) shapeLight(glowFollowX, pressedRect.centerX()) else if (interactive) lightOf(glowFollowX, width.toFloat()) else glowX) * density + outPx
+    state[i++] = (if (shapePress) shapeLight(glowFollowY, pressedRect.centerY()) else if (interactive) lightOf(glowFollowY, height.toFloat()) else glowY) * density + outPx
+    state[i++] = (if (interactive || shapePress) pressGlowSpread else glowSpread) * density
+    state[i++] = if (opaque) 0f else if (shapePress) (pressShapes?.getOrNull(pressedShape) ?: 0f) * glowLevel else if (interactive) pressGlow * glowLevel else glowStrength
     state[i++] = shadowRadius * density
     state[i++] = shadowOffset * density
     state[i++] = shadowSpread * density
@@ -518,7 +690,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = if (opaque) 0f else pinchSpread
     state[i++] = if (opaque) 0f else rimPrism
     state[i++] = rimWidth
-    state[i++] = if (rimOutside) 1f else 0f
+    state[i++] = if (!rimOutside) 0f else if (rimCrisp) 2f else 1f
     state[i++] = rimSide
     state[i++] = edgeAxis
     state[i++] = if (opaque) 0f else prismAxis
@@ -565,9 +737,25 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = frostGain
     state[i++] = frostGamma
     state[i++] = frostChroma
-    i = putColor(i, if (opaque) fallback else activeTint)
+    i = putColor(i, if (opaque) fallback else tint)
     i = putColor(i, rim)
-    putColor(i, shadow)
+    i = putColor(i, shadow)
+    i = putColor(i, if (opaque) TRANSPARENT else effectTint)
+    state[i++] = tintDarken
+    state[i++] = tintMix
+    val glowShapeAt = i
+    if (shapePress) {
+      val k = pressedShape * 4
+      state[i++] = shapeBuffer[k]
+      state[i++] = shapeBuffer[k + 1]
+      state[i++] = shapeBuffer[k + 2]
+      state[i] = shapeBuffer[k + 3]
+    } else {
+      state[i++] = 0f
+      state[i++] = 0f
+      state[i++] = 0f
+      state[i] = 0f
+    }
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -645,9 +833,12 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glassShader.setFloatUniform("tone", state[u], state[u + 1], state[u + 2], state[u + 3])
     u += 4
     glassShader.setFloatUniform("frostTone", state[u], state[u + 1], state[u + 2], state[u + 3])
-    glassShader.setColorUniform("tint", if (opaque) fallback else activeTint)
+    glassShader.setColorUniform("tint", if (opaque) fallback else tint)
     glassShader.setColorUniform("rim", rim)
     glassShader.setColorUniform("shadow", shadow)
+    glassShader.setColorUniform("colorTint", if (opaque) TRANSPARENT else effectTint)
+    glassShader.setFloatUniform("colorTintModel", tintDarken, tintMix)
+    glassShader.setFloatUniform("glowShape", state[glowShapeAt], state[glowShapeAt + 1], state[glowShapeAt + 2], state[glowShapeAt + 3])
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
@@ -660,18 +851,16 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
     if (lifted && !drawingLifted) return
-    val scale = currentScale
     canvas.save()
-    canvas.scale(scale, scale, width * 0.5f, height * 0.5f)
+    applyPress(canvas)
     drawGlass(canvas)
     canvas.restore()
   }
 
   override fun dispatchDraw(canvas: Canvas) {
     if (lifted && !drawingLifted) return
-    val scale = currentScale
     canvas.save()
-    canvas.scale(scale, scale, width * 0.5f, height * 0.5f)
+    applyPress(canvas)
     super.dispatchDraw(canvas)
     canvas.restore()
   }
@@ -757,9 +946,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     val recording = node.beginRecording(width, height)
     drawingLifted = true
     try {
-      val scale = currentScale
       recording.save()
-      recording.scale(scale, scale, width * 0.5f, height * 0.5f)
+      applyPress(recording)
       drawGlass(recording)
       super.dispatchDraw(recording)
       recording.restore()
@@ -803,8 +991,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   private fun prepareBackdrop(): Boolean {
     selfToGlobal.reset()
     transformMatrixToGlobal(selfToGlobal)
-    val scale = currentScale
-    if (scale != 1f) selfToGlobal.preScale(scale, scale, width * 0.5f, height * 0.5f)
+    applyPress(selfToGlobal)
     return selfToGlobal.invert(inverse)
   }
 
@@ -1008,15 +1195,29 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     val EDGE_STOPS = floatArrayOf(0f, 0.3f, 0.7f, 1f)
     const val ADAPTIVE_LIFT = 0.14f
     const val ADAPTIVE_DARKEN = 0.22f
-    const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 59 + 36
+    const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 59 + 46
     const val SAMPLE_SIZE = 8
     const val SAMPLE_INTERVAL_MS = 16L
     const val SAMPLE_INSET = 6f
     const val SAMPLE_WIDTH = 8f
     const val SAMPLE_STEP = 0.015f
-    const val TINT_STRENGTH = 0.5f
-    const val PRESS_PERIOD = 0.32f
+    const val TINT_STRENGTH = 0.85f
+    const val PRESS_IN_OMEGA = 35f
+    const val PRESS_IN_DAMPING = 0.8f
+    const val PRESS_OUT_OMEGA = 17.6f
+    const val PRESS_OUT_DAMPING = 0.36f
+    const val GLOW_RISE = 0.025f
+    const val GLOW_FALL = 0.12f
+    const val GLOW_DIM = 0.15f
+    const val GLOW_OUTSIDE = 0.6f
+    const val OUTSIDE_REACH = 28f
+    const val LIGHT_FOLLOW = 0.35f
+    const val PRESS_LEAN = 1.5f
+    const val PRESS_STRETCH = 0.01f
     const val FOLLOW_TIME = 0.05f
     const val MAX_STEP = 0.05f
+    const val IDLE_GAP = 0.1f
+    const val FRAME_STEP = 1f / 60f
+    const val SUB_STEP = 0.004f
   }
 }

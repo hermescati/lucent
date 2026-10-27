@@ -4,8 +4,8 @@ import { View, type LayoutChangeEvent } from 'react-native';
 import { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AnimatedNativeGlassView } from './NativeGlass';
-import { glassPresets, glassPress } from './presets';
-import { ContainerContext, radiusOf, resolveEffectStyle, useGlassScheme } from './shared';
+import { glassPress } from './presets';
+import { ContainerContext, radiusOf, resolveEffectStyle, useGlassMaterial } from './shared';
 
 export const GlassView = ({
   glassEffectStyle,
@@ -20,8 +20,8 @@ export const GlassView = ({
 }: GlassViewProps) => {
   const container = useContext(ContainerContext);
   const id = useId();
-  const scheme = useGlassScheme(colorScheme);
   const effect = resolveEffectStyle(glassEffectStyle);
+  const material = useGlassMaterial(effect.style, colorScheme);
   const radius = radiusOf(style);
   const [side, setSide] = useState(0);
   const presence = useSharedValue(effect.style === 'none' ? 0 : 1);
@@ -37,8 +37,8 @@ export const GlassView = ({
 
   const layout = (event: LayoutChangeEvent) => {
     const { x, y, width, height } = event.nativeEvent.layout;
-    setSide(Math.min(width, height));
-    container?.set(id, { x, y, width, height, radius, style: effect.style });
+    setSide(Math.max(width, height));
+    container?.set(id, { x, y, width, height, radius, style: effect.style, interactive: isInteractive });
     onLayout?.(event);
   };
 
@@ -53,15 +53,15 @@ export const GlassView = ({
   return (
     <AnimatedNativeGlassView
       ref={ref as unknown as Ref<ComponentRef<typeof AnimatedNativeGlassView>>}
-      {...glassPresets[effect.style === 'clear' ? 'clear' : 'regular'][scheme]}
+      {...material}
       lift
       animatedProps={animatedProps}
       cornerRadius={radius}
       glassTint={tintColor}
       interactive={isInteractive}
-      pressScale={glassPress.scale}
-      pressGlow={glassPress.glow}
-      pressGlowSpread={side * glassPress.glowReach}
+      pressGrow={glassPress.grow}
+      pressGlow={side >= glassPress.wideFrom ? glassPress.wideGlow : glassPress.glow}
+      pressGlowSpread={glassPress.glowSpread}
       style={style}
       onLayout={layout}
       {...rest}>

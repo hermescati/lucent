@@ -1,17 +1,15 @@
 import type {
   NativeTabsTriggerBadgeProps,
-  NativeTabsTriggerIconProps,
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { Children, isValidElement, type ComponentType, type ReactNode } from 'react';
 
-import { resolveTabIcon } from './svgIcon';
 import type { LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 
 export interface TabSpec {
   name: string;
   label: string;
-  icon?: NativeTabsTriggerIconProps;
+  icon?: LucentNativeTabsTriggerIconProps;
   badge?: string;
   badgeColor?: string;
   hidden: boolean;
@@ -69,7 +67,7 @@ export const parseTriggers = (children: ReactNode, parts: TriggerParts): TabSpec
           spec.label = text;
         }
       } else if (part.type === parts.Icon) {
-        spec.icon = resolveTabIcon(part.props as LucentNativeTabsTriggerIconProps);
+        spec.icon = part.props as LucentNativeTabsTriggerIconProps;
       } else if (part.type === parts.Badge) {
         const {
           children: text,

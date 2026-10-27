@@ -6,6 +6,7 @@ import { motion } from '../theme/tokens';
 export interface TabBarCollapseState {
   progress: SharedValue<number>;
   target: SharedValue<number>;
+  locked: SharedValue<boolean>;
   minimize: 'onScrollDown' | 'onScrollUp' | null;
 }
 
@@ -19,15 +20,16 @@ interface Props {
 export const TabBarCollapseProvider = ({ minimize, children }: Props) => {
   const progress = useSharedValue(0);
   const target = useSharedValue(0);
+  const locked = useSharedValue(false);
 
-  return <TabBarCollapseContext value={{ progress, target, minimize }}>{children}</TabBarCollapseContext>;
+  return <TabBarCollapseContext value={{ progress, target, locked, minimize }}>{children}</TabBarCollapseContext>;
 };
 
 export const useTabBarCollapse = (): TabBarCollapseState | null => useContext(TabBarCollapseContext);
 
 export const setTabBarCollapsed = (state: TabBarCollapseState, value: number) => {
   'worklet';
-  if (state.target.get() === value) {
+  if (state.target.get() === value || (value === 1 && state.locked.get())) {
     return;
   }
   state.target.set(value);

@@ -1,8 +1,11 @@
 import type { GlassColorScheme, GlassStyle, GlassViewProps } from 'expo-glass-effect';
 import { createContext } from 'react';
-import { useColorScheme, type StyleProp, type ViewStyle } from 'react-native';
+import { PixelRatio, type StyleProp, type ViewStyle } from 'react-native';
 
-import type { GlassScheme } from './presets';
+import { regularMaterial } from './material';
+import { clearPresets } from './presets';
+import { useLucentTheme } from '../theme/LucentProvider';
+import { glass } from '../theme/tokens';
 
 export interface GlassShape {
   x: number;
@@ -11,6 +14,7 @@ export interface GlassShape {
   height: number;
   radius: number;
   style: GlassStyle;
+  interactive: boolean;
 }
 
 export interface GlassContainerContext {
@@ -39,10 +43,20 @@ export const radiusOf = (style: StyleProp<ViewStyle>): number => {
   return 0;
 };
 
-export const useGlassScheme = (colorScheme: GlassColorScheme = 'auto'): GlassScheme => {
-  const system = useColorScheme();
-  if (colorScheme === 'light' || colorScheme === 'dark') {
-    return colorScheme;
+export const useGlassMaterial = (style: GlassStyle, colorScheme: GlassColorScheme = 'auto') => {
+  const theme = useLucentTheme(undefined, colorScheme);
+  if (style === 'clear') {
+    return clearPresets[theme.scheme];
   }
-  return system === 'dark' ? 'dark' : 'light';
+  return {
+    ...regularMaterial(theme),
+    outset: glass.pad,
+    shadowRadius: 0,
+    shadow: 'rgba(0, 0, 0, 0)',
+    rim: theme.color.glassOutline,
+    rimWidth: glass.outlineWidth * PixelRatio.get(),
+    rimSide: glass.outlineSide,
+    rimCrisp: true,
+    rimOutside: true,
+  };
 };

@@ -1,10 +1,13 @@
-import type { NativeTabsTriggerIconProps } from 'expo-router/native-tabs';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import { isValidElement } from 'react';
 import { Image, type ColorValue, type ImageSourcePropType } from 'react-native';
+import { SvgXml } from 'react-native-svg';
+
+import { isSvgIcon } from './svgIcon';
+import type { LucentNativeTabsTriggerIconProps } from './types';
 
 interface Props {
-  icon?: NativeTabsTriggerIconProps;
+  icon?: LucentNativeTabsTriggerIconProps;
   selected: boolean;
   size: number;
   color: ColorValue;
@@ -19,6 +22,8 @@ const isVariant = <T,>(value: Variant<T>): value is { default?: T; selected?: T 
   !isValidElement(value) &&
   ('default' in value || 'selected' in value);
 
+const templatePaint = /\b(fill|stroke)="(?!none")[^"]*"/g;
+
 const pick = <T,>(value: Variant<T> | undefined, selected: boolean): T | undefined => {
   if (value === undefined) {
     return undefined;
@@ -32,6 +37,21 @@ const pick = <T,>(value: Variant<T> | undefined, selected: boolean): T | undefin
 export const TabIcon = ({ icon, selected, size, color }: Props) => {
   if (!icon) {
     return null;
+  }
+  if (isSvgIcon(icon)) {
+    const markup = pick(icon.svg, selected);
+    if (!markup) {
+      return null;
+    }
+    const original = icon.renderingMode === 'original';
+    return (
+      <SvgXml
+        xml={original ? markup : markup.replace(templatePaint, '$1="currentColor"')}
+        width={size}
+        height={size}
+        color={original ? undefined : color}
+      />
+    );
   }
   const material = 'md' in icon ? pick<AndroidSymbol>(icon.md, selected) : undefined;
   if (material) {

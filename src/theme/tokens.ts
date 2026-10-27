@@ -13,7 +13,7 @@ export const layout = {
   tabLabelHeight: 14,
   tabLabelSize: 10,
   tabBarSideInset: 21,
-  tabBarBottomOffsetAndroid: 32,
+  tabBarBottomOffsetAndroid: 28,
   tabBarMaxWidth: 360,
   tabBarInlinePadding: 7,
   bubbleRestWidth: 76,
@@ -60,6 +60,15 @@ export const closeGlyph = {
   stroke: 1.45,
 } as const;
 
+export const placeholderBlend = { dark: 'plus-lighter', light: 'multiply' } as const;
+
+export const glassOpacity = { default: 0.5, clearFloor: 0.4, opaque: 0.85 } as const;
+
+export const colorTint = {
+  dark: { darken: 0, mix: 0.2 },
+  light: { darken: 0.25, mix: 0 },
+} as const;
+
 export const glass = {
   pad: 28,
   blend: 8,
@@ -75,16 +84,16 @@ export const glass = {
   pullTop: { dark: 10, light: 0 },
   pullTopBand: { dark: 20, light: 1 },
   refractionYScale: { dark: 0.3, light: 0.5 },
-  wideRadius: { dark: 16, light: 32 },
-  wideMix: { dark: 0.35, light: 0.6 },
+  wideRadius: { dark: 16, light: 9 },
+  wideMix: { dark: 0.35, light: 0.22 },
   pressWideMix: { dark: 0.8, light: 0.85 },
-  chroma: { dark: 1.8, light: 2.2 },
+  chroma: { dark: 1.3, light: 1.9 },
   tone: {
     dark: {
       on: 1,
       base: 0.125,
-      gain: 0.45,
-      gamma: 0.705,
+      gain: 0.64,
+      gamma: 0.74,
       frostBase: 0.035,
       frostGain: 0.518,
       frostGamma: 1,
@@ -103,6 +112,8 @@ export const glass = {
   sharpWidth: 1.17,
   softWidth: 2.2,
   rimWidth: 1.6,
+  outlineWidth: 0.45,
+  outlineSide: 1.1,
   rimSide: 3,
   insetShade: { dark: 0, light: 0 },
   insetOffset: 10,
@@ -347,7 +358,7 @@ export const motion = {
   nudgeFollow: 1,
   dragThreshold: 4,
   searchDrag: { start: 10 },
-  searchKeyboard: { edge: 12, focusDelay: 180, dipAt: 0.05, dip: 4 },
+  searchKeyboard: { edge: 12, focusDelay: 180, dipAt: 0.05, dip: 4, minHeight: 120 },
   inkTone: { threshold: 0.04 },
   labelFadeRate: 1.8,
   collapseDistance: 24,

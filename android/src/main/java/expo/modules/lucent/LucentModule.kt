@@ -78,6 +78,7 @@ class LucentModule : Module() {
       Prop("rimPrism") { view: GlassView, value: Float? -> view.rimPrism = value ?: 0f }
       Prop("rimWidth") { view: GlassView, value: Float? -> view.rimWidth = value ?: 2f }
       Prop("rimOutside") { view: GlassView, value: Boolean? -> view.rimOutside = value ?: false }
+      Prop("rimCrisp") { view: GlassView, value: Boolean? -> view.rimCrisp = value ?: false }
       Prop("rimSide") { view: GlassView, value: Float? -> view.rimSide = value ?: 1f }
       Prop("edgeAxis") { view: GlassView, value: Float? -> view.edgeAxis = value ?: 0f }
       Prop("prismAxis") { view: GlassView, value: Float? -> view.prismAxis = value ?: 0f }
@@ -142,10 +143,14 @@ class LucentModule : Module() {
         view.invalidate()
       }
       Prop("glassTint") { view: GlassView, value: Color? -> view.effectTint = value ?: TRANSPARENT }
+      Prop("tintDarken") { view: GlassView, value: Float? -> view.tintDarken = value ?: 0f }
+      Prop("tintMix") { view: GlassView, value: Float? -> view.tintMix = value ?: 0f }
       Prop("interactive") { view: GlassView, value: Boolean? -> view.interactive = value ?: false }
       Prop("pressScale") { view: GlassView, value: Float? -> view.pressScale = value ?: 1f }
+      Prop("pressGrow") { view: GlassView, value: Float? -> view.pressGrow = value ?: 0f }
       Prop("pressGlow") { view: GlassView, value: Float? -> view.pressGlow = value ?: 0f }
       Prop("pressGlowSpread") { view: GlassView, value: Float? -> view.pressGlowSpread = value ?: 0f }
+      Prop("pressShapes") { view: GlassView, value: FloatArray? -> view.pressShapes = value }
 
       OnViewDidUpdateProps { view: GlassView ->
         view.updateEffect()

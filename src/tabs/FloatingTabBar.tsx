@@ -24,7 +24,6 @@ import { SearchMode } from './SearchMode';
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
 import { setTabBarCollapsed, useTabBarCollapse } from './collapse';
-import { barGlassStyle } from './glassStyle';
 import { useKeyboard } from './keyboard';
 import { useTabBarOffset } from './offset';
 import { reselectTab } from './reselect';
@@ -32,6 +31,7 @@ import { useSearchHost } from './search';
 import type { TabSpec } from './triggers';
 import { useGlassPress } from './useGlassPress';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../glass/NativeGlass';
+import { regularMaterial } from '../glass/material';
 import { useLucentTheme } from '../theme/LucentProvider';
 import { glass, layout, motion, space } from '../theme/tokens';
 
@@ -306,7 +306,7 @@ export const FloatingTabBar = ({ tabs, searchTab, tintColor, badgeColor, badgeTe
   const backPress = useGlassPress();
   const backLight = useSharedValue(0);
   const backDragging = useSharedValue(false);
-  const glassStyle = barGlassStyle(theme);
+  const glassStyle = regularMaterial(theme);
   const nudge = useSharedValue(0);
   const pressSquash = useSharedValue(0);
   const searchMode = useSharedValue(searchFocused ? 1 : 0);
@@ -417,6 +417,16 @@ export const FloatingTabBar = ({ tabs, searchTab, tintColor, badgeColor, badgeTe
       setTabBarCollapsed(collapse, 0);
     }
   }, [focusedIndex, focused, settledIndex, dragIndex, lensPosition, lensPresence, collapse]);
+
+  useEffect(() => {
+    if (!collapse) {
+      return;
+    }
+    collapse.locked.set(searchFocused);
+    if (searchFocused) {
+      setTabBarCollapsed(collapse, 0);
+    }
+  }, [collapse, searchFocused]);
 
   const morphSearch = useCallback(
     (open: boolean) => {

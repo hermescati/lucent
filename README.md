@@ -18,7 +18,7 @@ The props copy Expo's own APIs, so Expo's docs apply. See [docs/API.md](docs/API
 | `GlassView`, `GlassContainer`, `isLiquidGlassAvailable`, `isGlassEffectAPIAvailable` | Same as `expo-glass-effect`                                                                                                    |
 | `NativeTabs`                                                                         | Same as `expo-router/native-tabs`; Android gets the floating glass bar with the lens, drag between tabs and minimize on scroll |
 | `SearchBar`                                                                          | Same as expo-router's `Stack.SearchBar`; on Android the search tab morphs into the field and rides the keyboard                |
-| `LucentProvider`                                                                     | Optional: colour scheme, tint and colour overrides                                                                             |
+| `LucentProvider`                                                                     | Optional: colour scheme, tint, colour overrides and `glassOpacity`                                                             |
 | `useTabBarScroll`, `useTabBarInset`, `TabScrollMarker`                               | Wire scroll views to the bar                                                                                                   |
 | `GlassBackdrop`                                                                      | Only for glass outside `NativeTabs` on Android                                                                                 |
 
@@ -29,7 +29,7 @@ Lucent needs a development build (it ships a native Android module), Expo SDK 58
 ```sh
 npx expo install expo-lucent expo-router expo-glass-effect expo-symbols expo-haptics \
   react-native-reanimated react-native-worklets react-native-gesture-handler \
-  react-native-keyboard-controller react-native-screens react-native-safe-area-context
+  react-native-keyboard-controller react-native-screens react-native-safe-area-context react-native-svg
 npx expo run:android
 ```
 
@@ -72,6 +72,14 @@ const onScroll = useTabBarScroll();
 const inset = useTabBarInset();
 
 <Animated.ScrollView onScroll={onScroll} contentContainerStyle={{ paddingBottom: inset }} />;
+```
+
+## Glass opacity
+
+iOS lets people choose how their Liquid Glass looks, from clear to tinted (Settings → Display & Brightness), and native glass follows that choice. Android has no such setting, so `LucentProvider` takes the same choice for the whole app as `glassOpacity`, from `0` (clearest) to `1` (most tinted). The default, `0.5`, matches the iOS default. It only affects Android; on iOS the system setting applies.
+
+```tsx
+<LucentProvider glassOpacity={0.7}>{children}</LucentProvider>
 ```
 
 ## Example app

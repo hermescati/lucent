@@ -65,9 +65,12 @@ uniform float clipSoft;
 uniform float clipOn;
 uniform float alphaPass;
 uniform float3 wall;
+uniform float4 glowShape;
 layout(color) uniform half4 tint;
 layout(color) uniform half4 rim;
 layout(color) uniform half4 shadow;
+layout(color) uniform half4 colorTint;
+uniform float2 colorTintModel;
 
 float capsule(float2 p, float4 rect) {
   float2 center = (rect.xy + rect.zw) * 0.5;
@@ -152,13 +155,16 @@ half4 main(float2 coord) {
   }
   float4 rimColor = float4(rim);
   float rimHalf = max(rimWidth, 0.5) * 0.5;
-  if (rimOutside > 0.0 && rimColor.a > 0.0 && d > -rimHalf && d < rimHalf * 3.0) {
+  if (rimOutside > 0.0 && rimColor.a > 0.0 && d > -max(rimHalf, 0.5) && d < max(rimHalf * 3.0, rimWidth + 0.5)) {
     float2 g = float2(field(coord + float2(1.0, 0.0)) - field(coord - float2(1.0, 0.0)),
                       field(coord + float2(0.0, 1.0)) - field(coord - float2(0.0, 1.0)));
     float gl = length(g);
     float side = gl > 0.0001 ? g.x * g.x / (gl * gl) : 0.0;
-    float stroke = clamp(1.0 - abs(d - rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * (1.0 - cover);
-    float sa = rimColor.a * stroke * mix(1.0, rimSide, side);
+    float dn = d / max(gl * 0.5, 0.25);
+    float stroke = rimOutside > 1.5
+      ? clamp(clamp(0.5 - (dn - rimWidth), 0.0, 1.0) - clamp(0.5 - dn, 0.0, 1.0), 0.0, 1.0) * (1.0 - cover)
+      : clamp(1.0 - abs(d - rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * (1.0 - cover);
+    float sa = rimColor.a * stroke * (rimOutside > 1.5 ? pow(side, rimSide) : mix(1.0, rimSide, side));
     outer = float4(rimColor.rgb * sa, sa) + outer * (1.0 - sa);
   }
   if (cover <= 0.004) {
@@ -307,6 +313,13 @@ half4 main(float2 coord) {
     float washed = luma(col);
     col = clamp(mix(float3(washed), col, saturate), float3(0.0), float3(1.0));
   }
+  if (colorTint.a > 0.0) {
+    float base = luma(col);
+    float floor = tone.x * tone.w;
+    float lift = clamp((base - floor) / max(1.0 - floor, 0.01), 0.0, 1.0);
+    float3 tinted = 1.0 - (1.0 - float3(colorTint.rgb)) * (1.0 - colorTintModel.y * lift) - colorTintModel.x * (1.0 - base);
+    col = mix(col, clamp(tinted, float3(0.0), float3(1.0)), float(colorTint.a));
+  }
   if (adaptive > 0.0) {
     float e = smoothstep(0.35, 0.75, luma(col));
     col = mix(col, mix(col, float3(1.0 - e), 0.14 + 0.08 * e), adaptive);
@@ -314,7 +327,7 @@ half4 main(float2 coord) {
   col *= 1.0 - dim;
   if (glowStrength > 0.0) {
     float2 gd = (coord - glowCenter) / max(glowSpread, 1.0);
-    float glowMask = shapeCount > 1.5 ? clamp(0.5 - capsule(coord, shapes[0]), 0.0, 1.0) : 1.0;
+    float glowMask = glowShape.z > glowShape.x ? clamp(0.5 - capsule(coord, glowShape), 0.0, 1.0) : shapeCount > 1.5 ? clamp(0.5 - capsule(coord, shapes[0]), 0.0, 1.0) : 1.0;
     col += float3(glowStrength * exp(-0.5 * dot(gd, gd)) * glowMask);
   }
 
@@ -328,7 +341,9 @@ half4 main(float2 coord) {
     col += float3((edgeSharp * exp(-shadeDepth / max(sharpWidth, 0.1)) + edgeSoft * exp(-depth / max(softWidth, 0.1))) * facingY);
   } else {
     float bevel = clamp(1.0 - depth / max(sharpWidth, 0.1), 0.0, 1.0);
-    col += float3((edgeSharp * bevel + edgeSoft * exp(-depth / max(softWidth, 0.1))) * facingY * facingY);
+    float edge = (edgeSharp * bevel + edgeSoft * exp(-depth / max(softWidth, 0.1))) * facingY * facingY;
+    float3 screened = col + edge / max(1.0 - tone.x, 0.1) * (1.0 - col);
+    col = mix(col + float3(edge), screened, tone.w);
   }
   col = clamp(col, float3(0.0), float3(1.0));
 
@@ -338,7 +353,8 @@ half4 main(float2 coord) {
   float band = clamp(bezel * 0.3, 2.0, highlightWidth);
   float glowIn = clamp((depth - 1.0) / 2.0, 0.0, 1.0);
   float glow = glowIn * pow(clamp(1.0 - (depth - 3.0) / band, 0.0, 1.0), 1.5) * cover;
-  float hair = clamp(1.0 - abs(d + rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * cover * (1.0 - step(0.5, rimOutside));
+  float sheen = clamp(1.0 - abs(d + rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * cover;
+  float hair = sheen * (1.0 - step(0.5, rimOutside));
   if (rimPrism > 0.0) {
     float hue = 0.33 + depth * 0.09;
     float3 spectrum = 0.5 + 0.5 * cos(6.2832 * (hue + float3(0.0, 0.33, 0.67)));
@@ -347,7 +363,7 @@ half4 main(float2 coord) {
     col += (spectrum - 0.5) * band * rimPrism;
   }
   col = mix(col, rimColor.rgb, rimColor.a * hair * mix(1.0, rimSide, n.x * n.x));
-  col += float3((hair * 0.7 * (lead + trail) + glow * 0.1 * lead) * specular);
+  col += float3((sheen * 0.7 * (lead + trail) + glow * 0.1 * lead) * specular);
   col = clamp(col, float3(0.0), float3(1.0));
   return half4(float4(col * cover, cover) + outer);
 }

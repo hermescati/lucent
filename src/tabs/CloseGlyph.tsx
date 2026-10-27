@@ -1,4 +1,5 @@
-import { StyleSheet, View, type ColorValue } from 'react-native';
+import type { ColorValue } from 'react-native';
+import Svg, { Line } from 'react-native-svg';
 
 import { closeGlyph } from '../theme/tokens';
 
@@ -7,37 +8,13 @@ interface Props {
   color: ColorValue;
 }
 
-export const CloseGlyph = ({ size, color }: Props) => {
-  const unit = size / closeGlyph.grid;
-  const length = closeGlyph.span * Math.SQRT2 * unit;
-  const thickness = closeGlyph.stroke * unit;
-  const bar = {
-    width: length + thickness,
-    height: thickness,
-    borderRadius: thickness / 2,
-    backgroundColor: color,
-  };
+const { grid, span, stroke } = closeGlyph;
+const near = (grid - span) / 2;
+const far = (grid + span) / 2;
 
-  return (
-    <View style={[styles.box, { width: size, height: size }]} pointerEvents="none">
-      <View style={[styles.bar, bar, styles.forward]} />
-      <View style={[styles.bar, bar, styles.back]} />
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  box: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bar: {
-    position: 'absolute',
-  },
-  forward: {
-    transform: [{ rotate: '45deg' }],
-  },
-  back: {
-    transform: [{ rotate: '-45deg' }],
-  },
-});
+export const CloseGlyph = ({ size, color }: Props) => (
+  <Svg width={size} height={size} viewBox={`0 0 ${grid} ${grid}`} pointerEvents="none">
+    <Line x1={near} y1={near} x2={far} y2={far} stroke={color} strokeWidth={stroke} strokeLinecap="round" />
+    <Line x1={far} y1={near} x2={near} y2={far} stroke={color} strokeWidth={stroke} strokeLinecap="round" />
+  </Svg>
+);
