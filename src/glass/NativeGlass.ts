@@ -17,8 +17,16 @@ export interface NativeGlassViewProps extends ViewProps {
   refractOutwardY?: boolean;
   refractionYScale?: number;
   falloff?: number;
+  bumpPeak?: number;
+  bumpShape?: number;
+  bumpInset?: number;
+  bumpSplit?: number;
+  bumpShapeY?: number;
+  bumpCurve?: number;
   dispersion?: number;
   magnify?: number;
+  magnifyY?: number;
+  frostMagnify?: number;
   saturation?: number;
   adaptive?: number;
   dim?: number;
@@ -36,6 +44,11 @@ export interface NativeGlassViewProps extends ViewProps {
   shadowRadius?: number;
   shadowOffset?: number;
   shadowSpread?: number;
+  shadowGap?: number;
+  shadowSoft?: number;
+  insetSide?: number;
+  insetSideWidth?: number;
+  insetRamp?: number;
   pinch?: number;
   pinchWidth?: number;
   pinchSpread?: number;
@@ -43,6 +56,7 @@ export interface NativeGlassViewProps extends ViewProps {
   rimWidth?: number;
   rimOutside?: boolean;
   rimSide?: number;
+  rimFloor?: number;
   rimCrisp?: boolean;
   edgeAxis?: number;
   prismAxis?: number;
@@ -54,6 +68,7 @@ export interface NativeGlassViewProps extends ViewProps {
   pinchRight?: number;
   sampleMaxX?: number;
   ellipse?: number;
+  continuous?: number;
   wallSide?: number;
   wallRound?: number;
   wallLead?: number;
@@ -66,6 +81,8 @@ export interface NativeGlassViewProps extends ViewProps {
   pullTopBand?: number;
   rimOut?: number;
   rimOutBand?: number;
+  rimPull?: number;
+  rimPullBand?: number;
   wideRadius?: number;
   wideMix?: number;
   frost?: number;
@@ -93,6 +110,9 @@ export interface NativeGlassViewProps extends ViewProps {
   clipScaleY?: number;
   clipSoft?: number;
   clipOn?: number;
+  clipContent?: boolean;
+  aboveTone?: boolean;
+  radiusBottom?: number;
   tint?: ColorValue;
   rim?: ColorValue;
   fallback?: ColorValue;
@@ -120,6 +140,8 @@ interface NativeGlassBlurProps extends ViewProps {
 export interface NativeGlassBackdropProps extends ViewProps {
   group?: string;
   offscreen?: boolean;
+  saturation?: number;
+  brightness?: number;
 }
 
 export const NativeGlassView = requireNativeView<NativeGlassViewProps>('Lucent', 'LucentGlassView');
@@ -127,6 +149,8 @@ export const NativeGlassView = requireNativeView<NativeGlassViewProps>('Lucent',
 export const AnimatedNativeGlassView = Animated.createAnimatedComponent(NativeGlassView);
 
 export const NativeGlassBackdrop = requireNativeView<NativeGlassBackdropProps>('Lucent', 'LucentGlassBackdropView');
+
+export const AnimatedNativeGlassBackdrop = Animated.createAnimatedComponent(NativeGlassBackdrop);
 
 export const NativeGlassBlur = requireNativeView<NativeGlassBlurProps>('Lucent', 'LucentGlassBlurView');
 

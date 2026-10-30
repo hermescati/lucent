@@ -31,6 +31,7 @@ import com.facebook.react.uimanager.ReactOverflowView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.max
@@ -53,8 +54,15 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var refractOutwardY: Boolean? = null
   var refractionYScale = 1f
   var falloff = 0f
+  var bumpPeak = 0f
+  var bumpShape = 1f
+  var bumpInset = 0f
+  var bumpSplit = 1f
+  var bumpShapeY = 0f
+  var bumpCurve = 0f
   var dispersion = 0f
   var magnify = 0f
+  var magnifyY = -999f
   var saturation = 1f
   var adaptive = 0f
   var dim = 0f
@@ -72,6 +80,11 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var shadowRadius = 0f
   var shadowOffset = 0f
   var shadowSpread = 0f
+  var shadowGap = 0f
+  var shadowSoft = 0f
+  var insetSide = 0f
+  var insetSideWidth = 1f
+  var insetRamp = 0f
   var pinch = 0f
   var pinchWidth = 0f
   var pinchSpread = 0f
@@ -80,6 +93,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var rimOutside = false
   var rimCrisp = false
   var rimSide = 1f
+  var rimFloor = 0f
   var edgeAxis = 0f
   var prismAxis = 0f
   var prismShift = 0f
@@ -90,6 +104,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var pinchRight = 0f
   var sampleMaxX = 0f
   var ellipse = 0f
+  var continuous = 0f
+  var radiusBottom = 0f
   var wallSide = 0f
   var wallRound = 1f
   var wallLead = 1f
@@ -101,11 +117,14 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var pullTopBand = 1f
   var rimOut = 0f
   var rimOutBand = 1f
+  var rimPull = 0f
+  var rimPullBand = 1f
   var wideRadius = 0f
   var wideMix = 0f
   var frost = 0f
   var frostClear = 0f
   var frostRadius = 0f
+  var frostMagnify = 0f
   var toneBase = 0f
   var toneGain = 1f
   var toneGamma = 1f
@@ -138,6 +157,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
   var clipScaleY = 1f
   var clipSoft = 0f
   var clipOn = 0f
+  var clipContent = false
+  var aboveTone = false
   var tint: Color = TRANSPARENT
   var rim: Color = TRANSPARENT
   var fallback: Color = TRANSPARENT
@@ -250,6 +271,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
 
   private val preDraw = ViewTreeObserver.OnPreDrawListener {
     stepPress()
+    if (lifted && !interactive && !pressesShapes) updateEffect()
     invalidate()
     true
   }
@@ -344,6 +366,31 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glowFollowY += (touchY - glowFollowY) * follow
     if (pressesShapes) pressShapeChild()
     if (interactive || pressesShapes) updateEffect()
+  }
+
+  private val clipMatrix = Matrix()
+  private val clipInverse = Matrix()
+  private val clipPoints = FloatArray(4)
+
+  private fun fillSampleClip(out: FloatArray, at: Int) {
+    out[at] = -OPEN_CLIP
+    out[at + 1] = -OPEN_CLIP
+    out[at + 2] = OPEN_CLIP
+    out[at + 3] = OPEN_CLIP
+    if (!lifted || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    clipMatrix.reset()
+    transformMatrixToGlobal(clipMatrix)
+    if (!clipMatrix.invert(clipInverse)) return
+    val root = rootView ?: return
+    clipPoints[0] = 0f
+    clipPoints[1] = 0f
+    clipPoints[2] = root.width.toFloat()
+    clipPoints[3] = root.height.toFloat()
+    clipInverse.mapPoints(clipPoints)
+    out[at] = quantize(min(clipPoints[0], clipPoints[2]) + outPx)
+    out[at + 1] = quantize(min(clipPoints[1], clipPoints[3]) + outPx)
+    out[at + 2] = quantize(max(clipPoints[0], clipPoints[2]) + outPx)
+    out[at + 3] = quantize(max(clipPoints[1], clipPoints[3]) + outPx)
   }
 
   private val pressesShapes: Boolean
@@ -664,8 +711,15 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = if (refractOutward) 1f else -1f
     state[i++] = (if (refractOutwardY ?: refractOutward) 1f else -1f) * refractionYScale
     state[i++] = falloff
+    state[i++] = bumpPeak * density
+    state[i++] = bumpShape * density
+    state[i++] = bumpInset * density
+    state[i++] = bumpSplit
+    state[i++] = bumpShapeY * density
+    state[i++] = bumpCurve
     state[i++] = if (opaque) 0f else dispersion
     state[i++] = if (opaque) 0f else magnify
+    state[i++] = if (opaque) -999f else magnifyY
     state[i++] = if (opaque) 1f else saturation
     state[i++] = if (opaque) 0f else adaptive
     state[i++] = if (opaque) 0f else dim
@@ -685,6 +739,11 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = shadowRadius * density
     state[i++] = shadowOffset * density
     state[i++] = shadowSpread * density
+    state[i++] = shadowGap * density
+    state[i++] = shadowSoft
+    state[i++] = insetSide
+    state[i++] = insetSideWidth * density
+    state[i++] = insetRamp * density
     state[i++] = if (opaque) 0f else pinch * density
     state[i++] = pinchWidth * density
     state[i++] = if (opaque) 0f else pinchSpread
@@ -692,6 +751,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = rimWidth
     state[i++] = if (!rimOutside) 0f else if (rimCrisp) 2f else 1f
     state[i++] = rimSide
+    state[i++] = rimFloor
     state[i++] = edgeAxis
     state[i++] = if (opaque) 0f else prismAxis
     state[i++] = if (opaque) 0f else prismShift * density
@@ -702,6 +762,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = if (opaque) 0f else pinchRight * density
     state[i++] = sampleMaxX * density
     state[i++] = ellipse
+    state[i++] = continuous
+    state[i++] = radiusBottom * density
     state[i++] = wallSide
     state[i++] = wallRound
     state[i++] = wallLead
@@ -722,6 +784,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = pullTopBand * density
     state[i++] = if (opaque) 0f else rimOut * density
     state[i++] = rimOutBand * density
+    state[i++] = if (opaque) 0f else rimPull * density
+    state[i++] = rimPullBand * density
     state[i++] = frostLeft * density + outPx
     state[i++] = frostTop * density + outPx
     state[i++] = frostRight * density + outPx
@@ -729,6 +793,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     state[i++] = if (opaque) 0f else frost
     state[i++] = frostClear
     state[i++] = frostRadius * density
+    state[i++] = frostMagnify
     state[i++] = toneBase
     state[i++] = toneGain
     state[i++] = toneGamma
@@ -749,13 +814,15 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
       state[i++] = shapeBuffer[k]
       state[i++] = shapeBuffer[k + 1]
       state[i++] = shapeBuffer[k + 2]
-      state[i] = shapeBuffer[k + 3]
+      state[i++] = shapeBuffer[k + 3]
     } else {
       state[i++] = 0f
       state[i++] = 0f
       state[i++] = 0f
-      state[i] = 0f
+      state[i++] = 0f
     }
+    val sampleClipAt = i
+    fillSampleClip(state, i)
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -772,8 +839,12 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glassShader.setFloatUniform("direction", state[u++])
     glassShader.setFloatUniform("directionY", state[u++])
     glassShader.setFloatUniform("falloff", state[u++])
+    glassShader.setFloatUniform("bump", state[u++], state[u++], state[u++], state[u++])
+    glassShader.setFloatUniform("bumpY", state[u++])
+    glassShader.setFloatUniform("bumpCurve", state[u++])
     glassShader.setFloatUniform("dispersion", state[u++])
     glassShader.setFloatUniform("magnify", state[u++])
+    glassShader.setFloatUniform("magnifyY", state[u++])
     glassShader.setFloatUniform("saturation", state[u++])
     glassShader.setFloatUniform("adaptive", state[u++])
     glassShader.setFloatUniform("dim", state[u++])
@@ -792,6 +863,11 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glassShader.setFloatUniform("shadowRadius", state[u++])
     glassShader.setFloatUniform("shadowOffset", state[u++])
     glassShader.setFloatUniform("shadowSpread", state[u++])
+    glassShader.setFloatUniform("shadowGap", state[u++])
+    glassShader.setFloatUniform("shadowSoft", state[u++])
+    glassShader.setFloatUniform("insetSide", state[u], state[u + 1])
+    u += 2
+    glassShader.setFloatUniform("insetRamp", state[u++])
     glassShader.setFloatUniform("pinch", state[u++])
     glassShader.setFloatUniform("pinchWidth", state[u++])
     glassShader.setFloatUniform("pinchSpread", state[u++])
@@ -799,6 +875,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glassShader.setFloatUniform("rimWidth", state[u++])
     glassShader.setFloatUniform("rimOutside", state[u++])
     glassShader.setFloatUniform("rimSide", state[u++])
+    glassShader.setFloatUniform("rimFloor", state[u++])
     glassShader.setFloatUniform("axis", state[u], state[u + 1], state[u + 2])
     u += 3
     glassShader.setFloatUniform("insetShade", state[u++])
@@ -808,6 +885,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glassShader.setFloatUniform("pinchRight", state[u++])
     glassShader.setFloatUniform("sampleMaxX", state[u++])
     glassShader.setFloatUniform("ellipse", state[u++])
+    glassShader.setFloatUniform("continuous", state[u++])
+    glassShader.setFloatUniform("radiusBottom", state[u++])
     glassShader.setFloatUniform("wall", state[u], state[u + 1], state[u + 2])
     u += 3
     glassShader.setFloatUniform("clipRect", state[u], state[u + 1], state[u + 2], state[u + 3])
@@ -825,11 +904,14 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     u += 2
     glassShader.setFloatUniform("rimOut", state[u], state[u + 1])
     u += 2
+    glassShader.setFloatUniform("rimPull", state[u], state[u + 1])
+    u += 2
     glassShader.setFloatUniform("frostRect", state[u], state[u + 1], state[u + 2], state[u + 3])
     u += 4
     glassShader.setFloatUniform("frost", state[u++])
     glassShader.setFloatUniform("frostClear", state[u++])
     glassShader.setFloatUniform("frostRadius", state[u++])
+    glassShader.setFloatUniform("frostMagnify", state[u++])
     glassShader.setFloatUniform("tone", state[u], state[u + 1], state[u + 2], state[u + 3])
     u += 4
     glassShader.setFloatUniform("frostTone", state[u], state[u + 1], state[u + 2], state[u + 3])
@@ -839,6 +921,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     glassShader.setColorUniform("colorTint", if (opaque) TRANSPARENT else effectTint)
     glassShader.setFloatUniform("colorTintModel", tintDarken, tintMix)
     glassShader.setFloatUniform("glowShape", state[glowShapeAt], state[glowShapeAt + 1], state[glowShapeAt + 2], state[glowShapeAt + 3])
+    glassShader.setFloatUniform("sampleClip", state[sampleClipAt], state[sampleClipAt + 1], state[sampleClipAt + 2], state[sampleClipAt + 3])
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
@@ -861,9 +944,31 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     if (lifted && !drawingLifted) return
     canvas.save()
     applyPress(canvas)
+    drawChildren(canvas)
+    canvas.restore()
+  }
+
+  private fun drawChildren(canvas: Canvas) {
+    val source = shapes
+    if (!clipContent || source == null || source.size < 4) {
+      super.dispatchDraw(canvas)
+      return
+    }
+    val left = source[0] * density
+    val top = source[1] * density
+    val right = source[2] * density
+    val bottom = source[3] * density
+    if (right <= left || bottom <= top) return
+    val radius = min(cornerRadius * density, min(right - left, bottom - top) * 0.5f)
+    contentPath.rewind()
+    contentPath.addRoundRect(left, top, right, bottom, radius, radius, Path.Direction.CW)
+    canvas.save()
+    canvas.clipPath(contentPath)
     super.dispatchDraw(canvas)
     canvas.restore()
   }
+
+  private val contentPath = Path()
 
   private fun drawGlass(canvas: Canvas) {
     if (presence <= 0f) return
@@ -949,7 +1054,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
       recording.save()
       applyPress(recording)
       drawGlass(recording)
-      super.dispatchDraw(recording)
+      drawChildren(recording)
       recording.restore()
     } finally {
       drawingLifted = false
@@ -1017,6 +1122,30 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     canvas.restore()
   }
 
+  private fun addContinuous(path: Path, rect: RectF, corner: Float) {
+    val wide = rect.width() >= rect.height()
+    val long = max(rect.width(), rect.height()) * 0.5f
+    val short = min(rect.width(), rect.height()) * 0.5f
+    val r = if (corner > 0f) min(short, corner) else short
+    val reach = min(r * 1.528f, long)
+    val t = ((reach / r - 1f) / 0.51f).coerceIn(0f, 1f)
+    val eLong = 2f + 1.35f * t
+    val eShort = 2f
+    for (step in 0 until CONTINUOUS_STEPS) {
+      val angle = step * 2.0 * Math.PI / CONTINUOUS_STEPS
+      val c = cos(angle).toFloat()
+      val s = sin(angle).toFloat()
+      val sc = if (c >= 0f) 1f else -1f
+      val ss = if (s >= 0f) 1f else -1f
+      val l = sc * (long - reach + reach * Math.pow(abs(c).toDouble(), 2.0 / eLong).toFloat())
+      val h = ss * (short - r + r * Math.pow(abs(s).toDouble(), 2.0 / eShort).toFloat())
+      val x = rect.centerX() + if (wide) l else h
+      val y = rect.centerY() + if (wide) h else l
+      if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+  }
+
   private fun buildPlainPath(): Boolean {
     val count = fillShapes()
     plainPath.reset()
@@ -1032,6 +1161,8 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
       shapePath.reset()
       if (i == 0 && ellipse >= 0.5f) {
         shapePath.addOval(shapeRect, Path.Direction.CW)
+      } else if (continuous >= 0.5f) {
+        addContinuous(shapePath, shapeRect, corner)
       } else {
         var r = min(right - left, bottom - top) * 0.5f
         if (corner > 0f) r = min(r, corner)
@@ -1183,6 +1314,7 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     const val DEFAULT_LIGHT_ANGLE = 30f
     const val DEFAULT_HIGHLIGHT_WIDTH = 2f
     const val SHAPE_STEPS = 4f
+    const val OPEN_CLIP = 100000f
     const val REFERENCE_SIDE = 110f
     const val BEZEL_RATIO = 0.5f
     const val REFRACTION_RATIO = 1.2f
@@ -1195,8 +1327,9 @@ class GlassView(context: Context, appContext: AppContext) : ExpoView(context, ap
     val EDGE_STOPS = floatArrayOf(0f, 0.3f, 0.7f, 1f)
     const val ADAPTIVE_LIFT = 0.14f
     const val ADAPTIVE_DARKEN = 0.22f
-    const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 59 + 46
+    const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 65
     const val SAMPLE_SIZE = 8
+    const val CONTINUOUS_STEPS = 128
     const val SAMPLE_INTERVAL_MS = 16L
     const val SAMPLE_INSET = 6f
     const val SAMPLE_WIDTH = 8f

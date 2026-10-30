@@ -1434,6 +1434,7 @@ export const FloatingTabBar = ({ tabs, searchTab, tintColor, badgeColor, badgeTe
           : 1),
       frostClear: glass.lensFrostClear[scheme],
       frostRadius: glass.lensFrostRadius[scheme],
+      frostMagnify: glass.lensFrostMagnify[scheme],
       frostLeft: frostX - frostHalfX + pad,
       frostRight: frostX + frostHalfX + pad,
       frostTop: frostY - frostHalfY + pad,

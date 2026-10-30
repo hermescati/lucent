@@ -3,6 +3,9 @@ package expo.modules.lucent
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.RenderEffect
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.graphics.RenderNode
@@ -31,6 +34,65 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   }
 
   var offscreen = false
+
+  var saturation = 1f
+    set(value) {
+      if (value == field) return
+      field = value
+      toneDirty = true
+      invalidate()
+    }
+
+  var brightness = 1f
+    set(value) {
+      if (value == field) return
+      field = value
+      toneDirty = true
+      invalidate()
+    }
+
+  private var toneDirty = true
+  private var toneEffect: RenderEffect? = null
+  private val toneMatrix = ColorMatrix()
+  private val toneScale = ColorMatrix()
+  private val toneLayer: RenderNode? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassTone") else null
+  private var toneCount = -1
+
+  private val toned: Boolean
+    get() = saturation != 1f || brightness != 1f
+
+  private fun refreshTone() {
+    if (!toneDirty) return
+    toneDirty = false
+    if (!toned) {
+      toneEffect = null
+      return
+    }
+    toneMatrix.setSaturation(saturation)
+    toneScale.setScale(brightness, brightness, brightness, 1f)
+    toneMatrix.postConcat(toneScale)
+    toneEffect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(toneMatrix))
+  }
+
+  private fun recordTone(recorder: RenderNode, upTo: Int) {
+    val layer = toneLayer ?: return
+    layer.setPosition(0, 0, width, height)
+    layer.setClipToBounds(false)
+    val out = layer.beginRecording(width, height)
+    try {
+      out.drawRenderNode(recorder)
+      for (i in 0 until upTo) {
+        val view = order[i]
+        if (view.aboveTone) continue
+        view.clipNode?.takeIf { it.hasDisplayList() }?.let { out.drawRenderNode(it) }
+      }
+    } finally {
+      layer.endRecording()
+    }
+    layer.setRenderEffect(toneEffect)
+    toneCount = upTo
+  }
 
   var group: String = GlassRegistry.DEFAULT_GROUP
     set(value) {
@@ -93,6 +155,17 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   internal fun drawSource(canvas: Canvas, upTo: GlassView?) {
     val content = node ?: return
     if (!content.hasDisplayList()) return
+    val layer = toneLayer
+    if (upTo != null && upTo.aboveTone && toneCount >= 0 && layer != null) {
+      canvas.drawRenderNode(layer)
+      for (i in toneCount until order.size) {
+        val view = order[i]
+        if (view === upTo) break
+        if (!RectF.intersects(upTo.hostBounds, view.hostBounds)) continue
+        view.clipNode?.takeIf { it.hasDisplayList() }?.let { canvas.drawRenderNode(it) }
+      }
+      return
+    }
     canvas.drawRenderNode(content)
     if (upTo == null) return
     for (view in order) {
@@ -128,21 +201,42 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
     } finally {
       recorder.endRecording()
     }
+    refreshTone()
+    toneCount = -1
     if (lifted.isEmpty()) {
-      if (!offscreen) canvas.drawRenderNode(recorder)
+      if (offscreen) return
+      if (toned) {
+        recordTone(recorder, 0)
+        toneLayer?.let { canvas.drawRenderNode(it) }
+      } else {
+        canvas.drawRenderNode(recorder)
+      }
       return
     }
     sortLifted()
     toGlobal.reset()
     transformMatrixToGlobal(toGlobal)
     toGlobal.invert(toHost)
-    for (view in order) view.recordLifted(this, toHost)
+    for ((index, view) in order.withIndex()) {
+      if (toned && view.aboveTone && toneCount < 0) recordTone(recorder, index)
+      view.recordLifted(this, toHost)
+    }
+    if (toned && toneCount < 0) recordTone(recorder, order.size)
     composite.setPosition(0, 0, width, height)
     composite.setClipToBounds(false)
     val out = composite.beginRecording(width, height)
     try {
-      out.drawRenderNode(recorder)
-      for (view in order) view.clipNode?.takeIf { it.hasDisplayList() }?.let { out.drawRenderNode(it) }
+      val layer = toneLayer
+      if (toned && layer != null) {
+        out.drawRenderNode(layer)
+        for ((index, view) in order.withIndex()) {
+          if (index < toneCount && !view.aboveTone) continue
+          view.clipNode?.takeIf { it.hasDisplayList() }?.let { out.drawRenderNode(it) }
+        }
+      } else {
+        out.drawRenderNode(recorder)
+        for (view in order) view.clipNode?.takeIf { it.hasDisplayList() }?.let { out.drawRenderNode(it) }
+      }
     } finally {
       composite.endRecording()
     }

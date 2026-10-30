@@ -54,4 +54,135 @@ export const glassPress = {
   wideGlow: 0.11,
   wideFrom: 118,
   glowSpread: 68,
+  blend: 0.88,
+};
+
+export const lensPresets: Record<GlassScheme, GlassMaterial> = {
+  dark: {
+    blurRadius: 0,
+    bezel: 20,
+    refraction: 3.86,
+    refractionYScale: 0.83,
+    topBend: 1.09,
+    rimPull: 6.53,
+    rimPullBand: 5.45,
+    refractOutward: true,
+    magnify: 0,
+    falloff: -0.59,
+    dispersion: 0,
+    lightAngle: 90,
+    specular: 0.05,
+    highlightWidth: 3,
+    sharpWidth: 1.2,
+    edgeSharp: 0.12,
+    toneOn: 1,
+    toneBase: 0.06,
+    frostBase: 0.045,
+    toneGain: 1,
+    edgeSoft: 0.06,
+    softWidth: 5,
+    toneGamma: 1,
+    tint: 'rgba(0, 0, 0, 0)',
+    fallback: '#2F2F32',
+    rim: 'rgba(0, 0, 0, 0.62)',
+    rimWidth: 2.2,
+    rimOutside: true,
+    rimCrisp: true,
+    rimSide: 3,
+    rimFloor: 0.62,
+    shadow: 'rgba(0, 0, 0, 0.3)',
+    shadowRadius: 3.8,
+    shadowOffset: 7.7,
+    shadowGap: 7.3,
+    shadowSoft: 1,
+    insetSide: 0.14,
+    insetSideWidth: 5,
+    insetShade: 0.2,
+    insetOffset: 10,
+    insetBlur: 9,
+    outset: 16,
+  },
+  light: {
+    blurRadius: 0,
+    bezel: 20,
+    refraction: 3.86,
+    refractionYScale: 0.83,
+    topBend: 1.09,
+    rimPull: 6.53,
+    rimPullBand: 5.45,
+    refractOutward: true,
+    magnify: 0,
+    falloff: -0.59,
+    dispersion: 0,
+    lightAngle: 90,
+    specular: 0.02,
+    highlightWidth: 3,
+    sharpWidth: 1.2,
+    edgeSharp: 0.06,
+    toneOn: 1,
+    toneBase: 0.012,
+    frostBase: 0.045,
+    toneGain: 1,
+    edgeSoft: 0,
+    softWidth: 5,
+    toneGamma: 1,
+    tint: 'rgba(0, 0, 0, 0)',
+    fallback: '#F4F5F9',
+    rim: 'rgba(0, 0, 0, 0.42)',
+    rimWidth: 1.8,
+    rimOutside: true,
+    rimCrisp: true,
+    rimSide: 3,
+    rimFloor: 0.62,
+    shadow: 'rgba(0, 0, 0, 0.11)',
+    shadowRadius: 3.8,
+    shadowOffset: 7.7,
+    shadowGap: 7.3,
+    shadowSoft: 1,
+    insetSide: 0.06,
+    insetSideWidth: 5,
+    insetShade: 0.07,
+    insetRamp: 3,
+    insetOffset: 10,
+    insetBlur: 9,
+    outset: 16,
+  },
+};
+
+const softFrost = {
+  blurRadius: 8,
+  edgeSoft: 0,
+  edgeSharp: 0,
+  toneOn: 0,
+  rim: 'rgba(0, 0, 0, 0)',
+  refraction: 0,
+  rimPull: 0,
+  insetShade: 0,
+  insetSide: 0,
+};
+
+export const lensFrost: Record<GlassScheme, GlassMaterial> = {
+  dark: { ...lensPresets.dark, ...softFrost, tint: 'rgba(232, 232, 235, 0.58)' },
+  light: { ...lensPresets.light, ...softFrost, tint: 'rgba(250, 250, 252, 0.55)' },
+};
+
+export const lensThumb: Record<GlassScheme, GlassMaterial> = {
+  dark: { ...lensPresets.dark, bumpPeak: 6.05, bumpShape: 8.6, bumpShapeY: 5, bumpCurve: 1, bumpInset: 1.04, bumpSplit: 0, rimPull: 0, refraction: 4.2, refractionYScale: 1.0, topBend: 1.0, magnify: 0, insetShade: 0.07, insetSide: 0, dispersion: 2, rimPrism: 0.2, prismAxis: 0.3, toneOn: 0, edgeSoft: 0.02, edgeSharp: 0.14, rim: 'rgba(0, 0, 0, 0.6)', shadow: 'rgba(0, 0, 0, 0)' },
+  light: { ...lensPresets.light, bumpPeak: 6.05, bumpShape: 8.6, bumpShapeY: 5, bumpCurve: 1, bumpInset: 1.04, bumpSplit: 0, rimPull: 0, refraction: 4.2, refractionYScale: 1.0, topBend: 1.0, magnify: 0, insetShade: 0.07, insetSide: 0, dispersion: 2, rimPrism: 0.35, prismAxis: 0.3, toneOn: 0, edgeSoft: 0, edgeSharp: 0.06, shadow: 'rgba(0, 0, 0, 0.06)' },
+};
+
+export const lensSlider: GlassMaterial = { rimPull: 9, rimPullBand: 5.8 };
+
+const switchFrost: GlassMaterial = { bumpPeak: 6, bumpShape: 7, bumpShapeY: 10, bumpCurve: 1, bumpInset: 1, bumpSplit: 0, refraction: 3.86, refractionYScale: 0.83, rimPull: 5.53, rimPullBand: 2.625, outset: 100, rim: 'rgba(0, 0, 0, 0.2)', shadow: 'rgba(0, 0, 0, 0)' };
+
+export const lensSwitchFrost: Record<GlassScheme, GlassMaterial> = {
+  dark: { ...switchFrost, blurRadius: 10 },
+  light: { ...switchFrost, blurRadius: 22 },
+};
+
+export const lensSwitch: GlassMaterial = { bumpPeak: 6, bumpShape: 7, bumpShapeY: 10, bumpCurve: 1, bumpInset: 1, bumpSplit: 0, refraction: 3.86, refractionYScale: 0.83, rimPull: 5.53, rimPullBand: 2.625, outset: 100 };
+
+export const lensFrostTint: Record<GlassScheme, [number, number, number, number]> = {
+  dark: [232, 232, 235, 0.58],
+  light: [250, 250, 252, 0.55],
 };

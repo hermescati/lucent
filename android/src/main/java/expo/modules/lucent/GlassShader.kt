@@ -14,8 +14,12 @@ uniform float refraction;
 uniform float direction;
 uniform float directionY;
 uniform float falloff;
+uniform float4 bump;
+uniform float bumpY;
+uniform float bumpCurve;
 uniform float dispersion;
 uniform float magnify;
+uniform float magnifyY;
 uniform float saturation;
 uniform float adaptive;
 uniform float dim;
@@ -30,6 +34,10 @@ uniform float2 glowCenter;
 uniform float glowSpread;
 uniform float glowStrength;
 uniform float shadowRadius;
+uniform float shadowGap;
+uniform float shadowSoft;
+uniform float2 insetSide;
+uniform float insetRamp;
 uniform float shadowOffset;
 uniform float shadowSpread;
 uniform float pinch;
@@ -39,6 +47,7 @@ uniform float rimPrism;
 uniform float rimWidth;
 uniform float rimOutside;
 uniform float rimSide;
+uniform float rimFloor;
 uniform float3 axis;
 uniform float insetShade;
 uniform float insetOffset;
@@ -47,15 +56,19 @@ uniform float pinchLeft;
 uniform float pinchRight;
 uniform float sampleMaxX;
 uniform float ellipse;
+uniform float continuous;
+uniform float radiusBottom;
 uniform float topBend;
 uniform float topDepth;
 uniform float2 edgeY;
 uniform float2 edgeTop;
 uniform float2 rimOut;
+uniform float2 rimPull;
 uniform float4 frostRect;
 uniform float frost;
 uniform float frostClear;
 uniform float frostRadius;
+uniform float frostMagnify;
 uniform float4 tone;
 uniform float4 frostTone;
 uniform float chroma;
@@ -66,6 +79,7 @@ uniform float clipOn;
 uniform float alphaPass;
 uniform float3 wall;
 uniform float4 glowShape;
+uniform float4 sampleClip;
 layout(color) uniform half4 tint;
 layout(color) uniform half4 rim;
 layout(color) uniform half4 shadow;
@@ -76,8 +90,9 @@ float capsule(float2 p, float4 rect) {
   float2 center = (rect.xy + rect.zw) * 0.5;
   float2 extent = max((rect.zw - rect.xy) * 0.5, float2(0.0));
   float r = min(extent.x, extent.y);
-  if (radius > 0.0) {
-    r = min(r, radius);
+  float corner = radiusBottom > 0.0 && p.y > center.y ? radiusBottom : radius;
+  if (corner > 0.0) {
+    r = min(r, corner);
   }
   float2 q = abs(p - center) - extent + float2(r);
   return min(max(q.x, q.y), 0.0) + length(max(q, float2(0.0))) - r;
@@ -93,6 +108,38 @@ float wallCapsule(float2 p, float4 rect) {
   r *= (p.x - center.x) * wall.x > 0.0 ? wall.y : wall.z;
   float2 q = abs(p - center) - extent + float2(r);
   return min(max(q.x, q.y), 0.0) + length(max(q, float2(0.0))) - r;
+}
+
+float continuousCapsule(float2 p, float4 rect) {
+  float2 center = (rect.xy + rect.zw) * 0.5;
+  float2 extent = max((rect.zw - rect.xy) * 0.5, float2(1.0));
+  float r = min(extent.x, extent.y);
+  if (radius > 0.0) {
+    r = min(r, radius);
+  }
+  float2 q = abs(p - center);
+  if (extent.x < extent.y) {
+    q = q.yx;
+    extent = extent.yx;
+  }
+  float reach = min(r * 1.528, extent.x);
+  float t = clamp((reach / r - 1.0) / 0.51, 0.0, 1.0);
+  float2 e = float2(mix(2.0, 3.35, t), 2.0);
+  float2 box = float2(reach, r);
+  float2 s = q - (extent - box);
+  float2 a = max(s, float2(0.0001));
+  float2 c = a;
+  for (int i = 0; i < 2; i++) {
+    float2 k = c / box;
+    float2 pk = float2(pow(k.x, e.x), pow(k.y, e.y));
+    float g = sqrt(pk.x + pk.y);
+    float2 dg = e * pk / max(c, float2(0.0001)) / (2.0 * g);
+    c = max(c - (g - 1.0) / max(dot(dg, dg), 0.000001) * dg, float2(0.0001));
+  }
+  float2 k0 = a / box;
+  float f = pow(k0.x, e.x) + pow(k0.y, e.y);
+  float d = length(a - c);
+  return f > 1.0 ? d : mix(max(s.x - box.x, s.y - box.y), -d, smoothstep(0.15, 0.3, sqrt(f)));
 }
 
 float smoothUnion(float a, float b, float k) {
@@ -122,6 +169,9 @@ float field(float2 p) {
   for (int i = 0; i < 4; i++) {
     if (float(i) < shapeCount) {
       float shape = i == 0 && wall.x != 0.0 ? wallCapsule(p, shapes[i]) : capsule(p, shapes[i]);
+      if (continuous > 0.0) {
+        shape = mix(shape, continuousCapsule(p, shapes[i]), continuous);
+      }
       if (i == 0 && ellipse > 0.0) {
         shape = mix(shape, oval(p, shapes[i]), ellipse);
       }
@@ -137,8 +187,29 @@ float field(float2 p) {
   return d;
 }
 
+float bumpBend(float depth, float axis, float width, float curve) {
+  float reach = depth / max(mix(1.0, axis, bump.w), 0.001);
+  return min(axis * max(depth - bump.z, 0.0), mix(axis, 1.0, bump.w) * refraction * exp(-pow(max(reach - bump.x, 0.0) / width, curve)));
+}
+
 float luma(float3 c) {
   return dot(c, float3(0.2126, 0.7152, 0.0722));
+}
+
+float shadowAlpha(float2 p, float dp) {
+  float sd = field(p - float2(0.0, shadowOffset)) - shadowSpread;
+  float blurWidth = max(shadowRadius, 1.0) * 1.875;
+  float soft = 1.0 - smoothstep(-blurWidth, blurWidth, sd);
+  float decay = exp(-max(sd, 0.0) / max(shadowRadius, 1.0));
+  decay = shadowSoft > 0.0 ? sqrt(soft) : decay;
+  float gap = 1.0;
+  if (shadowGap > 0.0 && dp < shadowGap * 0.8) {
+    float2 sg = float2(field(p + float2(1.0, 0.0)) - field(p - float2(1.0, 0.0)),
+                       field(p + float2(0.0, 1.0)) - field(p - float2(0.0, 1.0)));
+    float down = max(sg.y, 0.0) / max(length(sg), 0.0001);
+    gap = mix(1.0, clamp(0.2 + dp / shadowGap, 0.0, 1.0), down * down);
+  }
+  return float(shadow.a) * decay * decay * gap;
 }
 
 half4 main(float2 coord) {
@@ -148,9 +219,7 @@ half4 main(float2 coord) {
   float4 outer = float4(0.0);
   float4 shadowColor = float4(shadow);
   if (shadowColor.a > 0.0) {
-    float ds = max(field(coord - float2(0.0, shadowOffset)) - shadowSpread, 0.0);
-    float decay = exp(-ds / max(shadowRadius, 1.0));
-    float alpha = shadowColor.a * decay * decay * (1.0 - cover);
+    float alpha = shadowAlpha(coord, d) * (1.0 - cover);
     outer = float4(shadowColor.rgb * alpha, alpha);
   }
   float4 rimColor = float4(rim);
@@ -164,7 +233,7 @@ half4 main(float2 coord) {
     float stroke = rimOutside > 1.5
       ? clamp(clamp(0.5 - (dn - rimWidth), 0.0, 1.0) - clamp(0.5 - dn, 0.0, 1.0), 0.0, 1.0) * (1.0 - cover)
       : clamp(1.0 - abs(d - rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * (1.0 - cover);
-    float sa = rimColor.a * stroke * (rimOutside > 1.5 ? pow(side, rimSide) : mix(1.0, rimSide, side));
+    float sa = rimColor.a * stroke * (rimOutside > 1.5 ? (rimSide > 0.0 ? mix(rimFloor, 1.0, pow(max(side, 0.0001), rimSide)) : 1.0) : mix(1.0, rimSide, side));
     outer = float4(rimColor.rgb * sa, sa) + outer * (1.0 - sa);
   }
   if (cover <= 0.004) {
@@ -176,10 +245,16 @@ half4 main(float2 coord) {
   float len = length(n);
   n = len > 0.0001 ? n / len : float2(0.0, -1.0);
 
-  float depth = max(-d, 0.0);
+  float depth = max(-d, 0.0) / (rimOutside > 1.5 ? max(len * 0.5, 0.25) : 1.0);
   float t = clamp(depth / max(bezel * mix(1.0, topDepth, clamp(-n.y, 0.0, 1.0)), 1.0), 0.0, 1.0);
   float slope;
-  if (falloff < -0.001) {
+  float2 bendVec = float2(0.0);
+  if (bump.x > 0.0) {
+    float bx = bumpBend(depth, abs(n.x), bump.y, bumpCurve > 0.0 ? bumpCurve : 2.0);
+    float by = bumpBend(depth, abs(n.y), bumpY > 0.0 ? bumpY : bump.y, 2.0);
+    bendVec = float2(sign(n.x) * bx, sign(n.y) * by);
+    slope = max(bx, by) / max(refraction, 0.001) * (1.0 - smoothstep(bump.x * 0.5, bump.x, depth));
+  } else if (falloff < -0.001) {
     slope = sin(3.14159265 * pow(t, -falloff));
   } else if (falloff > 0.001) {
     float tail = pow(5.0, -falloff);
@@ -189,7 +264,7 @@ half4 main(float2 coord) {
   }
 
   float2 middle = size * 0.5;
-  float2 base = middle + (coord - middle) / (1.0 + magnify);
+  float2 base = middle + (coord - middle) / (1.0 + float2(magnify, magnifyY > -900.0 ? magnifyY : magnify));
   float2 pinchVec = float2(0.0);
   float pinchSide = n.x < 0.0 ? pinchLeft : pinchRight;
   if (pinch > 0.0 || pinchSide > 0.0) {
@@ -200,10 +275,14 @@ half4 main(float2 coord) {
     pinchVec = mix(vertical, n * pinch, sideAmount) * pinchFade;
   }
   base += pinchVec;
-  float2 offset = n * float2(direction, directionY) * (slope * refraction * mix(1.0, topBend, clamp(-n.y, 0.0, 1.0)));
+  float2 offset = (bump.x > 0.0 ? bendVec : n * slope * refraction) * float2(direction, directionY) * mix(1.0, topBend, clamp(-n.y, 0.0, 1.0));
   if (rimOut.x > 0.0) {
     float rimReach = 1.0 - clamp(depth / max(rimOut.y, 1.0), 0.0, 1.0);
     offset.x += n.x * rimOut.x * rimReach * rimReach;
+  }
+  if (rimPull.x > 0.0) {
+    float pullReach = 1.0 - clamp(depth / max(rimPull.y, 1.0), 0.0, 1.0);
+    offset -= n * rimPull.x * pow(pullReach, 1.7);
   }
   if (edgeTop.x != 0.0 && n.y < 0.0) {
     float reachTop = 1.0 - clamp(depth / max(edgeTop.y, 1.0), 0.0, 1.0);
@@ -213,8 +292,8 @@ half4 main(float2 coord) {
     float reach = 1.0 - clamp(depth / max(edgeY.y, 1.0), 0.0, 1.0);
     offset.y -= edgeY.x * pow(reach, 1.7) * n.y;
   }
-  float2 lo = float2(0.5);
-  float2 hi = float2(sampleMaxX > 0.0 ? min(size.x, sampleMaxX) : size.x, size.y) - float2(0.5);
+  float2 lo = max(float2(0.5), sampleClip.xy + float2(0.5));
+  float2 hi = min(float2(sampleMaxX > 0.0 ? min(size.x, sampleMaxX) : size.x, size.y), sampleClip.zw) - float2(0.5);
   float3 col;
   float4 centreSample = content.eval(clamp(base + offset, lo, hi));
   float3 centre = centreSample.rgb;
@@ -223,12 +302,16 @@ half4 main(float2 coord) {
   float pinchSplit = length(pinchVec) * pinchSpread;
   float shift = axis.z * min((length(offset) + length(pinchVec)) / max(refraction, 1.0), 2.0) * (0.15 + 1.85 * n.x * n.x);
   if (spread > 0.01 || pinchSplit > 0.05 || shift > 0.05) {
+    int taps = bump.x > 0.0 ? 16 : 8;
     float3 sum = float3(0.0);
     float3 weight = float3(0.0);
     float alphaSum = 0.0;
     float alphaWeight = 0.0;
-    for (int i = 0; i < 8; i++) {
-      float s = (float(i) + 0.5) / 8.0;
+    for (int i = 0; i < 16; i++) {
+      if (i >= taps) {
+        break;
+      }
+      float s = (float(i) + 0.5) / float(taps);
       float3 w = float3(1.0 - s, 1.0 - abs(2.0 * s - 1.0), s);
       w = w * w;
       float k = 2.0 * s - 1.0;
@@ -248,6 +331,8 @@ half4 main(float2 coord) {
   float frosted = frost > 0.0 ? frost * clamp(0.5 - capsule(coord, frostRect), 0.0, 1.0) : 0.0;
   if (frosted > 0.0 && frostRadius > 0.5) {
     float2 at = base + offset;
+    float2 frostMid = (frostRect.xy + frostRect.zw) * 0.5;
+    at = frostMid + (at - frostMid) / (1.0 + frostMagnify);
     float3 disc = float3(0.0);
     float total = 0.0;
     for (int i = 0; i < 24; i++) {
@@ -331,9 +416,12 @@ half4 main(float2 coord) {
     col += float3(glowStrength * exp(-0.5 * dot(gd, gd)) * glowMask);
   }
 
+  if (insetSide.x > 0.0) {
+    col *= 1.0 - insetSide.x * n.x * n.x * exp(-depth / max(insetSide.y, 1.0));
+  }
   if (insetShade > 0.0) {
     float shifted = max(-field(coord - float2(0.0, insetOffset)), 0.0);
-    col -= float3(insetShade * (1.0 - smoothstep(0.0, max(insetBlur, 1.0), shifted)));
+    col *= 1.0 - insetShade * smoothstep(0.0, max(insetRamp > 0.0 ? insetRamp : insetOffset, 1.0), -d) * (1.0 - smoothstep(0.0, max(insetBlur, 1.0), shifted));
   }
   float facingY = mix(n.y * n.y, n.x * n.x, axis.x);
   if (edgeSharp < 0.0) {
@@ -355,7 +443,10 @@ half4 main(float2 coord) {
   float glow = glowIn * pow(clamp(1.0 - (depth - 3.0) / band, 0.0, 1.0), 1.5) * cover;
   float sheen = clamp(1.0 - abs(d + rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * cover;
   float hair = sheen * (1.0 - step(0.5, rimOutside));
-  if (rimPrism > 0.0) {
+  if (rimPrism > 0.0 && bump.x > 0.0) {
+    float3 tint = mix(float3(0.25, 0.6, 1.0), float3(1.0, 0.72, 0.25), smoothstep(0.0, 0.5, -2.0 * n.x * n.y));
+    col += (tint - dot(tint, float3(1.0 / 3.0))) * exp(-depth / 2.5) * cover * rimPrism;
+  } else if (rimPrism > 0.0) {
     float hue = 0.33 + depth * 0.09;
     float3 spectrum = 0.5 + 0.5 * cos(6.2832 * (hue + float3(0.0, 0.33, 0.67)));
     float diagonal = 4.0 * n.x * n.x * n.y * n.y;

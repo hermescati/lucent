@@ -28,6 +28,15 @@ export interface LucentColors {
   badge: string;
   badgeText: string;
   clearButton: string;
+  switchOn: string;
+  switchOff: string;
+  switchThumb: string;
+  sliderTrack: string;
+  sliderThumb: string;
+  sliderShadow: string;
+  segmentedTrack: string;
+  segmentedThumb: string;
+  segmentedShadow: string;
 }
 
 export type LucentColorOverrides = Partial<Record<LucentScheme, Partial<LucentColors>>>;
@@ -62,6 +71,15 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     badge: '#FF4245',
     badgeText: '#FFFFFF',
     clearButton: '#FFFFFF',
+    switchOn: '#30D158',
+    switchOff: 'rgba(235, 235, 240, 0.3)',
+    switchThumb: '#FFFFFF',
+    sliderTrack: 'rgba(120, 120, 128, 0.36)',
+    sliderThumb: '#FFFFFF',
+    sliderShadow: 'rgba(0, 0, 0, 0.13)',
+    segmentedTrack: 'rgba(118, 118, 128, 0.24)',
+    segmentedThumb: '#7B7B81',
+    segmentedShadow: 'rgba(0, 0, 0, 0)',
   },
   light: {
     text: '#000000',
@@ -87,6 +105,15 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     badge: '#FF383C',
     badgeText: '#FFFFFF',
     clearButton: '#000000',
+    switchOn: '#34C759',
+    switchOff: 'rgba(120, 120, 128, 0.44)',
+    switchThumb: '#FFFFFF',
+    sliderTrack: 'rgba(120, 120, 128, 0.2)',
+    sliderThumb: '#FFFFFF',
+    sliderShadow: 'rgba(0, 0, 0, 0.07)',
+    segmentedTrack: 'rgba(118, 118, 128, 0.12)',
+    segmentedThumb: '#FFFFFF',
+    segmentedShadow: 'rgba(0, 0, 0, 0.015)',
   },
 };
 

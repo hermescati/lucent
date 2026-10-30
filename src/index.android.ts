@@ -24,6 +24,12 @@ export type {
   LucentSvgIconProps,
   LucentSvgMarkup,
 } from './tabs/types';
+export { Switch } from './switch/Switch';
+export type { SwitchProps } from './switch/types';
+export { Slider } from './slider/Slider';
+export type { SliderProps } from './slider/types';
+export { SegmentedControl } from './segmented/SegmentedControl';
+export type { SegmentedControlChangeEvent, SegmentedControlProps } from './segmented/types';
 export { LucentProvider, useLucentTheme } from './theme/LucentProvider';
 export type { LucentProviderProps, LucentTheme } from './theme/LucentProvider';
 export type { LucentColorOverrides, LucentColors } from './theme/colors';

@@ -21,6 +21,8 @@ class LucentModule : Module() {
       }
 
       Prop("offscreen") { view: GlassBackdropView, value: Boolean? -> view.offscreen = value ?: false }
+      Prop("saturation") { view: GlassBackdropView, value: Float? -> view.saturation = value ?: 1f }
+      Prop("brightness") { view: GlassBackdropView, value: Float? -> view.brightness = value ?: 1f }
     }
 
     View(GlassBlurView::class) {
@@ -53,8 +55,16 @@ class LucentModule : Module() {
       Prop("refractionYScale") { view: GlassView, value: Float? -> view.refractionYScale = value ?: 1f }
       Prop("refractOutwardY") { view: GlassView, value: Boolean? -> view.refractOutwardY = value }
       Prop("falloff") { view: GlassView, value: Float? -> view.falloff = value ?: 0f }
+      Prop("bumpPeak") { view: GlassView, value: Float? -> view.bumpPeak = value ?: 0f }
+      Prop("bumpShape") { view: GlassView, value: Float? -> view.bumpShape = value ?: 1f }
+      Prop("bumpInset") { view: GlassView, value: Float? -> view.bumpInset = value ?: 0f }
+      Prop("bumpSplit") { view: GlassView, value: Float? -> view.bumpSplit = value ?: 1f }
+      Prop("bumpShapeY") { view: GlassView, value: Float? -> view.bumpShapeY = value ?: 0f }
+      Prop("bumpCurve") { view: GlassView, value: Float? -> view.bumpCurve = value ?: 0f }
       Prop("dispersion") { view: GlassView, value: Float? -> view.dispersion = value ?: 0f }
       Prop("magnify") { view: GlassView, value: Float? -> view.magnify = value ?: 0f }
+      Prop("magnifyY") { view: GlassView, value: Float? -> view.magnifyY = value ?: -999f }
+      Prop("frostMagnify") { view: GlassView, value: Float? -> view.frostMagnify = value ?: 0f }
       Prop("saturation") { view: GlassView, value: Float? -> view.saturation = value ?: 1f }
       Prop("adaptive") { view: GlassView, value: Float? -> view.adaptive = value ?: 0f }
       Prop("dim") { view: GlassView, value: Float? -> view.dim = value ?: 0f }
@@ -72,6 +82,11 @@ class LucentModule : Module() {
       Prop("shadowRadius") { view: GlassView, value: Float? -> view.shadowRadius = value ?: 0f }
       Prop("shadowOffset") { view: GlassView, value: Float? -> view.shadowOffset = value ?: 0f }
       Prop("shadowSpread") { view: GlassView, value: Float? -> view.shadowSpread = value ?: 0f }
+      Prop("shadowGap") { view: GlassView, value: Float? -> view.shadowGap = value ?: 0f }
+      Prop("shadowSoft") { view: GlassView, value: Float? -> view.shadowSoft = value ?: 0f }
+      Prop("insetSide") { view: GlassView, value: Float? -> view.insetSide = value ?: 0f }
+      Prop("insetSideWidth") { view: GlassView, value: Float? -> view.insetSideWidth = value ?: 1f }
+      Prop("insetRamp") { view: GlassView, value: Float? -> view.insetRamp = value ?: 0f }
       Prop("pinch") { view: GlassView, value: Float? -> view.pinch = value ?: 0f }
       Prop("pinchWidth") { view: GlassView, value: Float? -> view.pinchWidth = value ?: 0f }
       Prop("pinchSpread") { view: GlassView, value: Float? -> view.pinchSpread = value ?: 0f }
@@ -80,6 +95,7 @@ class LucentModule : Module() {
       Prop("rimOutside") { view: GlassView, value: Boolean? -> view.rimOutside = value ?: false }
       Prop("rimCrisp") { view: GlassView, value: Boolean? -> view.rimCrisp = value ?: false }
       Prop("rimSide") { view: GlassView, value: Float? -> view.rimSide = value ?: 1f }
+      Prop("rimFloor") { view: GlassView, value: Float? -> view.rimFloor = value ?: 0f }
       Prop("edgeAxis") { view: GlassView, value: Float? -> view.edgeAxis = value ?: 0f }
       Prop("prismAxis") { view: GlassView, value: Float? -> view.prismAxis = value ?: 0f }
       Prop("prismShift") { view: GlassView, value: Float? -> view.prismShift = value ?: 0f }
@@ -90,6 +106,8 @@ class LucentModule : Module() {
       Prop("pinchRight") { view: GlassView, value: Float? -> view.pinchRight = value ?: 0f }
       Prop("sampleMaxX") { view: GlassView, value: Float? -> view.sampleMaxX = value ?: 0f }
       Prop("ellipse") { view: GlassView, value: Float? -> view.ellipse = value ?: 0f }
+      Prop("continuous") { view: GlassView, value: Float? -> view.continuous = value ?: 0f }
+      Prop("radiusBottom") { view: GlassView, value: Float? -> view.radiusBottom = value ?: 0f }
       Prop("wallSide") { view: GlassView, value: Float? -> view.wallSide = value ?: 0f }
       Prop("wallRound") { view: GlassView, value: Float? -> view.wallRound = value ?: 1f }
       Prop("wallLead") { view: GlassView, value: Float? -> view.wallLead = value ?: 1f }
@@ -102,6 +120,8 @@ class LucentModule : Module() {
       Prop("pullTopBand") { view: GlassView, value: Float? -> view.pullTopBand = value ?: 1f }
       Prop("rimOut") { view: GlassView, value: Float? -> view.rimOut = value ?: 0f }
       Prop("rimOutBand") { view: GlassView, value: Float? -> view.rimOutBand = value ?: 1f }
+      Prop("rimPull") { view: GlassView, value: Float? -> view.rimPull = value ?: 0f }
+      Prop("rimPullBand") { view: GlassView, value: Float? -> view.rimPullBand = value ?: 1f }
       Prop("wideRadius") { view: GlassView, value: Float? -> view.wideRadius = value ?: 0f }
       Prop("wideMix") { view: GlassView, value: Float? ->
         view.wideMix = value ?: 0f
@@ -129,6 +149,8 @@ class LucentModule : Module() {
       Prop("clipScaleX") { view: GlassView, value: Float? -> view.clipScaleX = value ?: 1f }
       Prop("clipScaleY") { view: GlassView, value: Float? -> view.clipScaleY = value ?: 1f }
       Prop("clipSoft") { view: GlassView, value: Float? -> view.clipSoft = value ?: 0f }
+      Prop("aboveTone") { view: GlassView, value: Boolean? -> view.aboveTone = value ?: false }
+      Prop("clipContent") { view: GlassView, value: Boolean? -> view.clipContent = value ?: false }
       Prop("clipOn") { view: GlassView, value: Float? -> view.clipOn = value ?: 0f }
       Prop("tint") { view: GlassView, value: Color? -> view.tint = value ?: TRANSPARENT }
       Prop("rim") { view: GlassView, value: Color? -> view.rim = value ?: TRANSPARENT }
