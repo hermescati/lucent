@@ -4,8 +4,8 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SearchBarCommands } from 'react-native-screens';
 
-import { catalogue } from '../../../stories';
-import { Code, LinkRow, Page, Paragraph, Section, usePalette } from '../../../components/ui';
+import { catalogue } from '@/stories';
+import { Code, LinkRow, Page, Paragraph, Section, usePalette } from '@/components/ui';
 
 export default function SearchScreen() {
   const palette = usePalette();

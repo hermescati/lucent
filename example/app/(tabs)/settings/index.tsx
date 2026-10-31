@@ -2,8 +2,8 @@ import { Stack } from 'expo-router';
 import { Slider, isLiquidGlassAvailable } from 'expo-lucent';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
-import { accents, useSettings, type Scheme } from '../../../components/settings';
-import { Code, Options, Page, Row, Section, Swatches, prop, usePalette } from '../../../components/ui';
+import { accents, useSettings, type Scheme } from '@/components/settings';
+import { Code, Options, Page, Row, Section, Swatches, prop, usePalette } from '@/components/ui';
 
 export default function SettingsScreen() {
   const palette = usePalette();

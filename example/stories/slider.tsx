@@ -1,7 +1,7 @@
 import { Slider } from 'expo-lucent';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { usePalette } from '../components/ui';
+import { usePalette } from '@/components/ui';
 import { story } from './types';
 
 const Readout = ({ value, step }: { value: number; step: number }) => {

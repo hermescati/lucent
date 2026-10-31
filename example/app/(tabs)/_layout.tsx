@@ -1,6 +1,6 @@
 import { NativeTabs } from 'expo-lucent';
 
-import { useSettings } from '../../components/settings';
+import { useSettings } from '@/components/settings';
 
 export default function TabsLayout() {
   const { tint, minimize, badge } = useSettings();

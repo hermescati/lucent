@@ -22,8 +22,8 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   internal val outNode: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassBackdropOut") else null
 
-  private val lifted = LinkedHashSet<GlassView>()
-  private val order = ArrayList<GlassView>()
+  private val lifted = LinkedHashSet<GlassBackdrops>()
+  private val order = ArrayList<GlassBackdrops>()
   private var orderDirty = false
   private val toGlobal = Matrix()
   private val toHost = Matrix()
@@ -124,14 +124,14 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   @SuppressLint("MissingSuperCall")
   override fun requestLayout() = Unit
 
-  internal fun addLifted(view: GlassView) {
+  internal fun addLifted(view: GlassBackdrops) {
     if (lifted.add(view)) {
       orderDirty = true
       invalidate()
     }
   }
 
-  internal fun removeLifted(view: GlassView) {
+  internal fun removeLifted(view: GlassBackdrops) {
     if (lifted.remove(view)) {
       orderDirty = true
       invalidate()
@@ -139,7 +139,7 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   }
 
   private fun collect(view: View) {
-    if (view is GlassView && view in lifted) order.add(view)
+    if (view is GlassBackdrops && view in lifted) order.add(view)
     if (view is ViewGroup) {
       for (i in 0 until view.childCount) collect(view.getChildAt(i))
     }
@@ -152,7 +152,7 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
     orderDirty = false
   }
 
-  internal fun drawSource(canvas: Canvas, upTo: GlassView?) {
+  internal fun drawSource(canvas: Canvas, upTo: GlassBackdrops?) {
     val content = node ?: return
     if (!content.hasDisplayList()) return
     val layer = toneLayer
@@ -175,7 +175,7 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
     }
   }
 
-  internal fun overlapsEarlier(target: GlassView): Boolean {
+  internal fun overlapsEarlier(target: GlassBackdrops): Boolean {
     for (view in order) {
       if (view === target) return false
       if (RectF.intersects(target.hostBounds, view.hostBounds)) return true

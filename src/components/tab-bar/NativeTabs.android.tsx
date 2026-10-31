@@ -1,0 +1,87 @@
+import type {
+  NativeTabsBottomAccessoryProps,
+  NativeTabsTriggerBadgeProps,
+  NativeTabsTriggerLabelProps,
+} from 'expo-router/native-tabs';
+import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+
+import { FloatingTabBar } from './components/FloatingTabBar';
+import { TabBarCollapseProvider } from './context/collapse';
+import { SearchHostProvider } from './context/search';
+import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
+import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
+import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
+
+const Trigger = Object.assign(triggerPart<LucentNativeTabTriggerProps>('trigger'), {
+  Label: triggerPart<NativeTabsTriggerLabelProps>('label'),
+  Icon: triggerPart<LucentNativeTabsTriggerIconProps>('icon'),
+  Badge: triggerPart<NativeTabsTriggerBadgeProps>('badge'),
+  VectorIcon: triggerPart<object>('vectorIcon'),
+});
+
+const BottomAccessory = Object.assign((_: NativeTabsBottomAccessoryProps) => null, {
+  usePlacement: (): 'regular' | 'inline' => 'regular',
+});
+
+const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
+  behavior === 'onScrollDown' || behavior === 'onScrollUp' ? behavior : null;
+
+const colorString = (value: unknown) => (typeof value === 'string' ? value : undefined);
+
+const NativeTabsRoot = ({
+  children,
+  tintColor,
+  minimizeBehavior,
+  hidden,
+  badgeBackgroundColor,
+  badgeTextColor,
+}: LucentNativeTabsProps) => {
+  const triggers = parseTriggers(children);
+  const visible = triggers.filter((trigger) => !trigger.hidden);
+  const primary = visible.filter((trigger) => !trigger.search);
+  const search = visible.find((trigger) => trigger.search);
+
+  return (
+    <GestureHandlerRootView style={styles.fill}>
+      <KeyboardProvider>
+        <SearchHostProvider>
+          <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
+            <Tabs style={styles.fill}>
+              <NativeGlassBackdrop style={styles.fill}>
+                <TabSlot detachInactiveScreens={false} />
+              </NativeGlassBackdrop>
+              {!hidden && primary.length > 0 ? (
+                <FloatingTabBar
+                  tabs={primary}
+                  searchTab={search}
+                  tintColor={colorString(tintColor)}
+                  badgeColor={colorString(badgeBackgroundColor)}
+                  badgeTextColor={colorString(badgeTextColor)}
+                />
+              ) : null}
+              <TabList style={styles.hidden}>
+                {triggers.map((trigger) => (
+                  <TabTrigger key={trigger.name} name={trigger.name} href={hrefFor(trigger.name)} />
+                ))}
+              </TabList>
+            </Tabs>
+          </TabBarCollapseProvider>
+        </SearchHostProvider>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
+  );
+};
+
+export const NativeTabs = Object.assign(NativeTabsRoot, { Trigger, BottomAccessory });
+
+const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+  },
+  hidden: {
+    display: 'none',
+  },
+});

@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 
-import { useSettings, type Badge, type Minimize } from '../../../components/settings';
-import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '../../../components/ui';
+import { useSettings, type Badge, type Minimize } from '@/components/settings';
+import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
 export default function TabBarScreen() {
   const { tint, minimize, badge, set } = useSettings();

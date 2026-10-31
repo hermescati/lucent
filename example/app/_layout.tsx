@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 
-import { PlaygroundProvider } from '../components/settings';
+import { PlaygroundProvider } from '@/components/settings';
 
 export default function RootLayout() {
   return (

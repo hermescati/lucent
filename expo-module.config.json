@@ -1,16 +1,9 @@
 {
-  "platforms": [
-    "apple",
-    "android"
-  ],
+  "platforms": ["apple", "android"],
   "apple": {
-    "modules": [
-      "LucentModule"
-    ]
+    "modules": ["LucentModule"]
   },
   "android": {
-    "modules": [
-      "expo.modules.lucent.LucentModule"
-    ]
+    "modules": ["expo.modules.lucent.LucentModule"]
   }
 }

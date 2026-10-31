@@ -1,7 +1,7 @@
 import { Switch } from 'expo-lucent';
 import { useState } from 'react';
 
-import { Row, Section } from '../components/ui';
+import { Row, Section } from '@/components/ui';
 import { story } from './types';
 
 const InAList = () => {

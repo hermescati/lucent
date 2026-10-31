@@ -1,0 +1,90 @@
+import type { GlassMaterial, GlassScheme } from '../../core/glass/presets';
+
+export const switchMetrics = {
+  track: { width: 63, height: 28 },
+  thumb: { width: 37, height: 24 },
+  glass: { width: 58, height: 39 },
+  inset: 2,
+  overhang: 0.5,
+  dragFrom: 3,
+  toneAt: 0.85,
+  hitSlop: 12,
+  disabledOpacity: 0.5,
+  labelGap: 8,
+  labelSize: 17,
+} as const;
+
+export const switchMotion = {
+  tone: { on: { duration: 1200, dampingRatio: 1 }, off: { duration: 420, dampingRatio: 1 } },
+  drag: { duration: 900, dampingRatio: 1 },
+  tapDelay: 0,
+  fillEdge: 10,
+  sweep: 0,
+  hazeRadius: 0,
+  hazeInset: 1,
+  frostAlpha: { light: 0.35, dark: 0.3 },
+  solidLead: 1.15,
+  solidSpring: { light: { duration: 450, dampingRatio: 1 }, dark: { duration: 580, dampingRatio: 1 } },
+  hazeMagnify: -0.25,
+  hazeMagnifyY: -0.65,
+  hazeBlurLead: 2,
+  lens: {
+    pressDelay: 0,
+    melt: { duration: 30, dampingRatio: 1 },
+    pressSpring: { duration: 80, dampingRatio: 0.7 },
+    slideAt: 0.95,
+    holdAfterRelease: 0,
+    arriveWithin: 6,
+    solidAt: 0.3,
+    spreadScale: 0.2,
+    edges: { lead: 18.5, trail: 16 },
+    solidSpring: { duration: 450, dampingRatio: 1 },
+    whiten: { duration: 1, dampingRatio: 1 },
+    whitenDelay: 14,
+    hazeDelay: 14,
+    frostOnArrive: true,
+    haze: { duration: 220, dampingRatio: 1 },
+    landBump: 1.8,
+    landBumpAt: 0.08,
+    landSpring: { period: 0.6, damping: 0.75 },
+    landSquash: 0,
+    liftFrostUntil: 0.25,
+    liftHaze: { duration: 60, dampingRatio: 1 },
+    shrink: { duration: 450, dampingRatio: 1 },
+  },
+} as const;
+
+const switchFrost: GlassMaterial = {
+  bumpPeak: 6,
+  bumpShape: 7,
+  bumpShapeY: 10,
+  bumpCurve: 1,
+  bumpInset: 1,
+  bumpSplit: 0,
+  refraction: 3.86,
+  refractionYScale: 0.83,
+  rimPull: 5.53,
+  rimPullBand: 2.625,
+  outset: 100,
+  rim: 'rgba(0, 0, 0, 0.2)',
+  shadow: 'rgba(0, 0, 0, 0)',
+};
+
+export const lensSwitchFrost: Record<GlassScheme, GlassMaterial> = {
+  dark: { ...switchFrost, blurRadius: 10 },
+  light: { ...switchFrost, blurRadius: 22 },
+};
+
+export const lensSwitch: GlassMaterial = {
+  bumpPeak: 6,
+  bumpShape: 7,
+  bumpShapeY: 10,
+  bumpCurve: 1,
+  bumpInset: 1,
+  bumpSplit: 0,
+  refraction: 3.86,
+  refractionYScale: 0.83,
+  rimPull: 5.53,
+  rimPullBand: 2.625,
+  outset: 100,
+};

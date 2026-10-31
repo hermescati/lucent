@@ -26,10 +26,7 @@
     "experiments": {
       "autolinkingModuleResolution": true
     },
-    "plugins": [
-      "expo-router",
-      "expo-status-bar"
-    ],
+    "plugins": ["expo-router", "expo-status-bar"],
     "scheme": "lucent-example"
   }
 }

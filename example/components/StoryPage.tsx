@@ -4,8 +4,8 @@ import { useState } from 'react';
 
 import { accents } from './settings';
 import { Choice, Code, Page, Row, Section, Stage, Swatches } from './ui';
-import { generate } from '../stories/code';
-import type { Control, Props, Story } from '../stories/types';
+import { generate } from '@/stories/code';
+import type { Control, Props, Story } from '@/stories/types';
 
 interface State {
   props: Props;

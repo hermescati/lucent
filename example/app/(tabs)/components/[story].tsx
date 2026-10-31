@@ -1,8 +1,8 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 
-import { StoryPage } from '../../../components/StoryPage';
-import { Page, Paragraph } from '../../../components/ui';
-import { findStory } from '../../../stories';
+import { StoryPage } from '@/components/StoryPage';
+import { Page, Paragraph } from '@/components/ui';
+import { findStory } from '@/stories';
 
 export default function StoryScreen() {
   const { story: slug } = useLocalSearchParams<{ story: string }>();

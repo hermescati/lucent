@@ -1,7 +1,7 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { resolveColors, type LucentColorOverrides, type LucentColors } from './colors';
+import { type LucentColorOverrides, type LucentColors, resolveColors } from './colors';
 import { glassOpacity as glassOpacityRange, type LucentScheme } from './tokens';
 
 export interface LucentProviderProps {
@@ -48,5 +48,10 @@ export const useLucentTheme = (tintColor?: string, colorScheme?: 'auto' | Lucent
   const scheme: LucentScheme = requested === 'auto' ? (system === 'dark' ? 'dark' : 'light') : requested;
   const tint = tintColor ?? settings.tintColor;
   const color = useMemo(() => resolveColors(scheme, tint, settings.colors), [scheme, tint, settings.colors]);
-  return { scheme, color, glassOpacity: settings.glassOpacity };
+
+  return {
+    scheme,
+    color,
+    glassOpacity: settings.glassOpacity,
+  };
 };

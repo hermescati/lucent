@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 
-import { catalogue } from '../../../stories';
-import { LinkRow, Page, Paragraph, Section } from '../../../components/ui';
+import { catalogue } from '@/stories';
+import { LinkRow, Page, Paragraph, Section } from '@/components/ui';
 
 export default function ComponentsScreen() {
   return (

@@ -1,0 +1,4 @@
+# Generated native projects and the module template scripts
+example/android
+example/ios
+internal
