@@ -1,10 +1,11 @@
 import { Stack } from 'expo-router';
-import { LucentProvider } from 'expo-lucent';
+
+import { PlaygroundProvider } from '../components/settings';
 
 export default function RootLayout() {
   return (
-    <LucentProvider tintColor="#FF8433">
+    <PlaygroundProvider>
       <Stack screenOptions={{ headerShown: false }} />
-    </LucentProvider>
+    </PlaygroundProvider>
   );
 }

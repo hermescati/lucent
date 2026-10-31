@@ -1,70 +1,105 @@
 import { Stack } from 'expo-router';
 import { SearchBar } from 'expo-lucent';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SearchBarCommands } from 'react-native-screens';
 
+import { catalogue } from '../../../stories';
+import { Code, LinkRow, Page, Paragraph, Section, usePalette } from '../../../components/ui';
+
 export default function SearchScreen() {
-  const dark = useColorScheme() === 'dark';
+  const palette = usePalette();
   const [query, setQuery] = useState('');
   const search = useRef<SearchBarCommands>(null);
-  const text = { color: dark ? '#FFFFFF' : '#000000' };
+  const needle = query.trim().toLowerCase();
+  const results = catalogue.filter(
+    (entry) => entry.href !== '/search' && `${entry.name} ${entry.summary}`.toLowerCase().includes(needle),
+  );
 
   const actions = [
     {
-      label: 'Fill',
+      label: 'setText',
       onPress: () => {
-        search.current?.setText('Zelda');
-        setQuery('Zelda');
+        search.current?.setText('Glass');
+        setQuery('Glass');
       },
     },
     {
-      label: 'Clear',
+      label: 'clearText',
       onPress: () => {
         search.current?.clearText();
         setQuery('');
       },
     },
-    { label: 'Done', onPress: () => search.current?.blur() },
-    { label: 'Cancel', onPress: () => search.current?.cancelSearch() },
+    { label: 'blur', onPress: () => search.current?.blur() },
+    { label: 'cancelSearch', onPress: () => search.current?.cancelSearch() },
   ];
 
   return (
-    <View style={[styles.screen, { backgroundColor: dark ? '#000000' : '#FFFFFF' }]}>
-      <Stack.Screen options={{ title: 'Search', headerShown: process.env.EXPO_OS === 'ios' }} />
+    <Page>
+      <Stack.Screen options={{ title: 'Search' }} />
       <SearchBar
         ref={search}
-        placeholder="Games, library, platforms"
+        placeholder="Search components"
         onChangeText={(event) => setQuery(event.nativeEvent.text)}
       />
-      <Text style={[styles.text, text]}>{query ? `Searching for “${query}”` : 'Search everything'}</Text>
-      <View style={styles.actions}>
-        {actions.map((action) => (
-          <Pressable
-            key={action.label}
-            onPress={action.onPress}
-            style={[styles.action, { backgroundColor: dark ? '#1C1C1E' : '#F2F2F7' }]}>
-            <Text style={[styles.actionText, text]}>{action.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
+      <Section title={needle ? `Results for “${query.trim()}”` : 'All components'}>
+        {results.length > 0 ? (
+          results.map((entry, index) => (
+            <LinkRow
+              key={entry.name}
+              href={entry.href}
+              label={entry.name}
+              detail={entry.summary}
+              last={index === results.length - 1}
+            />
+          ))
+        ) : (
+          <Text style={[styles.empty, { color: palette.secondary }]}>No components match</Text>
+        )}
+      </Section>
+
+      <Section
+        title="SearchBar ref"
+        footer="These call the ref's methods. setText doesn't fire onChangeText, so the screen sets its own query too.">
+        <View style={styles.actions}>
+          {actions.map((action) => (
+            <Pressable
+              key={action.label}
+              onPress={action.onPress}
+              style={[styles.action, { backgroundColor: palette.background }]}>
+              <Text style={[styles.actionText, { color: palette.text }]}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
+
+      <Code>
+        {`// Inside the screen of the tab with role="search"
+<SearchBar
+  placeholder="Search components"
+  onChangeText={(event) => setQuery(event.nativeEvent.text)}
+/>`}
+      </Code>
+
+      <Paragraph>
+        On iOS this is expo-router&apos;s search bar, which iOS 26 moves into the tab bar. On Android the search tab
+        morphs into the field and rides the keyboard.
+      </Paragraph>
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: 160,
-    gap: 16,
-  },
-  text: {
-    fontSize: 17,
+  empty: {
+    fontSize: 15,
+    padding: 16,
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    padding: 12,
   },
   action: {
     borderRadius: 16,

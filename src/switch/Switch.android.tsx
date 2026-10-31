@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import { StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, type SharedValue } from 'react-native-reanimated';
@@ -69,13 +69,27 @@ export const Switch = ({ value, onValueChange, label, disabled = false, testID }
     }
   }, [value]);
 
-  const commit = (next: boolean) => {
-    onValueChange(next);
-    requestAnimationFrame(() => {
-      if (latest.current !== next) {
-        slideTo(latest.current);
+  // Like React Native's Switch: after asking for a change, re-render and check the value
+  // the parent settled on. Checking on the next frame instead raced slow parent renders.
+  const asked = useRef(false);
+  const [, recheck] = useReducer((n: number) => n + 1, 0);
+
+  useLayoutEffect(() => {
+    if (asked.current) {
+      asked.current = false;
+      if (shown.get() !== value) {
+        slideTo(value);
       }
-    });
+    }
+  });
+
+  const commit = (next: boolean) => {
+    if (next === latest.current) {
+      return;
+    }
+    asked.current = true;
+    onValueChange(next);
+    recheck();
   };
 
   const pan = usePanGesture({
@@ -109,9 +123,7 @@ export const Switch = ({ value, onValueChange, label, disabled = false, testID }
         toneTarget.set(next ? 1 : 0);
         tone.set(withDelay(moved.get() ? 0 : switchMotion.tapDelay, withSpring(next ? 1 : 0, next ? switchMotion.tone.on : switchMotion.tone.off)));
       }
-      if (next !== latest.current) {
-        scheduleOnRN(commit, next);
-      }
+      scheduleOnRN(commit, next);
     },
   });
 
