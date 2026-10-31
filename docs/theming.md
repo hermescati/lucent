@@ -42,7 +42,13 @@ iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings â†
 `colors` overrides any of the colours Lucent draws its Android components with, per scheme:
 
 ```tsx
-<LucentProvider colors={{ light: { switchOn: '#007AFF' }, dark: { switchOn: '#0A84FF' } }}>{children}</LucentProvider>
+<LucentProvider
+  colors={{
+    light: { switchOn: '#007AFF' },
+    dark: { switchOn: '#0A84FF' },
+  }}>
+  {children}
+</LucentProvider>
 ```
 
 | Group             | Colours                                                                                                                   |

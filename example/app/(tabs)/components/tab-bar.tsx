@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
 
-import { useSettings, type Badge, type Minimize } from '@/components/settings';
+import { useSettings, type Minimize } from '@/components/settings';
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
 export default function TabBarScreen() {
-  const { tint, minimize, badge, set } = useSettings();
+  const { tint, minimize, set } = useSettings();
 
   return (
     <Page>
@@ -14,7 +14,7 @@ export default function TabBarScreen() {
       </Paragraph>
 
       <Section title="Props">
-        <Row label="minimizeBehavior" detail="Scroll the Gallery to see it" stacked>
+        <Row label="minimizeBehavior" detail="Scroll the Gallery to see it" stacked last>
           <Options<Minimize>
             options={[
               { label: 'Never', value: 'never' },
@@ -23,17 +23,6 @@ export default function TabBarScreen() {
             ]}
             value={minimize}
             onChange={(next) => set({ minimize: next })}
-          />
-        </Row>
-        <Row label="Gallery badge" detail="NativeTabs.Trigger.Badge" stacked last>
-          <Options<Badge>
-            options={[
-              { label: 'None', value: 'none' },
-              { label: 'Dot', value: 'dot' },
-              { label: '3', value: 'count' },
-            ]}
-            value={badge}
-            onChange={(next) => set({ badge: next })}
           />
         </Row>
       </Section>
@@ -53,13 +42,7 @@ export default function TabBarScreen() {
   </NativeTabs.Trigger>
   <NativeTabs.Trigger name="gallery">
     <NativeTabs.Trigger.Icon sf="photo.on.rectangle" md="photo_library" />
-    <NativeTabs.Trigger.Label>Gallery</NativeTabs.Trigger.Label>${
-      badge === 'count'
-        ? '\n    <NativeTabs.Trigger.Badge>3</NativeTabs.Trigger.Badge>'
-        : badge === 'dot'
-          ? '\n    <NativeTabs.Trigger.Badge />'
-          : ''
-    }
+    <NativeTabs.Trigger.Label>Gallery</NativeTabs.Trigger.Label>
   </NativeTabs.Trigger>
   <NativeTabs.Trigger name="search" role="search">
     <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>

@@ -4,7 +4,6 @@ import { Appearance } from 'react-native';
 
 export type Scheme = 'auto' | 'light' | 'dark';
 export type Minimize = 'never' | 'onScrollDown' | 'onScrollUp';
-export type Badge = 'none' | 'dot' | 'count';
 
 export const accents = [
   { name: 'Orange', color: '#FF8433' },
@@ -19,7 +18,6 @@ export interface Settings {
   tint: string;
   glassOpacity: number;
   minimize: Minimize;
-  badge: Badge;
 }
 
 const defaults: Settings = {
@@ -27,7 +25,6 @@ const defaults: Settings = {
   tint: accents[0].color,
   glassOpacity: 0.5,
   minimize: 'onScrollDown',
-  badge: 'count',
 };
 
 interface SettingsContext extends Settings {

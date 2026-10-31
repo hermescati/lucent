@@ -6,7 +6,7 @@ Pick a number from a range by dragging. Same API as the `Slider` from [`@expo/ui
 - **Android:** Lucent's recreation: a thin track that fills with your accent colour, and a thumb that turns into a glass lens while you drag.
 
 <p align="center">
-  <img src="../media/slider.webp" width="540" alt="Lucent's slider on Android over a photo: dragging the glass lens up, flicking it down so it stretches, then dragging it back to the middle" />
+  <img src="../media/slider.webp" width="540" alt="Lucent's slider on Android in dark mode: dragging the glass lens up, flicking it down so it stretches, then dragging it back to the middle" />
 </p>
 
 > Try it: in the [playground](../../example), open **Components → Slider**.
@@ -24,7 +24,7 @@ const [volume, setVolume] = useState(0.5);
 With a range and a step:
 
 ```tsx
-<Slider value={size} onValueChange={setSize} min={0} max={100} step={10} />
+<Slider value={size} min={0} max={100} step={10} onValueChange={setSize} />
 ```
 
 The slider stretches to the width of its parent.

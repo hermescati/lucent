@@ -6,7 +6,7 @@ The search tab that turns into a search field. Same props as expo-router's `Stac
 - **Android:** renders nothing in the header. It hands its props to the tab bar, which morphs the search tab into the field, shows the X and rides the keyboard.
 
 <p align="center">
-  <img src="../media/search.webp" width="300" alt="Lucent's search tab on Android: the tab bar morphs into a search field above the keyboard, typing filters the list to Slider, and the X morphs it back into the tab bar" />
+  <img src="../media/search.webp" width="300" alt="Lucent's search tab on Android in dark mode: the tab bar morphs into a search field above the keyboard, typing filters the list to Slider, and the X morphs it back into the tab bar" />
 </p>
 
 > Try it: in the [playground](../../example), tap the search tab. It filters the component list.

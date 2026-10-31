@@ -37,10 +37,12 @@ export const Page = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const backdropPhoto = (seed: string) => ({ uri: `https://picsum.photos/seed/${seed}/900/700` });
+// One photo for every stage, dark with points of light, so the glass has something to bend.
+// Photo by Matthew Skinner on Unsplash (https://unsplash.com/photos/t05kfHeygbE), Unsplash License.
+const backdrop = require('@/assets/backdrop.jpg');
 
 interface StageProps {
-  photo?: string;
+  photo?: boolean;
   height?: number;
   children: ReactNode;
 }
@@ -50,7 +52,7 @@ export const Stage = ({ photo, height = 220, children }: StageProps) => {
   const palette = usePalette();
   return (
     <View style={[styles.stage, { height, backgroundColor: palette.surface }]}>
-      {photo ? <Image fadeDuration={0} source={backdropPhoto(photo)} style={StyleSheet.absoluteFill} /> : null}
+      {photo ? <Image fadeDuration={0} source={backdrop} style={StyleSheet.absoluteFill} /> : null}
       <View style={styles.stageContent}>{children}</View>
     </View>
   );

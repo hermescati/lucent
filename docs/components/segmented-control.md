@@ -6,7 +6,7 @@ Choose one of a few options. Same API as [`@expo/ui/community/segmented-control`
 - **Android:** Lucent's recreation: a capsule track with a thumb you can tap to move or drag across segments, which turns into a glass lens while held.
 
 <p align="center">
-  <img src="../media/segmented-control.webp" width="540" alt="Lucent's segmented control on Android over a striped photo: tapping from Day to Week to Month, then dragging the glass lens back to Day" />
+  <img src="../media/segmented-control.webp" width="540" alt="Lucent's segmented control on Android in dark mode: tapping from Day to Week to Month, then dragging the glass lens back to Day" />
 </p>
 
 > Try it: in the [playground](../../example), open **Components → Segmented Control**.

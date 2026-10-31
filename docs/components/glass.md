@@ -6,7 +6,7 @@ The Liquid Glass material. Same API as [`expo-glass-effect`](https://docs.expo.d
 - **Android:** Lucent's glass: a native refraction shader that bends, blurs and lights the content behind it.
 
 <p align="center">
-  <img src="../media/glass.webp" width="540" alt="Lucent's glass capsule on Android over a photo of a laptop: a tap that grows and bounces back, then a press held and dragged side to side" />
+  <img src="../media/glass.webp" width="540" alt="Lucent's glass capsule on Android over a night street with string lights: a tap that grows and bounces back, then a press held and dragged side to side" />
 </p>
 
 > Try it: in the [playground](../../example), open **Components → Glass**.

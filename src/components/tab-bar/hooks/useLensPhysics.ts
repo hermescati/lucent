@@ -151,7 +151,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
       (position - middleIndex) * width +
       reach +
       push.get() * motion.lensPushTravel;
-    const restHalf = Math.min(layout.bubbleRestWidth, width + space[6]) / 2;
+    const restHalf = Math.min(Math.max(layout.bubbleRestWidth, width), width + space[6]) / 2;
     const spread = Math.max(
       lift.get(),
       Math.min(1, landing.get() * tapStay.get() * tapSlide.get() * motion.tapLanding.hold),

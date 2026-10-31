@@ -14,6 +14,7 @@ The first version of Lucent: iOS 26 Liquid Glass for Expo, on Android too. Each 
 ### Tab bar
 
 - `NativeTabs`, with the same API as `expo-router/native-tabs`, including triggers, icons, labels, badges, vector icons and `NativeTabs.BottomAccessory`. On Android, Lucent draws the floating glass bar with the lens bubble, dragging between tabs, disabled tabs and minimize on scroll.
+- On Android, the selected tab's pill takes the tab's width, so longer labels fit inside it, and in dark mode it sits a shade lighter than the bar.
 - SVG tab icons.
 - `TabScrollView`, `TabScrollMarker`, `useTabBarScroll` and `useTabBarInset`, for minimize on scroll and keeping content clear of the bar.
 

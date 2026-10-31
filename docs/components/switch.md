@@ -6,7 +6,7 @@ An on/off toggle. Same API as the `Switch` from [`@expo/ui`](https://docs.expo.d
 - **Android:** Lucent's recreation of it: a green track with a thumb that turns into a glass lens while you hold or drag it.
 
 <p align="center">
-  <img src="../media/switch.webp" width="540" alt="Lucent's switch on Android over a photo: tapping it on, holding and dragging the glass lens, then dragging it off" />
+  <img src="../media/switch.webp" width="540" alt="Lucent's switch on Android in dark mode: tapping it on, holding and dragging the glass lens, then dragging it off" />
 </p>
 
 > Try it: in the [playground](../../example), open **Components → Switch**.

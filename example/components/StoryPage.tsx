@@ -123,7 +123,7 @@ const StoryView = ({ story }: { story: Story }) => {
   return (
     <Page>
       <Stack.Screen options={{ title: story.name }} />
-      <Stage photo={backdrop === 'photo' ? story.slug : undefined} height={story.stage?.height}>
+      <Stage photo={backdrop === 'photo'} height={story.stage?.height}>
         {story.render({ props, set: setProps })}
       </Stage>
 
