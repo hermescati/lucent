@@ -4,7 +4,8 @@
     "strict": true,
     "paths": {
       "@/*": ["./*"],
-      "expo-lucent": ["../src"]
+      "expo-lucent": ["../src"],
+      "react-native-reanimated": ["./node_modules/react-native-reanimated"]
     }
   }
 }
