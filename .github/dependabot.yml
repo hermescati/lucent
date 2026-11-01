@@ -1,0 +1,48 @@
+version: 2
+
+updates:
+  # Expo and React Native move together with the Expo SDK, so each group lands as one pull request that CI can test.
+  - package-ecosystem: npm
+    directories: ['/', '/example']
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Expo SDK upgrades are done by hand with `npx expo install --fix`, which picks a matching set of versions.
+    # React must match the renderer React Native ships, so it only moves with the SDK.
+    ignore:
+      - dependency-name: 'expo'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'expo-*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@expo/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-native'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: '@react-native/*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: 'react'
+      - dependency-name: 'react-dom'
+    groups:
+      expo-sdk:
+        patterns:
+          - 'expo'
+          - 'expo-*'
+          - '@expo/*'
+          - 'react'
+          - 'react-dom'
+          - 'react-native'
+          - 'react-native-*'
+          - '@react-native/*'
+      tooling:
+        dependency-type: development
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - '*'

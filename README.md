@@ -1,33 +1,63 @@
 # Lucent
 
-**iOS 26 Liquid Glass for Expo, on Android too.** Glass, the floating tab bar, search and controls, from one component API that copies Expo's own.
+**iOS 26 Liquid Glass for Expo, on Android too.** The glass material, the floating tab bar, search and controls, from one API that copies Expo's own.
 
-- **iOS:** every component is the real system one. Lucent passes straight through to Expo (`expo-glass-effect`, `expo-router`, `@expo/ui`).
-- **Android:** Lucent draws an iOS-styled recreation: Liquid Glass through its own refraction shader, with iOS shapes, spacing and springs.
+[![npm](https://img.shields.io/npm/v/expo-lucent)](https://www.npmjs.com/package/expo-lucent)
+[![Expo SDK](https://img.shields.io/badge/Expo%20SDK-58-000020)](https://docs.expo.dev/versions/v58.0.0/)
+![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20Android-lightgrey)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 <p align="center">
-  <img src="docs/media/tab-bar.webp" width="540" alt="Lucent's glass tab bar on Android over photos: switching tabs, dragging the lens between tabs and minimizing on scroll" />
+  <img src="docs/media/tab-bar.webp" width="300" alt="Lucent's glass tab bar on Android in dark mode: switching tabs, dragging the lens between tabs and minimizing on scroll" />
 </p>
 
-Because the props copy Expo's, Expo's docs apply. A screen never branches on the platform: it imports from `expo-lucent` and gets the right implementation.
+## Why Lucent
+
+iOS 26 brought Liquid Glass, and Expo gives you the real thing on iOS: `expo-glass-effect`, expo-router's `NativeTabs` and `@expo/ui`. On Android, the same code looks like a different app. The tab bar is a Material bottom bar, and the glass falls back to a plain `View`.
+
+Lucent keeps Expo's APIs and fills in Android:
+
+- **On iOS**, every component is the system one. Lucent passes straight through to Expo, so you get Apple's glass, tab bar and controls.
+- **On Android**, Lucent draws an iOS-styled recreation: Liquid Glass through its own refraction shader, with iOS shapes, spacing, springs and press physics.
+
+Screens don't branch on the platform. They import from `expo-lucent` and get the right implementation on each, and because the props are Expo's, Expo's docs apply.
 
 ## Components
 
-| Component                                                 | What it is                                                                                   |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [Glass](docs/components/glass.md)                         | `GlassView` and `GlassContainer`, the Liquid Glass material                                  |
-| [Tab bar](docs/components/tabs.md)                        | `NativeTabs`: the floating glass bar with the lens, drag between tabs and minimize on scroll |
-| [Search bar](docs/components/search.md)                   | `SearchBar`: the search tab morphs into a field that rides the keyboard                      |
-| [Switch](docs/components/switch.md)                       | An on/off toggle with a glass thumb                                                          |
-| [Slider](docs/components/slider.md)                       | Pick a value from a range                                                                    |
-| [Segmented control](docs/components/segmented-control.md) | Choose one of a few options                                                                  |
-| [Theming](docs/theming.md)                                | `LucentProvider`: colour scheme, accent, glass opacity and colours                           |
+<table>
+  <tr>
+    <td width="50%"><img src="docs/media/glass.webp" alt="Lucent's glass capsule on Android over a night street with string lights" /></td>
+    <td width="50%"><img src="docs/media/switch.webp" alt="Lucent's switch on Android in dark mode, its thumb turning into a glass lens while held" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/slider.webp" alt="Lucent's slider on Android in dark mode, its thumb turning into a glass lens while dragged" /></td>
+    <td><img src="docs/media/segmented-control.webp" alt="Lucent's segmented control on Android in dark mode, dragging the glass lens between segments" /></td>
+  </tr>
+</table>
 
-The full docs are in [docs/](docs/README.md).
+| Component                                                 | Exports                                          | On iOS                          | On Android                                                    |
+| --------------------------------------------------------- | ------------------------------------------------ | ------------------------------- | ------------------------------------------------------------- |
+| [Glass](docs/components/glass.md)                         | `GlassView`, `GlassContainer`, `GlassBackdrop`   | `expo-glass-effect`             | Refraction shader that bends, blurs and lights what's behind  |
+| [Tab bar](docs/components/tabs.md)                        | `NativeTabs`, `TabScrollView`, `useTabBarScroll` | expo-router's `NativeTabs`      | Floating glass bar with the lens, drag between tabs, minimize |
+| [Search bar](docs/components/search.md)                   | `SearchBar`, `useTabSearch`                      | expo-router's `Stack.SearchBar` | The search tab morphs into a field that rides the keyboard    |
+| [Switch](docs/components/switch.md)                       | `Switch`                                         | `@expo/ui`                      | Toggle whose thumb turns into a glass lens                    |
+| [Slider](docs/components/slider.md)                       | `Slider`                                         | `@expo/ui`                      | Thin track with a glass-lens thumb that stretches at the ends |
+| [Segmented control](docs/components/segmented-control.md) | `SegmentedControl`                               | `@expo/ui`                      | Capsule track with a thumb you tap or drag across segments    |
+| [Theming](docs/theming.md)                                | `LucentProvider`, `useLucentTheme`               | The accent (`tintColor`)        | Accent, colour scheme, glass opacity and colour overrides     |
+
+Every component's page in [docs/](docs/README.md) lists its props, what Lucent adds and how Android behaves.
+
+## Requirements
+
+|              | Version                                                                                                                                  |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Expo SDK     | 58, with expo-router                                                                                                                     |
+| React Native | 0.88                                                                                                                                     |
+| Build        | A [development build](https://docs.expo.dev/develop/development-builds/introduction/): Lucent ships native code, so Expo Go won't run it |
+| iOS          | 16.4+. Liquid Glass needs iOS 26; earlier versions get Expo's own fallbacks                                                              |
+| Android      | 7.0+ (API 24). Full refraction on Android 13+, blurred glass on 12, a tinted fill below that                                             |
 
 ## Install
-
-Lucent needs a development build (it ships a native module), Expo SDK 58 and expo-router.
 
 ```sh
 npx expo install expo-lucent expo-router expo-glass-effect expo-symbols expo-haptics @expo/ui \
@@ -38,19 +68,46 @@ npx expo run:android   # or: npx expo run:ios
 
 Keep `expo-router` in your app config's `plugins`: its config plugin turns on the react-native-screens feature that minimizing the iOS tab bar needs.
 
+## Coming from Expo
+
+If your app already uses Expo's components, switching is a change of import. The props stay the same.
+
+| Before                                                                    | After                                                     |
+| ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `import { NativeTabs } from 'expo-router/native-tabs'`                    | `import { NativeTabs } from 'expo-lucent'`                |
+| `import { GlassView, GlassContainer } from 'expo-glass-effect'`           | `import { GlassView, GlassContainer } from 'expo-lucent'` |
+| `import { Switch, Slider } from '@expo/ui'`                               | `import { Switch, Slider } from 'expo-lucent'`            |
+| `import { SegmentedControl } from '@expo/ui/community/segmented-control'` | `import { SegmentedControl } from 'expo-lucent'`          |
+| `<Stack.SearchBar />` in the search tab's screen                          | `<SearchBar />` from `expo-lucent`                        |
+
+Then wrap the app in `LucentProvider` to set the accent once for both platforms, as below.
+
 ## Quick start
 
 ```tsx
 // app/_layout.tsx
 import { LucentProvider } from 'expo-lucent';
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { useColorScheme } from 'react-native';
 
 export default function RootLayout() {
+  const scheme = useColorScheme();
   return (
-    <LucentProvider tintColor="#FF8433">
-      <Stack screenOptions={{ headerShown: false }} />
-    </LucentProvider>
+    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <LucentProvider tintColor="#FF8433">
+        <Stack screenOptions={{ headerShown: false }} />
+      </LucentProvider>
+    </ThemeProvider>
   );
+}
+```
+
+```tsx
+// app/index.tsx
+import { Redirect } from 'expo-router';
+
+export default function Index() {
+  return <Redirect href="/home" />;
 }
 ```
 
@@ -89,9 +146,35 @@ export default function Home() {
 }
 ```
 
+```tsx
+// app/(tabs)/search/index.tsx
+import { SearchBar, TabScrollView } from 'expo-lucent';
+import { useState } from 'react';
+import { Text } from 'react-native';
+
+export default function Search() {
+  const [query, setQuery] = useState('');
+  return (
+    <TabScrollView contentContainerStyle={{ padding: 16 }}>
+      <SearchBar placeholder="Search" onChangeText={(event) => setQuery(event.nativeEvent.text)} />
+      <Text>Results for {query}</Text>
+    </TabScrollView>
+  );
+}
+```
+
+## Android notes
+
+- **Glass outside the tab bar** needs to see what's behind it: wrap that content in `GlassBackdrop`. Inside `NativeTabs` it's already set up. See [Glass](docs/components/glass.md#glass-outside-the-tab-bar-android).
+- **Glass on glass** works one layer deep. Glass sees other glass behind it, but not a third layer.
+- **Opacity:** as with Expo, an opacity below 1 on the glass or a parent can stop it rendering. Animate a wrapper's opacity instead.
+- **Glass opacity:** Android has no Clear/Tinted setting like iOS, so `LucentProvider`'s `glassOpacity` sets it for the whole app.
+- **Not drawn yet:** `NativeTabs.Trigger.VectorIcon` and `NativeTabs.BottomAccessory`.
+- **Ignored:** Material-only tab bar props such as `indicatorColor` and `rippleColor`, since the bar is iOS-styled.
+
 ## Playground
 
-The [example app](example) is a playground with every component in it. Each one has its own page where you can change its props, see it react, and copy the code for what you set. It runs inside Lucent's tab bar, with a Settings tab for the theme. Each component's page comes from one small story file; see [example/README.md](example/README.md) to add one.
+The [example app](example) is a playground with every component in it. Each one has a page where you can change its props, see it react and copy the code for what you set. It runs inside Lucent's tab bar, with a Settings tab for the theme. To add a page, see [example/README.md](example/README.md).
 
 ```sh
 cd example

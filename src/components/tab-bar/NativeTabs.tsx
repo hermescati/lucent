@@ -4,6 +4,7 @@ import { Children, cloneElement, createElement, isValidElement, type FC, type Re
 import { SearchHostProvider } from './context/search';
 import { resolveTabIcon } from './helpers/svgIcon';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
+import { useLucentTheme } from '../../theme/LucentProvider';
 
 const Trigger = ExpoNativeTabs.Trigger as unknown as Omit<typeof ExpoNativeTabs.Trigger, 'Icon'> &
   ((props: LucentNativeTabTriggerProps) => null) & { Icon: FC<LucentNativeTabsTriggerIconProps> };
@@ -36,11 +37,17 @@ const withSearch = (child: React.ReactNode) => {
   } as LucentNativeTabTriggerProps);
 };
 
-const NativeTabsRoot = ({ children, ...props }: LucentNativeTabsProps) => (
-  <SearchHostProvider>
-    <ExpoNativeTabs {...props}>{Children.map(children, withSearch)}</ExpoNativeTabs>
-  </SearchHostProvider>
-);
+const NativeTabsRoot = ({ children, tintColor, ...props }: LucentNativeTabsProps) => {
+  // UIKit passes the tab bar's tint down to every screen, so LucentProvider's accent reaches the native controls too.
+  const { color } = useLucentTheme();
+  return (
+    <SearchHostProvider>
+      <ExpoNativeTabs tintColor={tintColor ?? color.tint} {...props}>
+        {Children.map(children, withSearch)}
+      </ExpoNativeTabs>
+    </SearchHostProvider>
+  );
+};
 
 export const NativeTabs = Object.assign(NativeTabsRoot, {
   Trigger,

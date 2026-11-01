@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, format, types and package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            example/package-lock.json
+
+      # `prepare` builds the library into build/ as part of the install.
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npx tsc --noEmit
+      # publint checks package.json and the files list; attw checks the types resolve for users.
+      - run: npm run check:package
+
+      - run: npm ci
+        working-directory: example
+      - run: npx tsc --noEmit
+        working-directory: example
+
+  changeset:
+    name: Changeset
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # Fails when the pull request changes the library without a changeset. See .changeset/README.md.
+      - run: npx changeset status --since=origin/${{ github.base_ref }}
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            example/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+
+      - run: npm ci
+      - run: npm ci
+        working-directory: example
+      - run: npx expo prebuild --platform android --no-install
+        working-directory: example
+      # Compiles Lucent's Kotlin along with the example app.
+      - run: ./gradlew assembleDebug --no-daemon
+        working-directory: example/android

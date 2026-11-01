@@ -1,10 +1,11 @@
+import { useTheme } from 'expo-router';
 import type {
   NativeTabsBottomAccessoryProps,
   NativeTabsTriggerBadgeProps,
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -43,6 +44,7 @@ const NativeTabsRoot = ({
   const visible = triggers.filter((trigger) => !trigger.hidden);
   const primary = visible.filter((trigger) => !trigger.search);
   const search = visible.find((trigger) => trigger.search);
+  const { colors } = useTheme();
 
   return (
     <GestureHandlerRootView style={styles.fill}>
@@ -51,6 +53,9 @@ const NativeTabsRoot = ({
           <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
             <Tabs style={styles.fill}>
               <NativeGlassBackdrop style={styles.fill}>
+                {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
+                    screens, as iOS does, for screens without their own colour. */}
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
                 <TabSlot detachInactiveScreens={false} />
               </NativeGlassBackdrop>
               {!hidden && primary.length > 0 ? (

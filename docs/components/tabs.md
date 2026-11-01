@@ -6,7 +6,7 @@ The iOS 26 floating glass tab bar. Same API as [`expo-router`'s `NativeTabs`](ht
 - **Android:** Lucent draws the same floating glass bar, with the lens bubble, dragging between tabs, press physics and minimize on scroll.
 
 <p align="center">
-  <img src="../media/tab-bar.webp" width="540" alt="Lucent's glass tab bar on Android over photos: switching tabs, dragging the lens between tabs and minimizing on scroll" />
+  <img src="../media/tab-bar.webp" width="540" alt="Lucent's glass tab bar on Android in dark mode: switching tabs, dragging the lens between tabs and minimizing on scroll" />
 </p>
 
 > Try it: the [playground](../../example) runs inside `NativeTabs`. Open **Components → Tab Bar** to change its props live.
@@ -95,4 +95,5 @@ The `svg` icon supports `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`,
 - **A `disabled` tab** looks normal and still reacts to a tap or drag, but the lens slides back to the current tab and nothing navigates.
 - **`minimizeBehavior`:** `onScrollDown` and `onScrollUp` work as on iOS. `automatic` and `never` don't minimize, which is what iOS does on iPhone.
 - **Icons** use `md` (Material Symbol), an image `src` or Lucent's `svg`. `VectorIcon` isn't drawn yet.
+- **`NativeTabs.BottomAccessory`** isn't drawn yet.
 - **Ignored props:** the Material-only props (`indicatorColor`, `rippleColor`, `labelVisibilityMode`, `disableIndicator`) are accepted and ignored, since the bar is iOS-styled. Props that only affected iOS before 26 (`blurEffect`, `shadowColor`, `backgroundColor`) are ignored on both platforms, matching iOS 26.

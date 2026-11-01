@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to Lucent are listed here. New changes go under the topmost version until it's published.
+All notable changes to Lucent are listed here. Each release's entries come from the changesets merged since the last one (see [.changeset](.changeset/README.md)).
 
-## 0.1.0 (unreleased)
+## 0.1.0
 
 The first version of Lucent: iOS 26 Liquid Glass for Expo, on Android too. Each component copies an Expo API. On iOS it renders Expo's own component, and on Android Lucent draws an iOS-styled recreation.
 
@@ -15,6 +15,8 @@ The first version of Lucent: iOS 26 Liquid Glass for Expo, on Android too. Each 
 
 - `NativeTabs`, with the same API as `expo-router/native-tabs`, including triggers, icons, labels, badges, vector icons and `NativeTabs.BottomAccessory`. On Android, Lucent draws the floating glass bar with the lens bubble, dragging between tabs, disabled tabs and minimize on scroll.
 - On Android, the selected tab's pill takes the tab's width, so longer labels fit inside it, and in dark mode it sits a shade lighter than the bar.
+- On Android, a search tab without an icon gets a magnifier, as on iOS, and the tabs paint the navigation theme's background behind screens that have none, so the glass always has something to refract.
+- On iOS, `NativeTabs` takes `LucentProvider`'s `tintColor` when it isn't given one, so the accent reaches the tab bar and the native controls inside it.
 - SVG tab icons.
 - `TabScrollView`, `TabScrollMarker`, `useTabBarScroll` and `useTabBarInset`, for minimize on scroll and keeping content clear of the bar.
 

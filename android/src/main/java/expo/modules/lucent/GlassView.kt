@@ -20,6 +20,7 @@ import android.annotation.SuppressLint
 import android.view.PixelCopy
 import android.view.View
 import android.view.ViewTreeObserver
+import android.view.Window
 import com.facebook.react.uimanager.ReactOverflowView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -92,7 +93,8 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
 
   private fun sampleOnce() {
     val window = appContext.currentActivity?.window
-    if (window == null || sampling || frost <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+    // A hidden window, such as the app in the background, has no surface to copy from.
+    if (window == null || windowVisibility != VISIBLE || sampling || frost <= 0f || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       scheduleSample()
       return
     }
@@ -108,7 +110,17 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
       return
     }
     sampling = true
-    PixelCopy.request(window, Rect(left, top, right, bottom), sampleBitmap, { result ->
+    try {
+      requestSample(window, Rect(left, top, right, bottom))
+    } catch (_: IllegalArgumentException) {
+      // The surface went away between the check above and the copy.
+      sampling = false
+      scheduleSample()
+    }
+  }
+
+  private fun requestSample(window: Window, area: Rect) {
+    PixelCopy.request(window, area, sampleBitmap, { result ->
       sampling = false
       if (result == PixelCopy.SUCCESS) {
         sampleBitmap.getPixels(samplePixels, 0, SAMPLE_SIZE, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE)

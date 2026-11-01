@@ -7,11 +7,13 @@ import android.graphics.Path
 import android.net.Uri
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
+import expo.modules.kotlin.types.OptimizedRecord
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.ceil
 import kotlin.math.min
 
+@OptimizedRecord
 class VectorLayer : Record {
   @Field val commands: List<Double> = emptyList()
   @Field val fill: Double? = null

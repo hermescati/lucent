@@ -1,0 +1,8 @@
+{
+  "$schema": "../node_modules/@changesets/config/schema.json",
+  "baseBranch": "main",
+  "access": "public",
+  "changedFilePatterns": ["src/**", "android/src/**", "ios/**", "expo-module.config.json"],
+  "changelog": "@changesets/cli/changelog",
+  "commit": false
+}

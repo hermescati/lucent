@@ -78,6 +78,10 @@ export const parseTriggers = (children: ReactNode): TabSpec[] =>
         spec.badgeColor = typeof selectedBackgroundColor === 'string' ? selectedBackgroundColor : undefined;
       }
     });
+    // iOS draws a magnifier for a search tab without an icon, so match it.
+    if (spec.search && !spec.icon) {
+      spec.icon = { md: 'search' };
+    }
     return [spec];
   });
 
