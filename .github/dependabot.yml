@@ -7,14 +7,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    # Expo SDK upgrades are done by hand with `npx expo install --fix`, which picks a matching set of versions.
+    # Major upgrades are done by hand: an Expo SDK upgrade with `npx expo install --fix`, which picks a matching set
+    # of versions, and tools like Babel, ESLint or TypeScript, which can need config changes.
     # React must match the renderer React Native ships, so it only moves with the SDK.
     ignore:
-      - dependency-name: 'expo'
-        update-types: ['version-update:semver-major']
-      - dependency-name: 'expo-*'
-        update-types: ['version-update:semver-major']
-      - dependency-name: '@expo/*'
+      - dependency-name: '*'
         update-types: ['version-update:semver-major']
       - dependency-name: 'react-native'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
@@ -33,6 +30,8 @@ updates:
           - 'react-native'
           - 'react-native-*'
           - '@react-native/*'
+          - 'jest-expo'
+          - 'babel-preset-expo'
       tooling:
         dependency-type: development
         patterns:
