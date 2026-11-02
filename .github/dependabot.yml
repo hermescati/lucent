@@ -1,12 +1,11 @@
 version: 2
 
 updates:
-  # Expo and React Native move together with the Expo SDK, so each group lands as one pull request that CI can test.
+  # Once a month, every npm update lands as one pull request that CI tests together.
   - package-ecosystem: npm
     directories: ['/', '/example']
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
     # Major upgrades are done by hand: an Expo SDK upgrade with `npx expo install --fix`, which picks a matching set
     # of versions, and tools like Babel, ESLint or TypeScript, which can need config changes.
     # React must match the renderer React Native ships, so it only moves with the SDK.
@@ -20,27 +19,14 @@ updates:
       - dependency-name: 'react'
       - dependency-name: 'react-dom'
     groups:
-      expo-sdk:
-        patterns:
-          - 'expo'
-          - 'expo-*'
-          - '@expo/*'
-          - 'react'
-          - 'react-dom'
-          - 'react-native'
-          - 'react-native-*'
-          - '@react-native/*'
-          - 'jest-expo'
-          - 'babel-preset-expo'
-      tooling:
-        dependency-type: development
+      dependencies:
         patterns:
           - '*'
 
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       actions:
         patterns:
