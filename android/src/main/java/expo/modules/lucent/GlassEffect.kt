@@ -42,6 +42,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     }
 
   private val toneShader: RuntimeShader? = if (shader != null) RuntimeShader(TONE_SHADER) else null
+  private val hazeIn: RuntimeShader? = if (shader != null) RuntimeShader(HAZE_IN_SHADER) else null
+  private val hazeOut: RuntimeShader? = if (shader != null) RuntimeShader(HAZE_OUT_SHADER) else null
 
   private val lowRam =
     (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice ?: false
@@ -128,8 +130,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
   /**
    * What the glass sees: the backdrop at the material's own blur, or, with haze, that at `weight`'s complement over a
    * Gaussian `radius` wide. A real blur rather than taps in the glass shader, which would print sparse sharp content
-   * (text) as a ring of copies. It averages as the backdrop's stored, not in linear light as iOS 27 does: effects hand
-   * each other 8 bits a channel, too few to carry a dark colour cubed or squared.
+   * (text) as a ring of copies. It averages near linear light, as iOS 27 does, on a curve 8 bits a channel can carry
+   * (HAZE_IN_SHADER).
    */
   private fun hazed(blurPx: Float, weight: Float, radiusPx: Float, first: RenderEffect?): RenderEffect? {
     // Each branch takes `first` (the tone, with tonePre) itself: a blend's branches read the raw content, not a chain's.
@@ -137,7 +139,17 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
       if (first == null) effect else if (effect == null) first else RenderEffect.createChainEffect(effect, first)
     val near = after(blur(blurPx))
     if (weight <= 0f || radiusPx <= 0.5f) return near
-    val wide = after(RenderEffect.createBlurEffect(radiusPx * 0.5f, radiusPx * 0.5f, Shader.TileMode.CLAMP))
+    val spread = RenderEffect.createBlurEffect(radiusPx * 0.5f, radiusPx * 0.5f, Shader.TileMode.CLAMP)
+    // Toned first (dark), detail already averages on the tone's curve, nearer iOS 27's without this.
+    val inShader = hazeIn.takeIf { first == null }
+    val outShader = hazeOut
+    val wide = after(
+      if (inShader == null || outShader == null) spread
+      else RenderEffect.createChainEffect(
+        RenderEffect.createRuntimeShaderEffect(outShader, "content"),
+        RenderEffect.createChainEffect(spread, RenderEffect.createRuntimeShaderEffect(inShader, "content")),
+      ),
+    )
     val keep = ColorMatrix().apply { setScale(1f, 1f, 1f, 1f - weight) }
     val faint = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(keep))
     val sharp = if (near != null) RenderEffect.createChainEffect(faint, near) else faint

@@ -542,3 +542,26 @@ half4 main(float2 p) {
   return half4(half3(clamp(v, float3(0.0), float3(1.0)) * float(c.a)), c.a);
 }
 """
+
+// The haze's wide blur averages on ((x + 0.2)^2 - 0.04) / 1.4 and back: near enough linear light, as iOS 27's does, to
+// land black and white detail's mean where its does, with a slope at black (0.29) that 8 bits a channel between
+// effects still carry. A plain square or a cube would band dark colours into blocks.
+internal const val HAZE_IN_SHADER = """
+uniform shader content;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float3 v = clamp(float3(c.rgb) / max(float(c.a), 0.0001), float3(0.0), float3(1.0));
+  v = ((v + 0.2) * (v + 0.2) - 0.04) / 1.4;
+  return half4(half3(v * float(c.a)), c.a);
+}
+"""
+
+internal const val HAZE_OUT_SHADER = """
+uniform shader content;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float3 v = clamp(float3(c.rgb) / max(float(c.a), 0.0001), float3(0.0), float3(1.0));
+  v = sqrt(v * 1.4 + 0.04) - 0.2;
+  return half4(half3(v * float(c.a)), c.a);
+}
+"""
