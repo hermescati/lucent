@@ -26,6 +26,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     barGrowth,
     barPress,
     barWidth,
+    circleCenter,
     collapsed,
     gliding,
     grey,
@@ -127,7 +128,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const dip = searchDip.get();
     const backSpread = modeTarget.get() === 0 && mode > 0 ? backLight.get() * Math.pow(settled, glass.backGlowFade) : 0;
 
-    const searchX = width + layout.tabBarGap + fullHeight / 2;
+    const searchX = circleCenter;
     const circleY = fullHeight / 2;
     const searchRadius = (fullHeight / 2) * searchScale.get();
     // Inactive, the field reaches all the way to where the close button's circle ended.

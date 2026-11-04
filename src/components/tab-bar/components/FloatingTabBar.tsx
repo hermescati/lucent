@@ -214,6 +214,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     shine,
     tileSink,
     tintColor,
+    fitWidth,
   } = { ...state, ...search, ...press, ...lens, ...barGlass };
 
   return (
@@ -232,7 +233,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
         />
         <GestureDetector gesture={pan}>
           <Animated.View
-            style={[styles.frame, pillModeStyle]}
+            style={[styles.frame, fitWidth !== undefined && { flex: 0, width: fitWidth }, pillModeStyle]}
             pointerEvents={searchFocused ? 'none' : 'auto'}
             onLayout={onPillLayout}>
             <Animated.View
@@ -247,6 +248,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             </Animated.View>
           </Animated.View>
         </GestureDetector>
+        {fitWidth !== undefined ? <View style={styles.grow} pointerEvents="none" /> : null}
         {searchTab ? (
           <Animated.View style={[styles.search, searchSpreadStyle]}>
             <Pressable
@@ -276,7 +278,13 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
       </NativeGlassBackdrop>
       <Animated.View
         pointerEvents="none"
-        style={[styles.lensOverlay, !hasSearch && styles.lensOverlayFull, pillModeStyle, pressScaleStyle]}>
+        style={[
+          styles.lensOverlay,
+          !hasSearch && styles.lensOverlayFull,
+          fitWidth !== undefined && { right: barSpan - fitWidth },
+          pillModeStyle,
+          pressScaleStyle,
+        ]}>
         <Animated.View style={[styles.rowClip, rowClipStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
             <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
@@ -492,6 +500,9 @@ const styles = StyleSheet.create({
   frame: {
     flex: 1,
     height: fullHeight,
+  },
+  grow: {
+    flex: 1,
   },
   search: {
     width: fullHeight,

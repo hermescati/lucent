@@ -12,8 +12,13 @@ const hasToolbar = (pathname: string) =>
 export default function TabsLayout() {
   const { tint, minimize, accessory, tabs, searchApart } = useSettings();
   const pathname = usePathname();
+  // Search's role can't change on a mounted tab on iOS (react-native-screens throws), so the tabs remount when it does.
   return (
-    <NativeTabs tintColor={tint} minimizeBehavior={minimize} hidden={hasToolbar(pathname)}>
+    <NativeTabs
+      key={searchApart ? 'search-apart' : 'search-tab'}
+      tintColor={tint}
+      minimizeBehavior={minimize}
+      hidden={hasToolbar(pathname)}>
       {accessory ? (
         <NativeTabs.BottomAccessory>
           <NowPlaying />

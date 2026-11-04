@@ -11,6 +11,9 @@ export const layout = {
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,
   tabBarGap: 8,
+  // Two tabs beside search's circle: iOS 27 fits the bar to them and keeps it at the left, the circle staying at the
+  // right (simulator, iPhone 18 Pro: 205.3 wide, against 290 for three).
+  tabBarTwoTabWidth: 205.3,
   searchModeHeight: 48,
   searchModeGap: 12,
   gestureNavInsetMax: 32,

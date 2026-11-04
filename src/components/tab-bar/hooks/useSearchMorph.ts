@@ -20,6 +20,7 @@ export const useSearchMorph = (bar: BarState) => {
     barLeft,
     barLift,
     barWidth,
+    circleCenter,
     iconDim,
     keyboardProgress,
     modeTarget,
@@ -100,7 +101,7 @@ export const useSearchMorph = (bar: BarState) => {
   );
   const searchFillStyle = useAnimatedStyle(() => {
     const mode = searchMode.get();
-    const travel = barWidth.get() + layout.tabBarGap + fullHeight / 2 - fieldGlyphCenter;
+    const travel = circleCenter - fieldGlyphCenter;
     if (modeTarget.get() === 0) {
       return {
         opacity: searchPress.press.get() * clamp01(searchPop.get() * motion.searchClose.lightHold),
@@ -154,7 +155,7 @@ export const useSearchMorph = (bar: BarState) => {
       1 - clamp01(searchMode.get() * (modeTarget.get() === 1 ? motion.searchTabs.fade : motion.searchTabs.closeFade)),
     transform: [{ translateY: tileSink.get() }],
   }));
-  const searchCenter = useDerivedValue(() => barWidth.get() + layout.tabBarGap + fullHeight / 2);
+  const searchCenter = useDerivedValue(() => circleCenter);
   const pillReach = useDerivedValue(() =>
     modeTarget.get() === 1 ? lerp(barWidth.get(), modeInset + modeHeight, clamp01(searchMode.get())) : barWidth.get(),
   );

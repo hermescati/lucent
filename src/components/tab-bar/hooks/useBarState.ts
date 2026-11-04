@@ -78,6 +78,10 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const moved = useSharedValue(false);
   const lensPresence = useSharedValue(focusedIndex >= 0 ? 1 : 0);
   const hasSearch = searchTab !== undefined;
+  // The bar's own width with two tabs beside search's circle, left aligned; otherwise it fills the span.
+  const fitWidth = hasSearch && tabCount === 2 ? layout.tabBarTwoTabWidth : undefined;
+  // Search's circle sits at the span's right end, wherever the bar ends.
+  const circleCenter = barSpan - fullHeight / 2;
   const towardSearch = hasSearch ? motion.barGrow.towardSearch : 0;
   const disabledKey = tabs.map((tab) => (tab.disabled ? 1 : 0)).join('');
   const disabledTabs = useSharedValue(tabs.map((tab) => tab.disabled));
@@ -237,6 +241,8 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     barShiftX,
     barSpan,
     barWidth,
+    fitWidth,
+    circleCenter,
     bottom,
     bounceAt,
     clampIndex,
