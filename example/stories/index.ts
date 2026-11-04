@@ -73,9 +73,9 @@ export const entries: Entry[] = [
 ];
 
 const groups: { group: Group; title: string }[] = [
+  { group: 'navigation', title: 'Navigation' },
   { group: 'controls', title: 'Controls' },
   { group: 'views', title: 'Views' },
-  { group: 'navigation', title: 'Navigation' },
   { group: 'materials', title: 'Materials' },
 ];
 
