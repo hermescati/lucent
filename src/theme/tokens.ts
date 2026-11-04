@@ -35,7 +35,8 @@ export const glass = {
   pullTopBand: { dark: 20, light: 1 },
   refractionYScale: { dark: 0.96, light: 0.96 },
   wideRadius: { dark: 16, light: 9 },
-  wideMix: { dark: 0.35, light: 0.22 },
+  // The wide blur drawn under the glass, now only for a press: at rest the haze is the material's wide blur.
+  wideMix: { dark: 0, light: 0 },
   pressWideMix: { dark: 0.8, light: 0.85 },
   // How far colour sits from grey, after the tone: dark fitted over red, green, blue, orange and browns (simulator).
   chroma: { dark: 1.2, light: 1.9 },
@@ -81,8 +82,9 @@ export const glass = {
   // it darkened rather than a stroke. Full at the sides; a quarter where it faces up or down in light mode, and none in
   // dark, where it also eases off over light backdrops.
   edge: { width: 0.5, top: { light: 0.25, dark: 0 }, darken: { light: 0, dark: 0.88 } },
-  // Its material over stripes: a near-sharp image at about a third over a blur far wider than 16pt, at every stripe period.
-  haze: { weight: 0.67, radius: 40, blur: 0.4 },
+  // Its material over stripes: a near-sharp image at about a quarter (light) or a third (dark) over a blur far wider
+  // than 16pt, at every stripe period; in dark the blur averages after the tone (tonePre).
+  haze: { weight: { light: 0.74, dark: 0.69 }, radius: 40, blur: 0.4 },
   outlineSide: 1.1,
   rimSide: 3,
   insetShade: { dark: 0, light: 0 },
@@ -111,8 +113,8 @@ export const glass = {
   inkLuma: { dark: { from: 0.26, to: 0.4, step: 0.1 }, light: { from: 0.72, to: 0.9, step: 0.1 } },
   lensFrostClear: { dark: 0.9, light: 0 },
   // iOS 27's dark pill over stripes (simulator): the bar's material blurred about 1.75pt more (39% of its 8pt stripes
-  // left, 80% of its 16pt), at the bar's own scale. A disc 3.5pt wide is that blur, its taps too close to print copies.
-  lensFrostRadius: { dark: 3.5, light: 10 },
+  // left, 80% of its 16pt), at the bar's own scale. A disc 4.3pt wide is that blur, its taps too close to print copies.
+  lensFrostRadius: { dark: 4.3, light: 10 },
   lensFrostMagnify: { dark: 0, light: 0.7 },
   lensFalloff: 0,
   lensDispersion: 0.95,

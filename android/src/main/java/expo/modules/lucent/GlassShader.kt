@@ -72,6 +72,7 @@ uniform float frostMagnify;
 uniform float3 fadeBlur;
 uniform float2 rimOptic;
 uniform float2 toneBow;
+uniform float tonePre;
 uniform float4 tone;
 uniform float4 frostTone;
 uniform float chroma;
@@ -206,6 +207,23 @@ float luma(float3 c) {
   return dot(c, float3(0.2126, 0.7152, 0.0722));
 }
 
+// The backdrop's brightness that the glass's tone curve (gamma 1) takes to `y`.
+float untone(float y) {
+  float rise = tone.y + toneBow.x;
+  float lift = y - tone.x;
+  if (toneBow.x < 0.0001) {
+    return clamp(lift / max(tone.y, 0.0001), 0.0, 1.0);
+  }
+  return clamp((rise - sqrt(max(rise * rise - 4.0 * toneBow.x * lift, 0.0))) / (2.0 * toneBow.x), 0.0, 1.0);
+}
+
+// The backdrop that TONE_SHADER's tint and tone took to `c`.
+float3 backdropOf(float3 c, float4 glassTint) {
+  float toned = clamp(luma(c), 0.0, 1.0);
+  float3 tinted = c + untone(toned) - toned;
+  return (tinted - glassTint.rgb * glassTint.a) / max(1.0 - glassTint.a, 0.01);
+}
+
 float shadowAlpha(float2 p, float dp) {
   float sd = field(p - float2(0.0, shadowOffset)) - shadowSpread;
   float blurWidth = max(shadowRadius, 1.0) * 1.875;
@@ -248,6 +266,9 @@ half4 main(float2 coord) {
       // it vanishes over black and keeps 69% of white), eased off over light backdrops in dark mode, and weaker where
       // the edge faces up or down. Drawn as a premultiplied colour over the backdrop, so each channel darkens on its own.
       float3 b = content.eval(clamp(coord, float2(0.5), size - float2(0.5))).rgb;
+      if (tonePre > 0.5) {
+        b = clamp(backdropOf(b, float4(tint)), float3(0.0), float3(1.0));
+      }
       float w = stroke * mix(rimOptic.x, 1.0, side);
       float3 m = mix(float3(1.0), (0.118 + 0.572 * b) * (1.0 - rimOptic.y * max(luma(b) - 0.5, 0.0)), w);
       float keep = min(m.r, min(m.g, m.b));
@@ -423,6 +444,11 @@ half4 main(float2 coord) {
   }
 
   float4 tintColor = float4(tint);
+  if (tonePre > 0.5) {
+    // Tinted and toned before the haze's blur (TONE_SHADER), so detail averaged on the curve: back to the backdrop it
+    // stands for, to tint and tone as any glass.
+    col = backdropOf(col, tintColor);
+  }
   col = mix(col, tintColor.rgb, tintColor.a * (1.0 - frosted * frostClear));
   if (tone.w > 0.0) {
     float base = mix(tone.x, frostTone.x, frosted);
@@ -499,5 +525,20 @@ half4 main(float2 coord) {
   col += float3((sheen * 0.7 * (lead + trail) + glow * 0.1 * lead) * specular);
   col = clamp(col, float3(0.0), float3(1.0));
   return half4(float4(col * cover, cover) + outer);
+}
+"""
+
+// The glass's tint, then its tone curve on brightness with the colour carried over, ahead of the haze's blur (tonePre):
+// base, gain, bow.
+internal const val TONE_SHADER = """
+uniform shader content;
+uniform float3 curve;
+layout(color) uniform half4 tint;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float3 v = mix(float3(c.rgb) / max(float(c.a), 0.0001), float3(tint.rgb), float(tint.a));
+  float lit = clamp(dot(v, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+  v += curve.x + curve.y * lit + curve.z * lit * (1.0 - lit) - lit;
+  return half4(half3(clamp(v, float3(0.0), float3(1.0)) * float(c.a)), c.a);
 }
 """

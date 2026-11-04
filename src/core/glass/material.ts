@@ -49,7 +49,7 @@ export const glassEdge = (scheme: LucentTheme['scheme']) => ({
 
 export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTheme) => ({
   blurRadius: glass.haze.blur,
-  haze: glass.haze.weight,
+  haze: glass.haze.weight[scheme],
   hazeRadius: glass.haze.radius,
   bezel: glass.bezel[scheme],
   refraction: glass.refraction[scheme],
@@ -71,6 +71,8 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   frostChroma: glass.tone[scheme].frostChroma,
   toneBow: glass.tone[scheme].bow,
   frostBow: glass.tone[scheme].frostBow,
+  // Toned before the haze's blur, so detail averages as iOS 27's dark glass does (darker than flat).
+  tonePre: true,
   falloff: glass.falloff[scheme],
   dispersion: glass.dispersion,
   saturation: glass.saturation[scheme],

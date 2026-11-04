@@ -187,6 +187,7 @@ class LucentModule : Module() {
       Prop("frostChroma") { view: GlassView, value: Float? -> view.frostChroma = value ?: 1f }
       Prop("toneBow") { view: GlassView, value: Float? -> view.toneBow = value ?: 0f }
       Prop("frostBow") { view: GlassView, value: Float? -> view.frostBow = value ?: 0f }
+      Prop("tonePre") { view: GlassView, value: Boolean? -> view.tonePre = value ?: false }
       Prop("frostLeft") { view: GlassView, value: Float? -> view.frostLeft = value ?: 0f }
       Prop("frostTop") { view: GlassView, value: Float? -> view.frostTop = value ?: 0f }
       Prop("frostRight") { view: GlassView, value: Float? -> view.frostRight = value ?: 0f }

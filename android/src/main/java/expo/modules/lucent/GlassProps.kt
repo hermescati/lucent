@@ -117,6 +117,9 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   // than a power curve can. For the glass, and under the frost (the tab bar's pill).
   var toneBow = 0f
   var frostBow = 0f
+  // Tone the backdrop before the haze's blur rather than after, as iOS 27's dark glass does: detail averages darker
+  // than its mean would tone. The tone curve's gamma must be 1 (the frost and the outline invert it).
+  var tonePre = false
   var sampleBackdrop = false
     set(value) {
       field = value

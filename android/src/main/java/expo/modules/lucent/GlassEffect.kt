@@ -41,6 +41,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
       null
     }
 
+  private val toneShader: RuntimeShader? = if (shader != null) RuntimeShader(TONE_SHADER) else null
+
   private val lowRam =
     (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice ?: false
 
@@ -129,14 +131,17 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
    * (text) as a ring of copies. It averages as the backdrop's stored, not in linear light as iOS 27 does: effects hand
    * each other 8 bits a channel, too few to carry a dark colour cubed or squared.
    */
-  private fun hazed(blurPx: Float, weight: Float, radiusPx: Float): RenderEffect? {
-    val near = blur(blurPx)
+  private fun hazed(blurPx: Float, weight: Float, radiusPx: Float, first: RenderEffect?): RenderEffect? {
+    // Each branch takes `first` (the tone, with tonePre) itself: a blend's branches read the raw content, not a chain's.
+    fun after(effect: RenderEffect?) =
+      if (first == null) effect else if (effect == null) first else RenderEffect.createChainEffect(effect, first)
+    val near = after(blur(blurPx))
     if (weight <= 0f || radiusPx <= 0.5f) return near
-    val wide = RenderEffect.createBlurEffect(radiusPx * 0.5f, radiusPx * 0.5f, Shader.TileMode.CLAMP)
+    val wide = after(RenderEffect.createBlurEffect(radiusPx * 0.5f, radiusPx * 0.5f, Shader.TileMode.CLAMP))
     val keep = ColorMatrix().apply { setScale(1f, 1f, 1f, 1f - weight) }
     val faint = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(keep))
     val sharp = if (near != null) RenderEffect.createChainEffect(faint, near) else faint
-    return RenderEffect.createBlendModeEffect(wide, sharp, BlendMode.SRC_OVER)
+    return RenderEffect.createBlendModeEffect(wide!!, sharp, BlendMode.SRC_OVER)
   }
 
   private fun putColor(index: Int, color: Color): Int {
@@ -318,6 +323,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = hazeRadius * density
     state[i++] = toneBow
     state[i++] = frostBow
+    state[i++] = if (tonePre && toneOn > 0f && !opaque) 1f else 0f
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -421,9 +427,16 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("fadeBlur", state[fadeBlurAt], state[fadeBlurAt + 1], state[fadeBlurAt + 2])
     glassShader.setFloatUniform("rimOptic", state[opticAt], state[opticAt + 1])
     glassShader.setFloatUniform("toneBow", state[opticAt + 4], state[opticAt + 5])
+    val pre = state[opticAt + 6] > 0f
+    glassShader.setFloatUniform("tonePre", if (pre) 1f else 0f)
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
-    val inner = hazed(blurPx, state[opticAt + 2], state[opticAt + 3])
+    val toneStage = toneShader?.takeIf { pre }?.let {
+      it.setFloatUniform("curve", toneBase, toneGain, toneBow)
+      it.setColorUniform("tint", tint)
+      RenderEffect.createRuntimeShaderEffect(it, "content")
+    }
+    val inner = hazed(blurPx, state[opticAt + 2], state[opticAt + 3], toneStage)
     effect = if (inner != null) RenderEffect.createChainEffect(glass, inner) else glass
     state.copyInto(lastState)
     glassNode?.setRenderEffect(effect)
