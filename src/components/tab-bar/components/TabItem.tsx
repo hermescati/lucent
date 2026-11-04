@@ -37,12 +37,15 @@ export interface TabItemProps {
   badgeColor?: string;
   badgeTextColor?: string;
   inkTone: SharedValue<number>;
+  // Each tab's label width, for the selected pill, which iOS fits to its tab's label.
+  labelWidths?: SharedValue<number[]>;
   onActivate: (index: number) => void;
 }
 
 export const TabItem = ({
   tab,
   index,
+  labelWidths,
   middleIndex,
   tintColor,
   selected,
@@ -169,7 +172,14 @@ export const TabItem = ({
               },
               idleStyle,
             ]}
-            numberOfLines={1}>
+            numberOfLines={1}
+            onTextLayout={(event) => {
+              const width = event.nativeEvent.lines[0]?.width ?? 0;
+              if (!labelWidths) return;
+              const next = [...labelWidths.get()];
+              next[index] = width;
+              labelWidths.set(next);
+            }}>
             {tab.label}
           </Animated.Text>
           <Animated.Text

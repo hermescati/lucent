@@ -271,6 +271,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                     tintColor={tintColor}
                     selected={index === focusedIndex}
                     lensPosition={lensPosition}
+                    labelWidths={state.labelWidths}
                     lift={lift}
                     shine={shine}
                     presence={lensPresence}
@@ -303,6 +304,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                 tintColor={tintColor}
                 selected={index === focusedIndex}
                 lensPosition={lensPosition}
+                labelWidths={state.labelWidths}
                 lift={lift}
                 shine={shine}
                 presence={lensPresence}
@@ -379,6 +381,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       tintColor={tintColor}
                       selected={index === focusedIndex}
                       lensPosition={lensPosition}
+                      labelWidths={state.labelWidths}
                       lift={lift}
                       shine={shine}
                       presence={lensPresence}

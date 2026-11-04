@@ -1,6 +1,5 @@
 import { useFrameCallback, withSpring } from 'react-native-reanimated';
 
-import { space } from '../../../theme/tokens';
 import { clamp01, fullHeight, lerp } from '../helpers/bar';
 import { layout, motion } from '../tokens';
 import type { BarPress } from './useBarPress';
@@ -18,6 +17,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     dripOnArrival,
     edgesReady,
     glideSpan,
+    labelWidths,
     glideTo,
     gliding,
     heading,
@@ -151,7 +151,9 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
       (position - middleIndex) * width +
       reach +
       push.get() * motion.lensPushTravel;
-    const restHalf = Math.min(Math.max(layout.bubbleRestWidth, width), width + space[6]) / 2;
+    // iOS 27 fits the resting pill to its tab: a little wider than its slot, and wide enough for its label.
+    const label = labelWidths.get()[Math.round(position)] ?? 0;
+    const restHalf = Math.max(width + motion.pillFit.slot, label + motion.pillFit.label) / 2;
     const spread = Math.max(
       lift.get(),
       Math.min(1, landing.get() * tapStay.get() * tapSlide.get() * motion.tapLanding.hold),

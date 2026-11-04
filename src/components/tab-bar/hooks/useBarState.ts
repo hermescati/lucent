@@ -118,6 +118,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const dripOnArrival = useSharedValue(false);
   const dent = useSharedValue(1);
   const inkTone = useSharedValue(1);
+  const labelWidths = useSharedValue<number[]>([]);
   const inkRange = glass.inkLuma[scheme];
   const onBackdropLuma = useEvent<{ luma: number }>(
     (event) => {
@@ -266,6 +267,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     holding,
     iconDim,
     inkTone,
+    labelWidths,
     itemWidth,
     jelly,
     jellyVelocity,
