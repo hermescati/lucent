@@ -1,17 +1,22 @@
 import { useTabTrigger } from 'expo-router/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
+  Easing,
   useAnimatedReaction,
+  useAnimatedStyle,
   useDerivedValue,
   useEvent,
   useSharedValue,
   withDelay,
   withSequence,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { useGlassPress } from './useGlassPress';
+import { barItemMotion } from '../../../core/motion/island';
+import { islandTo } from '../helpers/presence';
 import { useKeyboard } from './useKeyboard';
 import { useTabBarOffset } from './useTabBarOffset';
 import { regularMaterial } from '../../../core/glass/material';
@@ -82,6 +87,41 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const fitWidth = hasSearch && tabCount === 2 ? layout.tabBarTwoTabWidth : undefined;
   // Search's circle sits at the span's right end, wherever the bar ends.
   const circleCenter = barSpan - fullHeight / 2;
+  // As tabs come and go, the bar moves as a navigation bar's island does when one of its buttons shows or hides (iOS
+  // snaps the tab bar, but a jump reads as a glitch next to the pill's own easing): the tabs slide to their places
+  // (TabItem's layout animation) and the pill with them (barWidth, slots), a little past and back; the glass eases to
+  // its new width around them (frameWidth), revealing or covering the ends; and the bar swells and settles.
+  const restWidth = fitWidth ?? (hasSearch ? barSpan - layout.tabBarGap - fullHeight : barSpan);
+  const frameWidth = useSharedValue(restWidth);
+  const slots = useSharedValue(tabCount);
+  const swell = useSharedValue(0);
+  const laidOut = useRef({ restWidth, tabCount });
+  useLayoutEffect(() => {
+    const before = laidOut.current;
+    if (before.restWidth === restWidth && before.tabCount === tabCount) {
+      barWidth.set(restWidth);
+      return;
+    }
+    laidOut.current = { restWidth, tabCount };
+    const growing = restWidth > before.restWidth || tabCount > before.tabCount;
+    const { show, hide } = barItemMotion;
+    const { swellUp, swellDown } = growing ? show : hide;
+    barWidth.set(islandTo(barWidth.get(), restWidth, show.width));
+    slots.set(islandTo(slots.get(), tabCount, show.width));
+    frameWidth.set(islandTo(frameWidth.get(), restWidth, (growing ? show : hide).width));
+    swell.set(
+      withSequence(
+        withTiming(1, { duration: swellUp, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: swellDown, easing: Easing.inOut(Easing.quad) }),
+      ),
+    );
+  }, [restWidth, tabCount, barWidth, frameWidth, slots, swell]);
+  const frameWidthStyle = useAnimatedStyle(() => ({ width: frameWidth.get() }));
+  // The tabs' row spans the room the bar could fill, padded down to the bar's width, so a tab leaving from past the new
+  // end still shows while the glass closes over it; the clip follows the glass (useSearchMorph).
+  const fullWidth = hasSearch ? barSpan - layout.tabBarGap - fullHeight : barSpan;
+  const overlayWidthStyle = { right: barSpan - fullWidth };
+  const rowPadStyle = { paddingRight: inlinePad + fullWidth - restWidth };
   const towardSearch = hasSearch ? motion.barGrow.towardSearch : 0;
   const disabledKey = tabs.map((tab) => (tab.disabled ? 1 : 0)).join('');
   const disabledTabs = useSharedValue(tabs.map((tab) => tab.disabled));
@@ -190,13 +230,13 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const compactSize = useDerivedValue(() => layout.tabBarCompactHeight * (1 - compactPop.get()));
   const scaleX = useDerivedValue(() => lerp(1, compactSize.get() / Math.max(barWidth.get(), 1), collapsed.get()));
   const scaleY = useDerivedValue(() => lerp(1, compactSize.get() / fullHeight, collapsed.get()));
-  const fullItemWidth = useDerivedValue(() => (barWidth.get() - inlinePad * 2) / tabCount);
+  const fullItemWidth = useDerivedValue(() => (barWidth.get() - inlinePad * 2) / Math.max(slots.get(), 1));
   // The pill's unscaled width: at rest it's scaled the same both ways, so its ends stay round, a capsule as iOS's is,
   // rather than stretched into ellipses.
   const lensBase = useDerivedValue(
     () => ((fullItemWidth.get() + motion.pillFit.slot) * lensFullHeight) / layout.bubbleRestHeight,
   );
-  const itemWidth = useDerivedValue(() => (barWidth.get() * scaleX.get() - inlinePad * 2) / tabCount);
+  const itemWidth = useDerivedValue(() => (barWidth.get() * scaleX.get() - inlinePad * 2) / Math.max(slots.get(), 1));
   const barShiftX = useDerivedValue(
     () => -(barWidth.get() * (1 - scaleX.get())) / 2 + (fullHeight * (1 - scaleY.get())) / 2,
   );
@@ -241,8 +281,13 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     barShiftX,
     barSpan,
     barWidth,
-    fitWidth,
     circleCenter,
+    frameWidth,
+    swell,
+    frameWidthStyle,
+    overlayWidthStyle,
+    rowPadStyle,
+    fullWidth,
     bottom,
     bounceAt,
     clampIndex,

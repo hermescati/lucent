@@ -1,5 +1,6 @@
 import { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 
+import { barItemMotion } from '../../../core/motion/island';
 import { glass } from '../../../theme/tokens';
 import { layout, motion } from '../tokens';
 import type { BarState } from './useBarState';
@@ -26,6 +27,8 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     barGrowth,
     barPress,
     barWidth,
+    frameWidth,
+    swell,
     circleCenter,
     collapsed,
     gliding,
@@ -64,7 +67,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
   } = bar;
 
   const barGlassProps = useAnimatedProps(() => {
-    const width = barWidth.get();
+    const width = frameWidth.get();
     if (width <= 0) {
       return {
         shapes: [] as number[],
@@ -100,8 +103,12 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const frostHalfX = ((lensBase.get() * lensGeometry.get().scaleX) / 2) * frostShrink;
     const frostHalfY = ((lensFullHeight * lensGeometry.get().scaleY) / 2) * frostShrink;
 
-    const growX = barGrowth.get() * motion.barGrow.x * (1 - settled);
-    const grow = barGrowth.get() * motion.barGrow.y * (1 - settled);
+    // As a tab comes or goes, the bar swells and settles as an island does (BarCapsule's swellBy): 17% taller, and wider
+    // by swellX at each end.
+    const swelling = swell.get() * (1 - settled);
+    const growX = barGrowth.get() * motion.barGrow.x * (1 - settled) + barItemMotion.swellX * swelling;
+    const grow =
+      barGrowth.get() * motion.barGrow.y * (1 - settled) + (fullHeight * barItemMotion.swellY * swelling) / 2;
     const wallBulge = gliding.get() ? 0 : Math.max(0, squish.get()) * motion.squish.barBulge * (1 - settled);
     const pillLeft =
       pillShiftX.get() + (width - width * scaleX.get()) / 2 - growX - (wallSide.get() < 0 ? wallBulge : 0);

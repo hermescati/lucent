@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedReaction, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -9,6 +15,7 @@ import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
+import { tabEnterAfter } from '../helpers/presence';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
 import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
@@ -72,10 +79,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
       const stack = getTrigger(tab.name)?.route?.state;
       reselectTab(tab, (stack?.index ?? 0) > 0);
     }
-  };
-
-  const onPillLayout = (event: LayoutChangeEvent) => {
-    barWidth.set(event.nativeEvent.layout.width);
   };
 
   const openSearch = () => {
@@ -174,7 +177,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     fullItemWidth,
     glassStyle,
     hasBadges,
-    hasSearch,
     iconCover,
     inkTone,
     keyboardReach,
@@ -214,8 +216,18 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     shine,
     tileSink,
     tintColor,
-    fitWidth,
+    frameWidthStyle,
+    overlayWidthStyle,
+    rowPadStyle,
+    swell,
   } = { ...state, ...search, ...press, ...lens, ...barGlass };
+
+  // Tabs grow in as they're added, not as the bar first appears.
+  const ready = useSharedValue(false);
+  useEffect(() => {
+    ready.set(true);
+  }, [ready]);
+  const tabEnter = useMemo(() => tabEnterAfter(ready), [ready]);
 
   return (
     <Animated.View
@@ -233,9 +245,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
         />
         <GestureDetector gesture={pan}>
           <Animated.View
-            style={[styles.frame, fitWidth !== undefined && { flex: 0, width: fitWidth }, pillModeStyle]}
-            pointerEvents={searchFocused ? 'none' : 'auto'}
-            onLayout={onPillLayout}>
+            style={[styles.frame, frameWidthStyle, pillModeStyle]}
+            pointerEvents={searchFocused ? 'none' : 'auto'}>
             <Animated.View
               pointerEvents="none"
               style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
@@ -248,7 +259,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             </Animated.View>
           </Animated.View>
         </GestureDetector>
-        {fitWidth !== undefined ? <View style={styles.grow} pointerEvents="none" /> : null}
+        <View style={styles.grow} pointerEvents="none" />
         {searchTab ? (
           <Animated.View style={[styles.search, searchSpreadStyle]}>
             <Pressable
@@ -278,17 +289,14 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
       </NativeGlassBackdrop>
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.lensOverlay,
-          !hasSearch && styles.lensOverlayFull,
-          fitWidth !== undefined && { right: barSpan - fitWidth },
-          pillModeStyle,
-          pressScaleStyle,
-        ]}>
+        style={[styles.lensOverlay, overlayWidthStyle, pillModeStyle, pressScaleStyle]}>
         <Animated.View style={[styles.rowClip, rowClipStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
             <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
-              <AnimatedNativeGlassBlur style={styles.row} animatedProps={rowBlurProps} accessibilityRole="tablist">
+              <AnimatedNativeGlassBlur
+                style={[styles.row, rowPadStyle]}
+                animatedProps={rowBlurProps}
+                accessibilityRole="tablist">
                 {tabs.map((tab, index) => (
                   <TabItem
                     key={tab.name}
@@ -308,6 +316,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                     collapseX={collapseX}
                     collapseSpread={collapseSpread}
                     inkTone={inkTone}
+                    swell={swell}
+                    entering={tabEnter}
                     handoff={index === backIndex ? searchMode : undefined}
                     onActivate={selectTab}
                   />
@@ -321,7 +331,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           offscreen
           style={StyleSheet.absoluteFill}
           importantForAccessibility="no-hide-descendants">
-          <View style={styles.row}>
+          <View style={[styles.row, rowPadStyle]}>
             {tabs.map((tab, index) => (
               <TabItem
                 key={tab.name}
@@ -341,6 +351,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                 collapseX={collapseX}
                 collapseSpread={collapseSpread}
                 inkTone={inkTone}
+                swell={swell}
+                entering={tabEnter}
                 revealed
                 onActivate={selectTab}
               />
@@ -398,7 +410,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             importantForAccessibility="no-hide-descendants">
             <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
               <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
-                <View style={styles.row}>
+                <View style={[styles.row, rowPadStyle]}>
                   {tabs.map((tab, index) => (
                     <TabItem
                       key={tab.name}
@@ -418,6 +430,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       collapseX={collapseX}
                       collapseSpread={collapseSpread}
                       inkTone={inkTone}
+                      swell={swell}
+                      entering={tabEnter}
                       handoff={index === backIndex ? searchMode : undefined}
                       badgeOnly
                       badgeColor={badgeColor}
@@ -484,11 +498,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    right: fullHeight + layout.tabBarGap,
     height: fullHeight,
-  },
-  lensOverlayFull: {
-    right: 0,
   },
   barGlass: {
     position: 'absolute',
@@ -498,11 +508,13 @@ const styles = StyleSheet.create({
     bottom: -glass.pad,
   },
   frame: {
-    flex: 1,
     height: fullHeight,
   },
+  // Pushes search's circle to the span's end past a bar narrower than it; it takes back its own gap, so a bar that
+  // fills the span leaves the circle where it was.
   grow: {
     flex: 1,
+    marginLeft: -layout.tabBarGap,
   },
   search: {
     width: fullHeight,

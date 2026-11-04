@@ -5,8 +5,8 @@ import type {
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
-import { useEffect, type ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { memo, useEffect, type ReactNode } from 'react';
+import { StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import Animated, {
@@ -80,6 +80,21 @@ const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: Re
   );
 };
 
+// The tabs' screens, behind the bar's glass. Memoised: they don't depend on the bar's tabs, and with every screen kept
+// mounted, re-rendering them all as a tab comes or goes holds React for seconds, stalling the bar's animations.
+const Screens = memo(({ background }: { background: ColorValue }) => (
+  <InsideGlassBackdrop.Provider value>
+    <NativeGlassBackdrop style={styles.fill}>
+      {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the screens, as
+      iOS does, for screens without their own colour. */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: background }]} />
+      <TabSearchActive>
+        <TabSlot detachInactiveScreens={false} />
+      </TabSearchActive>
+    </NativeGlassBackdrop>
+  </InsideGlassBackdrop.Provider>
+));
+
 const colorString = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
 const NativeTabsRoot = ({
@@ -116,16 +131,7 @@ const NativeTabsRoot = ({
               <InsideTabsContext value>
                 <TabsTintContext value={colorString(tintColor)}>
                   <TabBarReachProvider shown={!hidden && primary.length > 0}>
-                    <InsideGlassBackdrop.Provider value>
-                      <NativeGlassBackdrop style={styles.fill}>
-                        {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
-                    screens, as iOS does, for screens without their own colour. */}
-                        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-                        <TabSearchActive>
-                          <TabSlot detachInactiveScreens={false} />
-                        </TabSearchActive>
-                      </NativeGlassBackdrop>
-                    </InsideGlassBackdrop.Provider>
+                    <Screens background={colors.background} />
                   </TabBarReachProvider>
                 </TabsTintContext>
               </InsideTabsContext>

@@ -20,6 +20,8 @@ export const useSearchMorph = (bar: BarState) => {
     barLeft,
     barLift,
     barWidth,
+    frameWidth,
+    fullWidth,
     circleCenter,
     iconDim,
     keyboardProgress,
@@ -156,9 +158,6 @@ export const useSearchMorph = (bar: BarState) => {
     transform: [{ translateY: tileSink.get() }],
   }));
   const searchCenter = useDerivedValue(() => circleCenter);
-  const pillReach = useDerivedValue(() =>
-    modeTarget.get() === 1 ? lerp(barWidth.get(), modeInset + modeHeight, clamp01(searchMode.get())) : barWidth.get(),
-  );
   const rowFit = useDerivedValue(() => {
     if (modeTarget.get() === 1) {
       return { scale: 1, x: 0, y: 0 };
@@ -171,18 +170,24 @@ export const useSearchMorph = (bar: BarState) => {
       y: modeInset * Math.pow(settled, motion.searchMorph.heightLag),
     };
   });
-  const rowClipStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: pillReach.get() - barWidth.get() }],
-  }));
-  const rowUnclipStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: barWidth.get() - pillReach.get() }],
-  }));
+  // How far the tabs show: the glass's width, as it grows to reveal a new tab or closes over a leaving one, down to the
+  // field's circle as search opens. The row spans the bar's whole room (fullWidth), so the clip slides along it.
+  const rowClipStyle = useAnimatedStyle(() => {
+    const reach = Math.min(frameWidth.get(), fullWidth);
+    const shown = modeTarget.get() === 1 ? lerp(reach, modeInset + modeHeight, clamp01(searchMode.get())) : reach;
+    return { transform: [{ translateX: shown - fullWidth }] };
+  }, [fullWidth]);
+  const rowUnclipStyle = useAnimatedStyle(() => {
+    const reach = Math.min(frameWidth.get(), fullWidth);
+    const shown = modeTarget.get() === 1 ? lerp(reach, modeInset + modeHeight, clamp01(searchMode.get())) : reach;
+    return { transform: [{ translateX: fullWidth - shown }] };
+  }, [fullWidth]);
   const rowFitStyle = useAnimatedStyle(() => {
     const fit = rowFit.get();
-    const width = Math.max(barWidth.get(), 1);
+    // Scaled about the row's middle, which spans the bar's whole room, so its left edge lands at fit.x.
     return {
       transform: [
-        { translateX: fit.x - (width * (1 - fit.scale)) / 2 },
+        { translateX: fit.x - (fullWidth * (1 - fit.scale)) / 2 },
         { translateY: fit.y - (fullHeight * (1 - fit.scale)) / 2 },
         { scale: fit.scale },
       ],

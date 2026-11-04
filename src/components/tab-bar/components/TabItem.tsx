@@ -6,13 +6,16 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   withSpring,
+  type EntryExitAnimationFunction,
   type SharedValue,
 } from 'react-native-reanimated';
 
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
+import { barItemMotion } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { clamp01, labelShift, lerp } from '../helpers/bar';
+import { tabExit, tabSlide } from '../helpers/presence';
 import type { TabSpec } from '../helpers/triggers';
 import { layout, motion } from '../tokens';
 
@@ -37,6 +40,10 @@ export interface TabItemProps {
   badgeColor?: string;
   badgeTextColor?: string;
   inkTone: SharedValue<number>;
+  // The bar's swell as a tab comes or goes: its glyphs swell with it, as an island's do.
+  swell?: SharedValue<number>;
+  // How it grows in as it's added to the bar.
+  entering?: EntryExitAnimationFunction;
   // Each tab's label width, for the selected pill, which iOS fits to its tab's label.
   labelWidths?: SharedValue<number[]>;
   onActivate: (index: number) => void;
@@ -64,6 +71,8 @@ export const TabItem = ({
   badgeColor,
   badgeTextColor,
   inkTone,
+  swell,
+  entering,
   onActivate,
 }: TabItemProps) => {
   const { color } = useLucentTheme(tintColor);
@@ -85,7 +94,11 @@ export const TabItem = ({
         translateX: collapseX.get() + (index - middleIndex) * collapseSpread.get(),
       },
       { translateY: collapsed.get() * labelShift },
-      { scale: 1 + lift.get() * proximity.get() * motion.itemMagnify },
+      {
+        scale:
+          (1 + lift.get() * proximity.get() * motion.itemMagnify) *
+          (1 + barItemMotion.glyphSwell * (swell?.get() ?? 0)),
+      },
     ],
   }));
   const highlight = useDerivedValue(() =>
@@ -119,7 +132,7 @@ export const TabItem = ({
 
   if (badgeOnly) {
     return (
-      <View style={styles.slot} pointerEvents="none">
+      <Animated.View style={styles.slot} pointerEvents="none" entering={entering} exiting={tabExit} layout={tabSlide}>
         <Animated.View style={[styles.item, itemStyle]}>
           <Animated.View style={[styles.iconBox, handoffStyle]}>
             {tab.badge !== undefined ? (
@@ -132,13 +145,16 @@ export const TabItem = ({
           </Animated.View>
           <Animated.View style={[styles.labelBox, labelStyle]} />
         </Animated.View>
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View
+    <Animated.View
       style={styles.slot}
+      entering={entering}
+      exiting={tabExit}
+      layout={tabSlide}
       accessible={!revealed}
       accessibilityRole="tab"
       accessibilityLabel={tab.label}
@@ -198,7 +214,7 @@ export const TabItem = ({
           </Animated.Text>
         </Animated.View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
