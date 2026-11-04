@@ -5,7 +5,7 @@ import type {
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -14,8 +14,10 @@ import Animated, {
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { FloatingTabBar } from './components/FloatingTabBar';
 import { MoreList } from './components/MoreList';
@@ -28,12 +30,13 @@ import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
 import { useTabBarOffset } from './hooks/useTabBarOffset';
 import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
+import { displayCornerRadius } from '../../core/display/corner.android';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
+import { pushMotion, pushSpring } from '../../core/motion/push';
 import {
   InsideTabsContext,
   TabBarReachContext,
-  TabCoveredContext,
   TabSearchActiveContext,
   TabsTintContext,
 } from '../../core/tabs/TabBarReach';
@@ -55,10 +58,6 @@ const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
 // Tells what floats above the bar, such as a stack's bottom toolbar, how far up the bar reaches as it minimizes.
 const TabSearchActive = ({ children }: { children: ReactNode }) => (
   <TabSearchActiveContext value={useSearchHost().active}>{children}</TabSearchActiveContext>
-);
-
-const TabCovered = ({ children }: { children: ReactNode }) => (
-  <TabCoveredContext value={useMore()?.open ?? false}>{children}</TabCoveredContext>
 );
 
 const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: ReactNode }) => {
@@ -88,20 +87,57 @@ const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: Re
   );
 };
 
+// The tabs' screens, over More's list: a listed tab's screen slides over it and off it again as iOS's More pushes and
+// pops it, its corners rounded to the display's as it moves, with the shadow it casts on the list. Under the list at
+// rest, they stay in place, unseen and untouchable: moved off-screen, a screen first shown there lays its title out
+// wrong and keeps showing the tab it replaced.
+const MoreCover = ({ children }: { children: ReactNode }) => {
+  const more = useMore();
+  const { width, height } = useWindowDimensions();
+  const radius = useMemo(() => displayCornerRadius(), []);
+  const slide = more?.slide;
+  const coverStyle = useAnimatedStyle(() => {
+    const at = slide ? slide.get() : 1;
+    const moving = at > 0 && at < 1;
+    return {
+      opacity: at > 0 ? 1 : 0,
+      transform: [{ translateX: moving ? width * (1 - at) : 0 }],
+      borderRadius: moving ? radius : 0,
+    };
+  });
+  const shadowStyle = useAnimatedStyle(() => {
+    const at = slide ? slide.get() : 1;
+    return { opacity: at > 0 && at < 1 ? 1 : 0, transform: [{ translateX: width * (1 - at) }] };
+  });
+  return (
+    <>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.shadow, { width, height, borderRadius: radius }, shadowStyle]}
+      />
+      <Animated.View
+        pointerEvents={more?.open ? 'none' : 'auto'}
+        style={[StyleSheet.absoluteFill, styles.cover, coverStyle]}>
+        {children}
+      </Animated.View>
+    </>
+  );
+};
+
 // The tabs' screens, behind the bar's glass. Memoised: they don't depend on the bar's tabs, and with every screen kept
 // mounted, re-rendering them all as a tab comes or goes holds React for seconds, stalling the bar's animations.
 const Screens = memo(({ background }: { background: ColorValue }) => (
   <InsideGlassBackdrop.Provider value>
     <NativeGlassBackdrop style={styles.fill}>
-      {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the screens, as
-      iOS does, for screens without their own colour. */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: background }]} />
-      <TabSearchActive>
-        <TabCovered>
-          <TabSlot detachInactiveScreens={false} />
-        </TabCovered>
-      </TabSearchActive>
       <MoreList />
+      <MoreCover>
+        {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the screens, as
+        iOS does, for screens without their own colour. */}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: background }]} />
+        <TabSearchActive>
+          <TabSlot detachInactiveScreens={false} />
+        </TabSearchActive>
+      </MoreCover>
     </NativeGlassBackdrop>
   </InsideGlassBackdrop.Provider>
 ));
@@ -127,9 +163,53 @@ const NativeTabsRoot = ({
     visible.find((trigger) => trigger.search),
   );
   const [moreOpen, setMoreOpen] = useState(false);
+  const [moreTop, setMoreTop] = useState<string | null>(null);
+  const slide = useSharedValue(1);
+  // How the screen over the list goes once the list is there to show: mounting it takes a moment.
+  const uncover = useRef<'cut' | 'pop' | null>(null);
   const more =
     overflow.length > 0
-      ? { overflow, entries: visible.map((trigger) => trigger.name), open: moreOpen, setOpen: setMoreOpen }
+      ? {
+          overflow,
+          entries: visible.map((trigger) => trigger.name),
+          open: moreOpen,
+          setOpen: (open: boolean) => {
+            if (open && moreOpen) {
+              slide.set(0);
+            } else if (open) {
+              uncover.current = 'cut';
+            } else {
+              uncover.current = null;
+              slide.set(1);
+            }
+            setMoreOpen(open);
+          },
+          top: overflow.some((tab) => tab.name === moreTop) ? moreTop : null,
+          slide,
+          push: (name: string) => {
+            setMoreTop(name);
+            slide.set(
+              withSpring(1, pushSpring, (done) => {
+                if (done) scheduleOnRN(setMoreOpen, false);
+              }),
+            );
+          },
+          pop: () => {
+            setMoreTop(null);
+            if (moreOpen) {
+              slide.set(withSpring(0, pushSpring));
+              return;
+            }
+            uncover.current = 'pop';
+            setMoreOpen(true);
+          },
+          listShown: () => {
+            const how = uncover.current;
+            uncover.current = null;
+            if (how === 'cut') slide.set(0);
+            if (how === 'pop') slide.set(withSpring(0, pushSpring));
+          },
+        }
       : null;
   const { colors } = useTheme();
   // Hidden, the bar stays mounted and fades, as iOS's does, rather than going and coming back whole.
@@ -215,5 +295,14 @@ const styles = StyleSheet.create({
   },
   hidden: {
     display: 'none',
+  },
+  cover: {
+    overflow: 'hidden',
+  },
+  shadow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    boxShadow: pushMotion.shadow,
   },
 });

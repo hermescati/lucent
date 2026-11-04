@@ -1,10 +1,12 @@
 import { useTabTrigger } from 'expo-router/ui';
 import { useEffect, useRef } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import { TabIcon } from './TabIcon';
+import { pushDimAt, pushMotion } from '../../../core/motion/push';
 import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { typography } from '../../../theme/tokens';
@@ -23,8 +25,8 @@ const canGoBack = (state: NavState | undefined): boolean =>
   state !== undefined && ((state.index ?? 0) > 0 || canGoBack(state.routes[state.index ?? 0]?.state));
 
 /**
- * Android's Back, as More's two levels: from a tab under More (once its own stack is at its first screen) back to the
- * list, as tapping More again does on iOS; from the list back to the tab it was opened over. iOS shows More's list
+ * Android's Back, as More's two levels: from a tab under More (once its own stack is at its first screen) sliding back
+ * to the list, as tapping More again does on iOS; from the list back to the tab it was opened over, at once. iOS shows More's list
  * without a navigation bar (react-native-screens hides it), so no back button and no Edit.
  */
 const useMoreBack = () => {
@@ -49,7 +51,7 @@ const useMoreBack = () => {
         if (!listed || canGoBack(stack)) {
           return false;
         }
-        more.setOpen(true);
+        more.pop();
         return true;
       }
       more.setOpen(false);
@@ -76,51 +78,76 @@ export const MoreList = () => {
   const tint = useTabsTint();
   const { color, scheme } = useLucentTheme(tint);
   const insets = useSafeAreaInsets();
-  const { switchTab } = useTabTrigger({ name: more?.overflow[0]?.name ?? '' });
+  const { switchTab, getTrigger } = useTabTrigger({ name: more?.overflow[0]?.name ?? '' });
+  const { width } = useWindowDimensions();
+  // A row's tab slides in once it's the one showing: switching takes the router a moment, and starting before then
+  // would slide in the tab More was opened over.
+  const pushing = useRef<string | null>(null);
+  const focused = more?.entries.find((name) => getTrigger(name)?.isFocused);
+  useEffect(() => {
+    const name = pushing.current;
+    if (name && name === focused && more) {
+      pushing.current = null;
+      // A frame on, so the tab's screen is drawn before it slides.
+      requestAnimationFrame(() => requestAnimationFrame(() => more.push(name)));
+    }
+  }, [focused, more]);
+  // Under a listed tab's screen sliding over it, the list goes 30% of the way left and darkens, as UIKit's does.
+  const slide = more?.slide;
+  const listStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -width * pushMotion.parallax * (slide ? slide.get() : 0) }],
+  }));
+  const dimStyle = useAnimatedStyle(() => ({ opacity: pushDimAt(1 - (slide ? slide.get() : 0)) }));
   if (!more?.open || more.overflow.length === 0) {
     return null;
   }
   const colors = moreList.colors[scheme];
   return (
-    <ScrollView
-      style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + layout.tabBarHeight }}>
-      <View style={[styles.separator, { backgroundColor: colors.separator }]} />
-      {more.overflow.map((tab) => (
-        <Pressable
-          key={tab.name}
-          accessibilityRole="button"
-          accessibilityLabel={tab.label}
-          disabled={tab.disabled}
-          onPress={() => {
-            more.setOpen(false);
-            switchTab(tab.name, {});
-          }}
-          style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.pressed }]}>
-          <View style={styles.icon}>
-            <TabIcon icon={tab.icon} selected={false} size={moreList.iconSize} color={color.tint} />
-          </View>
-          <Text numberOfLines={1} style={[styles.label, { color: colors.label }]}>
-            {tab.label}
-          </Text>
-          <Svg width={moreList.chevron.width} height={moreList.chevron.height} viewBox="0 0 7 12">
-            <Path
-              d="M1 1l5 5-5 5"
-              stroke={colors.chevron}
-              strokeWidth={moreList.chevron.stroke}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </Svg>
-          <View style={[styles.separator, styles.rowSeparator, { backgroundColor: colors.separator }]} />
-        </Pressable>
-      ))}
-    </ScrollView>
+    <Animated.View style={[StyleSheet.absoluteFill, listStyle]} onLayout={more.listShown}>
+      <ScrollView
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + layout.tabBarHeight }}>
+        <View style={[styles.separator, { backgroundColor: colors.separator }]} />
+        {more.overflow.map((tab) => (
+          <Pressable
+            key={tab.name}
+            accessibilityRole="button"
+            accessibilityLabel={tab.label}
+            disabled={tab.disabled}
+            onPress={() => {
+              switchTab(tab.name, {});
+              more.push(tab.name);
+            }}
+            style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.pressed }]}>
+            <View style={styles.icon}>
+              <TabIcon icon={tab.icon} selected={false} size={moreList.iconSize} color={color.tint} />
+            </View>
+            <Text numberOfLines={1} style={[styles.label, { color: colors.label }]}>
+              {tab.label}
+            </Text>
+            <Svg width={moreList.chevron.width} height={moreList.chevron.height} viewBox="0 0 7 12">
+              <Path
+                d="M1 1l5 5-5 5"
+                stroke={colors.chevron}
+                strokeWidth={moreList.chevron.stroke}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+            <View style={[styles.separator, styles.rowSeparator, { backgroundColor: colors.separator }]} />
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim, dimStyle]} />
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
+  dim: {
+    backgroundColor: '#000000',
+  },
   row: {
     height: moreList.rowHeight,
     flexDirection: 'row',

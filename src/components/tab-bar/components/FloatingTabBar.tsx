@@ -70,14 +70,16 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     if (tabs[index]?.disabled) {
       return;
     }
-    // More isn't a route: it shows its list over the last tab chosen, which any other tab closes.
+    // More isn't a route: it shows its list over the last tab chosen, which any other tab closes; or, if More last
+    // went on to one of its tabs, that tab again, as iOS's More keeps its place.
     const opening = tabs[index].name === moreName;
+    const top = opening ? more?.top : null;
     setTimeout(
       () =>
         requestAnimationFrame(() => {
-          more?.setOpen(opening);
-          if (!opening) {
-            switchTab(tabs[index].name, {});
+          more?.setOpen(opening && !top);
+          if (!opening || top) {
+            switchTab(top ?? tabs[index].name, {});
           }
         }),
       wait,
@@ -87,8 +89,10 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const reselect = (index: number) => {
     const tab = tabs[index];
     if (tab?.name === moreName) {
-      // Again, it comes back to its list from a tab under it, as iOS's does.
-      more?.setOpen(true);
+      // Again, it slides back to its list from a tab under it, as iOS's does.
+      if (more && !more.open) {
+        more.pop();
+      }
       return;
     }
     if (tab && !tab.disabled) {

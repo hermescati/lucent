@@ -1,3 +1,5 @@
+import { pushMotion } from '../../core/motion/push';
+
 /**
  * iOS 26's navigation bar, measured on the iPhone 18 Pro simulator, in points from the safe area's top.
  *
@@ -354,20 +356,13 @@ export const swipeMotion = {
   commit: 0.5,
   velocityFactor: 0.3,
   velocityCap: 100,
-  // The screen below starts 30% of the width to the left and slides in with the drag (iOS 27 simulator, as UIKit's).
-  parallax: 0.3,
-  // It's dimmed by black, this strong at the start and fading as the drag goes: 0.1 x (1 - progress)^1.1, fitted to
-  // recorded drags over a light page (within half a percent). iOS dims in linear light, so a photo's mid-tones darken
-  // more than this; a page's background is most of what shows.
-  dim: 0.1,
-  dimCurve: 1.1,
+  // The screen below's slide and dim, the springs' push and pop, and the top screen's shadow: UIKit's (core/motion/push).
+  parallax: pushMotion.parallax,
+  dim: pushMotion.dim,
+  dimCurve: pushMotion.dimCurve,
   // Let go, and the screen settles on a critically damped spring that starts at the finger's speed: about 200ms from
   // anywhere, going back or staying, as recorded on iOS.
   settle: { omega: 25, damping: 1 },
-  // A push, or a pop without a finger (the back button, the Back key): an overdamped spring, which sets off at once and
-  // eases in on a decay of about 14/s, settled in about 330ms. Fitted to recorded pushes and pops on iOS 27.
-  tap: { omega: 60, damping: 2.2 },
-  // The top screen's shadow on the screen below, around its rounded outline: about 1.5% dark at its edge, gone 20dp out
-  // (iOS 27 simulator).
-  shadow: '0px 0px 20px 0px rgba(0, 0, 0, 0.032)',
+  tap: pushMotion.tap,
+  shadow: pushMotion.shadow,
 } as const;

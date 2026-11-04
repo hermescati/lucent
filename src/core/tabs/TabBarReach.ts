@@ -45,8 +45,3 @@ export const useTabsTint = () => useContext(TabsTintContext);
 export const TabSearchActiveContext = createLucentContext<boolean>('TabSearchActive', false);
 
 export const useTabSearchActive = () => useContext(TabSearchActiveContext);
-
-/** Whether More's list covers the tabs' screens: the screen under it hides its navigation bar meanwhile. */
-export const TabCoveredContext = createLucentContext<boolean>('TabCovered', false);
-
-export const useTabCovered = () => useContext(TabCoveredContext);

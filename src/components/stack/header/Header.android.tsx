@@ -36,7 +36,7 @@ import { getHeader } from './store.android';
 import { useSwipeMelt } from './swipeMelt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { headerOffset, searchLift } from '../../../core/header/scroll.android';
-import { useTabCovered, useTabSearchActive } from '../../../core/tabs/TabBarReach';
+import { useTabSearchActive } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
 import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
@@ -262,10 +262,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   // The tab bar's search tab, in search mode, hides its root screen's bar, as iOS 27 does.
   const tabSearch = useTabSearchActive();
   const focused = useIsFocused();
-  // More's list covers the tab's screen, which hides its bar meanwhile.
-  const covered = useTabCovered();
-  const hidden =
-    searchHides || (focused && (covered || (tabSearch && navigation.getState().routes[0]?.key === route.key)));
+  const hidden = searchHides || (tabSearch && focused && navigation.getState().routes[0]?.key === route.key);
   // The row steps aside for search: a field rising into it, or one opening in it from the magnifier.
   const rowAside = focusedInBar || barFocused;
   // Search opened from the magnifier stays up as it plays back out, once closed.
