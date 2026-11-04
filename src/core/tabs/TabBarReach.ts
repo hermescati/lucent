@@ -29,3 +29,11 @@ export const useTabBarReach = () => useContext(TabBarReachContext);
 export const InsideTabsContext = createLucentContext<boolean>('InsideTabs', false);
 
 export const useInsideTabs = () => useContext(InsideTabsContext);
+
+/**
+ * The tint `NativeTabs` was given, for what in its screens takes it as iOS's do: a toolbar search field's cursor follows
+ * the tab bar's tint (simulator), while the field in the navigation bar keeps the system blue.
+ */
+export const TabsTintContext = createLucentContext<string | undefined>('TabsTint', undefined);
+
+export const useTabsTint = () => useContext(TabsTintContext);

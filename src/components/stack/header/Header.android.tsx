@@ -263,21 +263,10 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const [barSearchShown, setBarSearchShown] = useState(barFocused);
   if (barFocused && !barSearchShown) setBarSearchShown(true);
   const closeBarSearch = useCallback(() => setBarSearchShown(false), []);
-  // Focused, a field in the bar rises from its block into the row, as on iOS, and the content follows it up.
+  // Where a field in the bar's block starts, which it rises from.
   const [blockTop, setBlockTop] = useState(0);
   const rise = Math.max(blockTop - top, 0);
   const lift = searchLift(route.key);
-  useEffect(() => {
-    const { duration, overshoot, back } = searchMotion.lift;
-    lift.set(
-      focusedInBar
-        ? withSequence(
-            withTiming(rise + overshoot, { duration, easing: liftEasing }),
-            withTiming(rise, { duration: back, easing: Easing.inOut(Easing.quad) }),
-          )
-        : withSpring(0, { ...searchMotion.drop, mass: 1, overshootClamping: true }),
-    );
-  }, [lift, focusedInBar, rise]);
   const searchProgress = useDerivedValue(() => (rise > 0 ? lift.get() / rise : 0));
   // The row's title and buttons step aside as it comes.
   const rowStyle = useAnimatedStyle(() => ({
@@ -299,7 +288,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   });
   // In search mode from the bottom toolbar, iOS hides the bar.
   const shownStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(hidden ? 0 : 1, { duration: searchMotion.focus }),
+    opacity: withTiming(hidden ? 0 : 1, { duration: searchMotion.barFade }),
   }));
 
   const transparent = barTransparent(options);
@@ -320,6 +309,24 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const right = options.headerRight?.({ tintColor: tint, canGoBack: back !== undefined });
 
   const height = top + bar.inline + (below ? bar.large : 0) + block;
+  // Focused, a field in the bar rises from its block into the row, as on iOS, and the content follows it up. In search
+  // mode from the bottom, the bar hides and the content moves up into the part of it that shows.
+  useEffect(() => {
+    const { duration, overshoot, back } = searchMotion.lift;
+    if (hidden) {
+      const shows = bar.inline + Math.max(height - top - bar.inline - Math.max(scrolled.get(), 0), 0);
+      lift.set(withSpring(shows, { ...searchMotion.hide, mass: 1, overshootClamping: true }));
+      return;
+    }
+    lift.set(
+      focusedInBar
+        ? withSequence(
+            withTiming(rise + overshoot, { duration, easing: liftEasing }),
+            withTiming(rise, { duration: back, easing: Easing.inOut(Easing.quad) }),
+          )
+        : withSpring(0, { ...searchMotion.drop, mass: 1, overshootClamping: true }),
+    );
+  }, [lift, focusedInBar, rise, hidden, height, top, scrolled]);
   // An opaque bar covers what's under it, down to its bottom, which rides up with the content until only the row's left.
   const fillStyle = useAnimatedStyle(() => ({
     height: Math.max(top + bar.inline, height - Math.max(scrolled.get(), 0)),

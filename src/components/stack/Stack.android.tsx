@@ -271,6 +271,10 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const placement = search ? searchPlacement(search.props, bottomToolbar, inTabs) : undefined;
   // In search mode from the bottom, the field takes the toolbar's place above the keyboard.
   const searching = Boolean(search?.focused) && placement !== 'header' && placement !== 'barButton';
+  // The field above the keyboard stays up as it plays back out, once search mode ends.
+  const [focusShown, setFocusShown] = useState(searching);
+  if (searching && !focusShown) setFocusShown(true);
+  const closeFocus = useCallback(() => setFocusShown(false), []);
   const bottomBar = Boolean(bottomToolbar) || placement === 'bottom' || placement === 'button';
   const { colors } = useTheme();
 
@@ -408,17 +412,31 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
           {/* iOS dims all of the screen a swipe uncovers, its title and bar background too; only the buttons of its one
             bar stay clear, and here they're the top screen's, held in place over this one. */}
           {below ? <SwipeDim /> : null}
-          {bottomToolbar && !searching ? (
+          {bottomToolbar && (!searching || placement === 'slot') ? (
             // Its buttons hold and melt through a push or a pop, as the bar's do.
             <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
               <ScreenHiddenContext value={hidden}>
-                <BottomToolbar toolbar={bottomToolbar} tintColor={tint} routeKey={key} pushed={routeIndex > 0} />
+                <BottomToolbar
+                  toolbar={bottomToolbar}
+                  tintColor={tint}
+                  routeKey={key}
+                  pushed={routeIndex > 0}
+                  searching={searching && placement === 'slot'}
+                  returning={focusShown && !searching && placement === 'slot'}
+                />
               </ScreenHiddenContext>
             </SwipeRoleContext>
           ) : null}
-          {placement === 'bottom' && !searching ? <BottomSearch routeKey={key} /> : null}
-          {placement === 'button' && !searching ? <BottomSearchButton routeKey={key} /> : null}
-          {searching ? <FocusedSearch routeKey={key} /> : null}
+          {placement === 'bottom' && !focusShown ? <BottomSearch routeKey={key} /> : null}
+          {placement === 'button' && !focusShown ? <BottomSearchButton routeKey={key} /> : null}
+          {focusShown ? (
+            <FocusedSearch
+              routeKey={key}
+              from={placement === 'slot' ? 'slot' : placement === 'button' ? 'button' : 'bottom'}
+              open={searching}
+              onClosed={closeFocus}
+            />
+          ) : null}
         </MenuHost>
       </Animated.View>
     </HeaderScrollProvider>

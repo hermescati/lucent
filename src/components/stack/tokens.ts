@@ -325,6 +325,30 @@ export const searchMotion = {
   // Closing plays it back over about 200ms: the placeholder goes, the close button merges back, and the field shrinks
   // into the capsule as the row's title and buttons come back.
   bar: { stretch: 90, content: 90, budAt: 330, bud: 80, closeFade: 60, closeMerge: 100, closeAt: 50, closeShrink: 170 },
+  // Search mode from the bottom (iOS 27 simulator). The bar fades within about 100ms as the content moves up into its
+  // place on a critically damped spring of about 25 rad/s: 44% by 63ms, 78% by 116ms, 93% by 170ms.
+  hide: { stiffness: 625, damping: 50 },
+  barFade: 100,
+  // The field rides the keyboard up, so it moves as the keyboard does, and grows out of what was tapped (the toolbar's
+  // capsule, the bottom field, or the magnifier's circle) to the screen's width as it goes; the close button buds off
+  // its end, and the toolbar's other items blur away. As fractions of the keyboard's way up, from frame-by-frame
+  // recordings: the field is full width by about 60%, the close button whole by about 90%, the toolbar's items gone
+  // by 40%.
+  bottom: {
+    grow: [0.1, 0.6],
+    bud: [0.45, 0.9],
+    melt: [0.1, 0.4],
+    // With no keyboard coming up (a hardware one), a clock stands in for it.
+    fallback: 500,
+    fallbackOver: 250,
+    // Closing, a field in the toolbar's slot fades where it is, its close button a little slower, and the toolbar comes
+    // back once the keyboard is nearly down (below a quarter of its way). The magnifier's field shrinks at once to the
+    // empty circle, which rides the keyboard down; the bottom field rides it down whole.
+    fieldOut: 50,
+    closeOut: 120,
+    toolbarBack: [0.02, 0.25],
+    collapse: 80,
+  },
   rowOut: 50,
   rowIn: 200,
 } as const;

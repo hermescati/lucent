@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { useEffect } from 'react';
+import { useEffect, useRef, type ComponentRef } from 'react';
 import {
   BackHandler,
   Pressable,
@@ -13,8 +13,10 @@ import {
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
   Easing,
-  FadeIn,
-  FadeOut,
+  interpolate,
+  Extrapolation,
+  useAnimatedProps,
+  useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
@@ -27,9 +29,12 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { cancelSearch } from './SearchBar.android';
 import { getSearchInput, setSearchInput, updateSearch, useSearch, type SearchState } from './store.android';
 import { useBackClaim } from '../../../core/back/claims';
+import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
 import { BarCapsule, BarGlassRow, useBarGlassRow } from '../header/BarCapsule.android';
+import { meltLook } from '../header/melt.android';
 import { bar, barItem, search, searchMotion, toolbar } from '../tokens';
 import { useToolbarOffset } from '../toolbar/offset.android';
 import type { LucentSearchBarProps } from '../types';
@@ -43,7 +48,7 @@ const keyboardTypes: Record<NonNullable<LucentSearchBarProps['inputType']>, Keyb
 
 const colorString = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
-const useFieldColors = (props: LucentSearchBarProps) => {
+const useFieldColors = (props: LucentSearchBarProps, tint?: string) => {
   const { color, scheme } = useLucentTheme();
   return {
     text: colorString(props.textColor) ?? color.text,
@@ -53,7 +58,7 @@ const useFieldColors = (props: LucentSearchBarProps) => {
     // The cross is cut out of the clear button: it shows the field's near-white or near-black.
     clearCross: scheme === 'dark' ? '#000000' : '#FFFFFF',
     // UIKit's search field takes its own tint, or the system's blue: not the app's accent.
-    tint: colorString(props.tintColor) ?? systemTint[scheme],
+    tint: colorString(props.tintColor) ?? tint ?? systemTint[scheme],
   };
 };
 
@@ -78,9 +83,17 @@ const Magnifier = ({ color, show }: { color: string; show: boolean }) =>
 const focusInput = (routeKey: string) => getSearchInput(routeKey)?.focus();
 
 /** The field's text box, which tells the search bar's handlers what's typed. */
-const SearchInput = ({ routeKey, state, autoFocus }: { routeKey: string; state: SearchState; autoFocus?: boolean }) => {
+interface SearchInputProps {
+  routeKey: string;
+  state: SearchState;
+  autoFocus?: boolean;
+  // The cursor's colour when the search bar doesn't give one, where it isn't the system blue.
+  tint?: string;
+}
+
+const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => {
   const { props } = state;
-  const colors = useFieldColors(props);
+  const colors = useFieldColors(props, tint);
   const showIcon = props.shouldShowHintSearchIcon !== false;
   return (
     <>
@@ -140,18 +153,25 @@ export const SearchDisplay = ({ routeKey }: { routeKey: string }) => {
   return <SearchDisplayBody routeKey={routeKey} state={state} />;
 };
 
+// Where each screen's field sits at rest, across the screen: focused, the field grows from there.
+const displayRects = new Map<string, { x: number; width: number }>();
+
 const SearchDisplayBody = ({ routeKey, state }: { routeKey: string; state: SearchState }) => {
   const colors = useFieldColors(state.props);
   const showIcon = state.props.shouldShowHintSearchIcon !== false;
+  const ref = useRef<ComponentRef<typeof View>>(null);
   return (
     <Pressable
+      ref={ref}
+      onLayout={() => ref.current?.measureInWindow((x, _y, width) => displayRects.set(routeKey, { x, width }))}
       accessibilityRole="search"
       accessibilityLabel={state.props.placeholder ?? 'Search'}
       onPress={() => {
         state.props.onOpen?.();
         updateSearch(routeKey, { focused: true });
       }}
-      style={styles.display}>
+      // Focused, the field above the keyboard shows it instead.
+      style={[styles.display, state.focused && styles.gone]}>
       <Magnifier color={colors.icon} show={showIcon} />
       <Text
         numberOfLines={1}
@@ -253,36 +273,123 @@ const CloseButton = ({
   );
 };
 
+type FocusedFrom = 'slot' | 'bottom' | 'button';
+
+interface FocusedSearchProps {
+  routeKey: string;
+  // What was tapped: the toolbar's slot, the field at the bottom, or the magnifier at the bottom.
+  from: FocusedFrom;
+  // Open, it plays in; closed, it plays back out, and then says so, to be taken away.
+  open: boolean;
+  onClosed: () => void;
+}
+
 /**
- * Search mode from the bottom toolbar: the field takes the screen's width above the keyboard, beside a close button,
- * while the toolbar's other items and the navigation bar step aside.
+ * Search mode from the bottom, as iOS 27 plays it: the field rides the keyboard up, growing out of what was tapped (the
+ * toolbar's capsule, the bottom field or the magnifier's circle) to the screen's width beside a close button, which buds
+ * off its end. Closing, a field from the toolbar fades where it is, one from the bottom rides the keyboard back down
+ * whole, and the magnifier's shrinks at once to its empty circle, which rides it down.
  */
-export const FocusedSearch = ({ routeKey }: { routeKey: string }) => {
+export const FocusedSearch = ({ routeKey, from, open, onClosed }: FocusedSearchProps) => {
   const state = useSearch(routeKey);
-  const rest = useToolbarOffset();
-  const keyboard = useReanimatedKeyboardAnimation().height;
-  const position = useAnimatedStyle(() => ({
-    bottom: Math.max(rest, -keyboard.get() + toolbar.aboveKeyboard),
-  }));
-
-  useSearchBack(routeKey, true);
-
+  useSearchBack(routeKey, open);
   if (!state) return null;
+  return <FocusedSearchBody routeKey={routeKey} state={state} from={from} open={open} onClosed={onClosed} />;
+};
+
+const FocusedSearchBody = ({ routeKey, state, from, open, onClosed }: FocusedSearchProps & { state: SearchState }) => {
+  const { width } = useWindowDimensions();
+  const rest = useToolbarOffset();
+  const keyboard = useReanimatedKeyboardAnimation();
+  const tabsTint = useTabsTint();
+  const motion = searchMotion.bottom;
+  const { margin, close, gap } = search.focused;
+  // Where it grows from, and to: the magnifier's circle, or the field as it showed at rest.
+  const circle = (width - toolbar.height) / 2;
+  const rect = displayRects.get(routeKey);
+  const fromLeft = from === 'button' ? circle : (rect?.x ?? toolbar.margin);
+  const fromRight = from === 'button' ? circle : rect ? width - rect.x - rect.width : toolbar.margin;
+  const toLeft = margin;
+  const toRight = margin + close + gap;
+  // The magnifier and text keep the focused field's layout, the magnifier centred in the circle.
+  const shift = from === 'button' ? toolbar.height / 2 - search.iconCentre : 0;
+
+  const clock = useSharedValue(0);
+  const collapse = useSharedValue(0);
+  const fade = useSharedValue(1);
+  const closeFade = useSharedValue(1);
+  const pinned = useSharedValue(-1);
+  const settled = useSharedValue(0);
+  useEffect(() => {
+    if (open) {
+      clock.set(withDelay(motion.fallback, withTiming(1, { duration: motion.fallbackOver })));
+      return;
+    }
+    clock.set(0);
+    settled.set(withTiming(1, { duration: motion.closeOut }));
+    if (from === 'button') collapse.set(withTiming(1, { duration: motion.collapse }));
+    if (from === 'slot') {
+      pinned.set(Math.max(rest, -keyboard.height.get() + toolbar.aboveKeyboard));
+      fade.set(withTiming(0, { duration: motion.fieldOut }));
+      closeFade.set(withTiming(0, { duration: motion.closeOut }));
+    }
+  }, [open, from, rest, motion, clock, collapse, fade, closeFade, pinned, settled, keyboard.height]);
+  // Taken away once the keyboard's down and it has played out.
+  useAnimatedReaction(
+    () => !open && settled.get() === 1 && keyboard.progress.get() < 0.02,
+    (done, was) => {
+      if (done && !was) scheduleOnRN(onClosed);
+    },
+  );
+
+  // How far the keyboard has come up, or the clock without one.
+  const way = useDerivedValue(() => (open ? Math.max(keyboard.progress.get(), clock.get()) : keyboard.progress.get()));
+  const grow = useDerivedValue(
+    () => interpolate(way.get(), motion.grow, [0, 1], Extrapolation.CLAMP) * (1 - collapse.get()),
+  );
+  const bud = useDerivedValue(() => interpolate(way.get(), motion.bud, [0, 1], Extrapolation.CLAMP));
+  const bottom = useDerivedValue(() =>
+    pinned.get() >= 0 ? pinned.get() : Math.max(rest, -keyboard.height.get() + toolbar.aboveKeyboard),
+  );
+  const fieldStyle = useAnimatedStyle(() => ({
+    bottom: bottom.get(),
+    left: fromLeft + (toLeft - fromLeft) * grow.get(),
+    right: fromRight + (toRight - fromRight) * grow.get(),
+    opacity: fade.get(),
+  }));
+  const contentStyle = useAnimatedStyle(() => ({
+    opacity: from === 'button' ? grow.get() : 1,
+    transform: [{ translateX: shift * (1 - grow.get()) }],
+  }));
+  // In the toolbar's slot, the field is the toolbar's glass until its other items have gone.
+  const glass = useDerivedValue(() =>
+    from === 'slot' ? interpolate(way.get(), motion.melt, [0, 1], Extrapolation.CLAMP) : 1,
+  );
+  const closeLook = useDerivedValue(() => meltLook(1 - Math.min(bud.get(), closeFade.get())));
+  const closeStyle = useAnimatedStyle(() => ({
+    bottom: bottom.get(),
+    opacity: closeLook.get().opacity,
+    transform: [{ scale: closeLook.get().scale }],
+  }));
+  const closeBlur = useAnimatedProps(() => ({ radius: closeLook.get().blur }));
+
   return (
-    <Animated.View
-      entering={FadeIn.duration(searchMotion.focus)}
-      exiting={FadeOut.duration(searchMotion.focus)}
-      pointerEvents="box-none"
-      style={[styles.focused, position]}>
-      <View style={styles.focusedField}>
-        <BarCapsule height={toolbar.height} disabled>
-          <View style={styles.display}>
-            <SearchInput routeKey={routeKey} state={state} autoFocus />
+    <>
+      <Animated.View pointerEvents={open ? 'box-none' : 'none'} style={[styles.focusedField, fieldStyle]}>
+        <BarCapsule height={toolbar.height} grow disabled presence={glass}>
+          <View style={styles.focusedClip}>
+            <Animated.View style={[styles.focusedContent, { width: width - toLeft - toRight }, contentStyle]}>
+              <SearchInput routeKey={routeKey} state={state} autoFocus tint={from === 'slot' ? tabsTint : undefined} />
+            </Animated.View>
           </View>
         </BarCapsule>
-      </View>
-      <CloseButton onPress={() => cancelSearch(routeKey)} />
-    </Animated.View>
+      </Animated.View>
+      <Animated.View pointerEvents={open ? 'box-none' : 'none'} style={[styles.focusedClose, closeStyle]}>
+        <AnimatedNativeGlassBlur animatedProps={closeBlur}>
+          <CloseButton onPress={() => cancelSearch(routeKey)} />
+        </AnimatedNativeGlassBlur>
+      </Animated.View>
+    </>
   );
 };
 
@@ -464,17 +571,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   centred: { alignItems: 'center' },
-  focused: {
-    position: 'absolute',
-    left: search.focused.margin,
-    right: search.focused.margin,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: search.focused.gap,
-    zIndex: 3,
-    elevation: 3,
-  },
-  focusedField: { flex: 1 },
+  focusedField: { position: 'absolute', flexDirection: 'row', zIndex: 3, elevation: 3 },
+  focusedClip: { ...StyleSheet.absoluteFill, overflow: 'hidden', borderRadius: toolbar.height / 2 },
+  focusedContent: { height: toolbar.height },
+  focusedClose: { position: 'absolute', right: search.focused.margin, zIndex: 3, elevation: 3 },
+  gone: { opacity: 0 },
   close: {
     width: search.focused.close,
     height: search.focused.close,

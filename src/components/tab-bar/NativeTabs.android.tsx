@@ -27,7 +27,7 @@ import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
-import { InsideTabsContext, TabBarReachContext } from '../../core/tabs/TabBarReach';
+import { InsideTabsContext, TabBarReachContext, TabsTintContext } from '../../core/tabs/TabBarReach';
 
 const Trigger = Object.assign(triggerPart<LucentNativeTabTriggerProps>('trigger'), {
   Label: triggerPart<NativeTabsTriggerLabelProps>('label'),
@@ -105,16 +105,18 @@ const NativeTabsRoot = ({
           <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
             <Tabs style={styles.fill}>
               <InsideTabsContext value>
-                <TabBarReachProvider shown={!hidden && primary.length > 0}>
-                  <InsideGlassBackdrop.Provider value>
-                    <NativeGlassBackdrop style={styles.fill}>
-                      {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
+                <TabsTintContext value={colorString(tintColor)}>
+                  <TabBarReachProvider shown={!hidden && primary.length > 0}>
+                    <InsideGlassBackdrop.Provider value>
+                      <NativeGlassBackdrop style={styles.fill}>
+                        {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
                     screens, as iOS does, for screens without their own colour. */}
-                      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-                      <TabSlot detachInactiveScreens={false} />
-                    </NativeGlassBackdrop>
-                  </InsideGlassBackdrop.Provider>
-                </TabBarReachProvider>
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+                        <TabSlot detachInactiveScreens={false} />
+                      </NativeGlassBackdrop>
+                    </InsideGlassBackdrop.Provider>
+                  </TabBarReachProvider>
+                </TabsTintContext>
               </InsideTabsContext>
               {primary.length > 0 ? (
                 <Animated.View

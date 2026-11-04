@@ -38,9 +38,23 @@ What iOS 27 does with a stack's `Stack.SearchBar` on iPhone, measured on the iPh
 - The bottom toolbar stays where it is.
 - Closing plays it back over about 200ms: the placeholder goes, the close button merges back, and the field shrinks into the trailing capsule as the title and buttons come back.
 
-## The field in the toolbar's slot
+## Search mode from the bottom
 
-- Focused, the field and a close button sit in a row just above the keyboard, 8pt from the screen's sides, the close button a 48pt glass circle. Lucent's layout matches.
+Tapping the field in the toolbar's slot, the field at the bottom, or the magnifier at the bottom starts the same search mode, played three ways (h264 recordings; the simulator's default HEVC recording leaves out the bottom toolbar).
+
+- The navigation bar fades within about 100ms (a large title within about 30ms) and the content moves up into the space it showed, on a critically damped spring of about 25 rad/s: 44% by 63ms, 78% by 116ms, 93% by 170ms.
+- The field rides the keyboard up and ends just above it: 8pt from the screen's sides, beside a 48pt glass close button. The keyboard's own curve is close to a critically damped spring of about 30 rad/s.
+- From the slot, the whole toolbar rides up as one capsule; its other items blur away by about 40% of the way, the field is the screen's width by about 60%, and the close button buds off its end, blurring in, by about 90%. The cursor is the tab bar's tint inside tabs (orange in the example app), where the field in the navigation bar keeps the system blue.
+- From the bottom field, the field rides up whole and its end pulls in for the close button, which blurs in.
+- From the magnifier, the circle sinks behind the rising keyboard, and the field comes out of it narrow and centred, widening to the screen's width as it rises.
+
+Closing:
+
+- From the slot, the field fades where it is within about 50ms and its close button within about 120ms, as the keyboard drops (gone by about 110ms); the bar and content come back over about 100ms, and the toolbar blurs back in at the bottom once the keyboard is down.
+- From the bottom field, the large title and content are back at once, and the field rides the keyboard down, widening again as the close button fades.
+- From the magnifier, the field shrinks at once to its empty circle, which rides the keyboard down; the magnifier fades back in at the end.
+
+Lucent drives the morphs off the keyboard's progress rather than a clock, so they keep step with Android's keyboard; with no keyboard (a hardware one), a clock stands in.
 
 ## The field at the bottom
 
@@ -49,7 +63,6 @@ What iOS 27 does with a stack's `Stack.SearchBar` on iPhone, measured on the iPh
 ## Not matched yet on Android
 
 - The search field is still React Native's `TextInput` inside the glass, not a rebuild of `UISearchTextField`; the magnifier is Material's glyph, a little lighter than SF's.
-- How a field in the toolbar's slot, the bottom field and the bottom button animate as they focus isn't measured yet; their focused layout is.
-- The magnifier's field doesn't overshoot as the field under the title does; iOS's isn't measured closely enough to say whether it does.
+- The magnifier in the bar: iOS's field settles within a point, no overshoot to speak of, so Lucent's has none.
 - On the emulator, the close button buds off later than 330ms when the keyboard is opening: the emulator's UI thread is busy with it.
 - The example app redraws at about 60fps while idle on the emulator, which goes back to before this work. Left for the glass pass at the end, with the shaders' GPU cost.

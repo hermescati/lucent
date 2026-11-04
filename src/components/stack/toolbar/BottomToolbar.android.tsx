@@ -1,6 +1,16 @@
+import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
-import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useToolbarOffset } from './offset.android';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
@@ -9,7 +19,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { BarItems } from '../header/BarItems.android';
 import { BarMeltContext, meltLook } from '../header/melt.android';
 import { useSwipeMelt } from '../header/swipeMelt.android';
-import { toolbar } from '../tokens';
+import { searchMotion, toolbar } from '../tokens';
 import type { LucentToolbarProps } from '../types';
 
 interface Props {
@@ -18,6 +28,10 @@ interface Props {
   routeKey: string;
   // Came in over another screen, so its buttons start gone and pop in as it slides in.
   pushed: boolean;
+  // In search mode from its slot: it rides the keyboard up as its items blur away; `returning`, as search mode ends, it
+  // comes back once the keyboard's down.
+  searching?: boolean;
+  returning?: boolean;
 }
 
 // Room above and below the items inside the clip, for their shadows and a held item's growing glass.
@@ -31,11 +45,18 @@ const shadowRoom = 24;
  * expo-router's Android toolbar does, all of it showing there. Through a push or a pop its buttons stay where they stand
  * while the pages slide, and blur and fade in or out with their screen, as the navigation bar's do.
  */
-export const BottomToolbar = ({ toolbar: props, tintColor, routeKey, pushed }: Props) => {
+export const BottomToolbar = ({
+  toolbar: props,
+  tintColor,
+  routeKey,
+  pushed,
+  searching = false,
+  returning = false,
+}: Props) => {
   const { color } = useLucentTheme();
   const rest = useToolbarOffset();
   const tabBar = useTabBarReach();
-  const keyboard = useReanimatedKeyboardAnimation().height;
+  const { height: keyboard, progress } = useReanimatedKeyboardAnimation();
   const followKeyboard = !props.disableImePadding;
   const tint = typeof props.tintColor === 'string' ? props.tintColor : (tintColor ?? color.text);
   // Its end items sit under the minimized bar's circles, as on iOS, where both are the same distance in.
@@ -57,12 +78,25 @@ export const BottomToolbar = ({ toolbar: props, tintColor, routeKey, pushed }: P
   }));
   // The row keeps its place inside the clip, so the items stay where they'd be without it.
   const row = useAnimatedStyle(() => ({ marginHorizontal: side - inset.get() }));
-  const { melt, holdStyle, meltBlur } = useSwipeMelt(pushed);
+  const { melt: swipeMelt, holdStyle } = useSwipeMelt(pushed);
+  // In search mode its items go as the keyboard comes up (a clock standing in without one), and come back as it goes.
+  const clock = useSharedValue(0);
+  useEffect(() => {
+    const { fallback, fallbackOver } = searchMotion.bottom;
+    clock.set(searching ? withDelay(fallback, withTiming(1, { duration: fallbackOver })) : 0);
+  }, [searching, clock]);
+  const away = useDerivedValue(() => {
+    const { melt: going, toolbarBack } = searchMotion.bottom;
+    if (searching) return interpolate(Math.max(progress.get(), clock.get()), going, [0, 1], Extrapolation.CLAMP);
+    return returning ? interpolate(progress.get(), toolbarBack, [0, 1], Extrapolation.CLAMP) : 0;
+  });
+  const melt = useDerivedValue(() => Math.max(swipeMelt.get(), away.get()));
+  const meltBlur = useAnimatedProps(() => ({ radius: meltLook(melt.get()).blur }));
   // Faded and blurred, not swollen: grown about the middle of a row the screen's width, its ends would fly apart.
   const fade = useAnimatedStyle(() => ({ opacity: meltLook(melt.get()).opacity }));
 
   return (
-    <Animated.View pointerEvents="box-none" style={[styles.clip, clip, holdStyle]}>
+    <Animated.View pointerEvents={searching ? 'none' : 'box-none'} style={[styles.clip, clip, holdStyle]}>
       <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.toolbar, row, fade]} animatedProps={meltBlur}>
         <BarMeltContext value={melt}>
           <BarItems color={tint} bottom routeKey={routeKey}>
