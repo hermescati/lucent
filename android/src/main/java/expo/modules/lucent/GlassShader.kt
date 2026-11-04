@@ -148,8 +148,12 @@ float continuousCapsule(float2 p, float4 rect) {
     float dR = r * appleSlope(s) * 2.0 * u / spread;
     d = (rho - r * appleRadius(s)) / sqrt(1.0 + (dR / rho) * (dR / rho));
   }
-  // A square with a full radius stays a circle, as iOS's are.
+  // The same shape with round ends: exact, and smooth everywhere inside. The curve's depth alone jumps across the edges
+  // of its wedge, a seam deep in the glass, so deep down it's the round ends' depth, the curve's only toward the edge,
+  // where the two shapes differ.
   float circle = length(max(v, float2(0.0))) + min(max(v.x, v.y), 0.0) - r;
+  d = mix(circle, d, smoothstep(-0.6 * r, -0.2 * r, circle));
+  // A square with a full radius stays a circle, as iOS's are.
   return mix(circle, d, smoothstep(0.0, 0.1 * r, abs(extent.x - extent.y)));
 }
 
