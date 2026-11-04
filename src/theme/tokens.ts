@@ -110,8 +110,10 @@ export const glass = {
   // about 0.25 over a dark list and 0.36 over a photo on the emulator.
   inkLuma: { dark: { from: 0.26, to: 0.4, step: 0.1 }, light: { from: 0.72, to: 0.9, step: 0.1 } },
   lensFrostClear: { dark: 0.9, light: 0 },
-  lensFrostRadius: { dark: 16, light: 10 },
-  lensFrostMagnify: { dark: 0.7, light: 0.7 },
+  // iOS 27's dark pill over stripes (simulator): the bar's material blurred about 1.75pt more (39% of its 8pt stripes
+  // left, 80% of its 16pt), at the bar's own scale. A disc 3.5pt wide is that blur, its taps too close to print copies.
+  lensFrostRadius: { dark: 3.5, light: 10 },
+  lensFrostMagnify: { dark: 0, light: 0.7 },
   lensFalloff: 0,
   lensDispersion: 0.95,
   lensMagnify: 0.2,
