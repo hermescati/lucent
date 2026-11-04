@@ -139,14 +139,14 @@ float continuousCapsule(float2 p, float4 rect) {
   float spread = 1.2717138;
   float alpha = atan(v.y, v.x);
   float u = (alpha - 0.7853982) / spread;
-  float d;
-  if (abs(u) >= 1.0) {
-    d = max(v.x, v.y) - r;
-  } else {
+  float d = max(v.x, v.y) - r;
+  if (abs(u) < 1.0) {
     float s = u * u;
     float rho = max(length(v), 0.0001);
     float dR = r * appleSlope(s) * 2.0 * u / spread;
-    d = (rho - r * appleRadius(s)) / sqrt(1.0 + (dR / rho) * (dR / rho));
+    // Eased into the straight sides' depth over the curve's last fifth, where it meets them tangentially: switched
+    // outright, the two leave a faint crease there.
+    d = mix(d, (rho - r * appleRadius(s)) / sqrt(1.0 + (dR / rho) * (dR / rho)), smoothstep(1.0, 0.8, abs(u)));
   }
   // The same shape with round ends: exact, and smooth everywhere inside. The curve's depth alone jumps across the edges
   // of its wedge, a seam deep in the glass, so deep down it's the round ends' depth, the curve's only toward the edge,
