@@ -211,8 +211,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           pointerEvents="none"
           animatedProps={barGlassProps}
           {...glassStyle}
-          // iOS 27's tab bar ends are true semicircles (simulator), not the continuous curve of its buttons.
-          continuous={0}
+          continuous={1}
           sampleBackdrop
           onBackdropLuma={onBackdropLuma}
         />

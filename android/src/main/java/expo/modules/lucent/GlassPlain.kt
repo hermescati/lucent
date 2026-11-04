@@ -36,29 +36,42 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
   private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+  // Apple's continuous corner, traced from the same fit the glass shader uses (see appleRadius there): each corner's
+  // outline at its distance from the corner's centre, R(alpha), over the wedge where it curves; straight between.
   private fun addContinuous(path: Path, rect: RectF, corner: Float) {
-    val wide = rect.width() >= rect.height()
-    val long = max(rect.width(), rect.height()) * 0.5f
-    val short = min(rect.width(), rect.height()) * 0.5f
-    val r = if (corner > 0f) min(short, corner) else short
-    val reach = min(r * 1.528f, long)
-    val t = ((reach / r - 1f) / 0.51f).coerceIn(0f, 1f)
-    val eLong = 2f + 1.35f * t
-    val eShort = 2f
-    for (step in 0 until CONTINUOUS_STEPS) {
-      val angle = step * 2.0 * Math.PI / CONTINUOUS_STEPS
-      val c = cos(angle).toFloat()
-      val s = sin(angle).toFloat()
-      val sc = if (c >= 0f) 1f else -1f
-      val ss = if (s >= 0f) 1f else -1f
-      val l = sc * (long - reach + reach * Math.pow(abs(c).toDouble(), 2.0 / eLong).toFloat())
-      val h = ss * (short - r + r * Math.pow(abs(s).toDouble(), 2.0 / eShort).toFloat())
-      val x = rect.centerX() + if (wide) l else h
-      val y = rect.centerY() + if (wide) h else l
-      if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    val ex = rect.width() * 0.5f
+    val ey = rect.height() * 0.5f
+    val r = if (corner > 0f) min(min(ex, ey), corner) else min(ex, ey)
+    // A square with a full radius stays a circle, as iOS's are.
+    if (abs(ex - ey) < 0.1f * r) {
+      path.addRoundRect(rect, r, r, Path.Direction.CW)
+      return
+    }
+    val steps = CONTINUOUS_STEPS / 4
+    var first = true
+    for (quadrant in 0 until 4) {
+      val sx = if (quadrant == 0 || quadrant == 3) 1f else -1f
+      val sy = if (quadrant < 2) 1f else -1f
+      for (step in 0..steps) {
+        // Around each corner in drawing order, from one edge's start of the curve to the other's.
+        val t = step.toFloat() / steps
+        val u = if (sx * sy > 0f) -1f + 2f * t else 1f - 2f * t
+        val alpha = APPLE_MID + u * APPLE_SPREAD
+        val radial = r * appleRadius(u * u)
+        val vx = ex - r + radial * cos(alpha)
+        val vy = ey - r + radial * sin(alpha)
+        // A capsule's ends are cut at mid-height, as iOS's are.
+        val x = rect.centerX() + sx * max(vx, 0f)
+        val y = rect.centerY() + sy * max(vy, 0f)
+        if (first) path.moveTo(x, y) else path.lineTo(x, y)
+        first = false
+      }
     }
     path.close()
   }
+
+  private fun appleRadius(s: Float): Float =
+    1.0017855f + s * (-0.0287977f + s * (-0.6672829f + s * (3.2177690f + s * (-5.2756717f + s * (4.1355015f + s * -1.2528373f)))))
 
   private fun buildPlainPath(): Boolean {
     val count = fillShapes()

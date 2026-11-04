@@ -23,6 +23,9 @@ internal const val ADAPTIVE_DARKEN = 0.22f
 internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 68
 internal const val SAMPLE_SIZE = 8
 internal const val CONTINUOUS_STEPS = 128
+// Apple's continuous corner, as an angle about the corner's centre: its wedge's middle and half-width, in radians.
+internal const val APPLE_MID = 0.7853982f
+internal const val APPLE_SPREAD = 1.2717138f
 internal const val SAMPLE_INTERVAL_MS = 16L
 internal const val SAMPLE_INSET = 6f
 internal const val SAMPLE_WIDTH = 8f

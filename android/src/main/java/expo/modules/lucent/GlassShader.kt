@@ -111,6 +111,20 @@ float wallCapsule(float2 p, float4 rect) {
   return min(max(q.x, q.y), 0.0) + length(max(q, float2(0.0))) - r;
 }
 
+// Apple's continuous corner (UIBezierPath's rounded rect since iOS 7, cornerCurve = .continuous): three cubics spanning
+// 1.52866483r along each edge, easing the curvature in from the straight edge rather than jumping to 1/r. It's described
+// here by its distance from the corner's centre, R(alpha), a polynomial in ((alpha - 45deg) / 72.86deg)^2 fitted to the
+// cubics within 0.001r; the distance to it is (rho - R) over the gradient's length, exact to first order and equal to the
+// straight edge's at the wedge's sides. iOS 27's capsules use it with the radius at half the height, cut at mid-height
+// (measured on the simulator, within 0.08pt); its circles stay circles.
+float appleRadius(float s) {
+  return 1.0017855 + s * (-0.0287977 + s * (-0.6672829 + s * (3.2177690 + s * (-5.2756717 + s * (4.1355015 + s * -1.2528373)))));
+}
+
+float appleSlope(float s) {
+  return -0.0287977 + s * (2.0 * -0.6672829 + s * (3.0 * 3.2177690 + s * (4.0 * -5.2756717 + s * (5.0 * 4.1355015 + s * 6.0 * -1.2528373))));
+}
+
 float continuousCapsule(float2 p, float4 rect) {
   float2 center = (rect.xy + rect.zw) * 0.5;
   float2 extent = max((rect.zw - rect.xy) * 0.5, float2(1.0));
@@ -118,29 +132,22 @@ float continuousCapsule(float2 p, float4 rect) {
   if (radius > 0.0) {
     r = min(r, radius);
   }
-  float2 q = abs(p - center);
-  if (extent.x < extent.y) {
-    q = q.yx;
-    extent = extent.yx;
+  float2 v = abs(p - center) - (extent - float2(r));
+  float spread = 1.2717138;
+  float alpha = atan(v.y, v.x);
+  float u = (alpha - 0.7853982) / spread;
+  float d;
+  if (abs(u) >= 1.0) {
+    d = max(v.x, v.y) - r;
+  } else {
+    float s = u * u;
+    float rho = max(length(v), 0.0001);
+    float dR = r * appleSlope(s) * 2.0 * u / spread;
+    d = (rho - r * appleRadius(s)) / sqrt(1.0 + (dR / rho) * (dR / rho));
   }
-  float reach = min(r * 1.528, extent.x);
-  float t = clamp((reach / r - 1.0) / 0.51, 0.0, 1.0);
-  float2 e = float2(mix(2.0, 3.35, t), 2.0);
-  float2 box = float2(reach, r);
-  float2 s = q - (extent - box);
-  float2 a = max(s, float2(0.0001));
-  float2 c = a;
-  for (int i = 0; i < 2; i++) {
-    float2 k = c / box;
-    float2 pk = float2(pow(k.x, e.x), pow(k.y, e.y));
-    float g = sqrt(pk.x + pk.y);
-    float2 dg = e * pk / max(c, float2(0.0001)) / (2.0 * g);
-    c = max(c - (g - 1.0) / max(dot(dg, dg), 0.000001) * dg, float2(0.0001));
-  }
-  float2 k0 = a / box;
-  float f = pow(k0.x, e.x) + pow(k0.y, e.y);
-  float d = length(a - c);
-  return f > 1.0 ? d : mix(max(s.x - box.x, s.y - box.y), -d, smoothstep(0.15, 0.3, sqrt(f)));
+  // A square with a full radius stays a circle, as iOS's are.
+  float circle = length(max(v, float2(0.0))) + min(max(v.x, v.y), 0.0) - r;
+  return mix(circle, d, smoothstep(0.0, 0.1 * r, abs(extent.x - extent.y)));
 }
 
 float smoothUnion(float a, float b, float k) {
