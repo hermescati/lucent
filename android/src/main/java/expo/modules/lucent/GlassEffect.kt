@@ -2,7 +2,10 @@ package expo.modules.lucent
 
 import android.app.ActivityManager
 import android.content.Context
+import android.graphics.BlendMode
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.RenderEffect
 import android.graphics.RenderNode
@@ -118,6 +121,22 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
 
   protected fun blur(radiusPx: Float): RenderEffect? {
     return if (radiusPx > 0f) RenderEffect.createBlurEffect(radiusPx, radiusPx, Shader.TileMode.CLAMP) else null
+  }
+
+  /**
+   * What the glass sees: the backdrop at the material's own blur, or, with haze, that at `weight`'s complement over a
+   * Gaussian `radius` wide. A real blur rather than taps in the glass shader, which would print sparse sharp content
+   * (text) as a ring of copies. It averages as the backdrop's stored, not in linear light as iOS 27 does: effects hand
+   * each other 8 bits a channel, too few to carry a dark colour cubed or squared.
+   */
+  private fun hazed(blurPx: Float, weight: Float, radiusPx: Float): RenderEffect? {
+    val near = blur(blurPx)
+    if (weight <= 0f || radiusPx <= 0.5f) return near
+    val wide = RenderEffect.createBlurEffect(radiusPx * 0.5f, radiusPx * 0.5f, Shader.TileMode.CLAMP)
+    val keep = ColorMatrix().apply { setScale(1f, 1f, 1f, 1f - weight) }
+    val faint = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(keep))
+    val sharp = if (near != null) RenderEffect.createChainEffect(faint, near) else faint
+    return RenderEffect.createBlendModeEffect(wide, sharp, BlendMode.SRC_OVER)
   }
 
   private fun putColor(index: Int, color: Color): Int {
@@ -399,10 +418,9 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
     glassShader.setFloatUniform("fadeBlur", state[fadeBlurAt], state[fadeBlurAt + 1], state[fadeBlurAt + 2])
     glassShader.setFloatUniform("rimOptic", state[opticAt], state[opticAt + 1])
-    glassShader.setFloatUniform("haze", state[opticAt + 2], state[opticAt + 3])
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
-    val inner = blur(blurPx)
+    val inner = hazed(blurPx, state[opticAt + 2], state[opticAt + 3])
     effect = if (inner != null) RenderEffect.createChainEffect(glass, inner) else glass
     state.copyInto(lastState)
     glassNode?.setRenderEffect(effect)

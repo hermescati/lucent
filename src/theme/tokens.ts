@@ -65,8 +65,8 @@ export const glass = {
   // it darkened rather than a stroke. Full at the sides; a quarter where it faces up or down in light mode, and none in
   // dark, where it also eases off over light backdrops.
   edge: { width: 0.5, top: { light: 0.25, dark: 0 }, darken: { light: 0, dark: 0.88 } },
-  // Its material over stripes: a near-sharp image at about 28% over a blur far wider than 16pt, at every stripe period.
-  haze: { weight: 0.72, radius: 40, blur: 0.4 },
+  // Its material over stripes: a near-sharp image at about a third over a blur far wider than 16pt, at every stripe period.
+  haze: { weight: 0.67, radius: 40, blur: 0.4 },
   outlineSide: 1.1,
   rimSide: 3,
   insetShade: { dark: 0, light: 0 },

@@ -71,7 +71,6 @@ uniform float frostRadius;
 uniform float frostMagnify;
 uniform float3 fadeBlur;
 uniform float2 rimOptic;
-uniform float2 haze;
 uniform float4 tone;
 uniform float4 frostTone;
 uniform float chroma;
@@ -363,24 +362,6 @@ half4 main(float2 coord) {
       total += w;
     }
     col = disc / total;
-  }
-
-  // iOS 27's material is mostly a very wide blur under the near-sharp image at a low weight: fine detail shows faintly at
-  // every scale rather than coarse detail strongly. The blur averages on a cube, which lands black and white stripes'
-  // mid level where iOS's does (it averages in linear light, and the backdrop reaches here already toned).
-  if (haze.x > 0.0 && haze.y > 0.5) {
-    float2 at = base + offset;
-    float3 disc = float3(0.0);
-    float total = 0.0;
-    for (int i = 0; i < 32; i++) {
-      float f = (float(i) + 0.5) / 32.0;
-      float ang = float(i) * 2.39996;
-      float w = exp(-2.0 * f);
-      float3 c = content.eval(clamp(at + float2(cos(ang), sin(ang)) * haze.y * sqrt(f), lo, hi)).rgb;
-      disc += c * c * c * w;
-      total += w;
-    }
-    col = mix(col, pow(disc / total, float3(1.0 / 3.0)), haze.x);
   }
 
   float frostEdge = continuous > 0.0 ? mix(capsule(coord, frostRect), continuousCapsule(coord, frostRect), continuous) : capsule(coord, frostRect);
