@@ -6,6 +6,8 @@ export const layout = {
   tabBarSideInset: 21,
   tabBarBottomOffsetAndroid: 28,
   tabBarMaxWidth: 360,
+  // iOS 27's tab bar outline is a crisp hairline, a pixel at its ends, thinner than the other glass's rim.
+  tabBarRimWidth: 1,
   tabBarInlinePadding: 7,
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,

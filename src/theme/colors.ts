@@ -98,9 +98,9 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barFallback: '#F4F5F9',
     barShadow: 'rgba(0, 0, 0, 0.012)',
     barRim: 'rgba(0, 0, 0, 0.12)',
-    // iOS 27's tab bar outline, over flat grey (simulator): about a fifth dark at the top and bottom, three times that
-    // at the sides.
-    tabBarRim: 'rgba(0, 0, 0, 0.2)',
+    // iOS 27's tab bar outline (simulator): a crisp hairline, darker at the sides than the top and bottom, and lighter
+    // over white than over grey; this sits between the two.
+    tabBarRim: 'rgba(0, 0, 0, 0.15)',
     glassOutline: 'rgba(0, 0, 0, 0.16)',
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
