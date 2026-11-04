@@ -1,6 +1,7 @@
 import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { NativeSyntheticEvent } from 'react-native';
 import type { SearchBarProps as ScreensSearchBarProps } from 'react-native-screens';
+
 import { createLucentContext } from '../../../theme/context';
 
 export type SearchBarProps = ScreensSearchBarProps;

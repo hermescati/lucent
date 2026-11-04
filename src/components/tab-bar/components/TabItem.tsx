@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedReaction,
@@ -33,7 +33,10 @@ export interface TabItemProps {
   covered: SharedValue<number[]>;
   collapsed: SharedValue<number>;
   collapseX: SharedValue<number>;
-  collapseSpread: SharedValue<number>;
+  // How far each tab draws in toward the bar's middle as it minimizes.
+  collapseSpread: SharedValue<number[]>;
+  // Its place in the row, as iOS 27 spaces the tabs (helpers/slots).
+  slotStyle?: StyleProp<ViewStyle>;
   handoff?: SharedValue<number>;
   revealed?: boolean;
   badgeOnly?: boolean;
@@ -44,16 +47,12 @@ export interface TabItemProps {
   swell?: SharedValue<number>;
   // How it grows in as it's added to the bar.
   entering?: EntryExitAnimationFunction;
-  // Each tab's label width, for the selected pill, which iOS fits to its tab's label.
-  labelWidths?: SharedValue<number[]>;
   onActivate: (index: number) => void;
 }
 
 export const TabItem = ({
   tab,
   index,
-  labelWidths,
-  middleIndex,
   tintColor,
   selected,
   lensPosition,
@@ -71,6 +70,7 @@ export const TabItem = ({
   badgeColor,
   badgeTextColor,
   inkTone,
+  slotStyle,
   swell,
   entering,
   onActivate,
@@ -91,7 +91,7 @@ export const TabItem = ({
     opacity: lerp(1, chosen.get(), clamp01(collapsed.get() * motion.labelFadeRate)),
     transform: [
       {
-        translateX: collapseX.get() + (index - middleIndex) * collapseSpread.get(),
+        translateX: collapseX.get() + (collapseSpread.get()[index] ?? 0),
       },
       { translateY: collapsed.get() * labelShift },
       {
@@ -132,7 +132,12 @@ export const TabItem = ({
 
   if (badgeOnly) {
     return (
-      <Animated.View style={styles.slot} pointerEvents="none" entering={entering} exiting={tabExit} layout={tabSlide}>
+      <Animated.View
+        style={[styles.slot, slotStyle]}
+        pointerEvents="none"
+        entering={entering}
+        exiting={tabExit}
+        layout={tabSlide}>
         <Animated.View style={[styles.item, itemStyle]}>
           <Animated.View style={[styles.iconBox, handoffStyle]}>
             {tab.badge !== undefined ? (
@@ -151,7 +156,7 @@ export const TabItem = ({
 
   return (
     <Animated.View
-      style={styles.slot}
+      style={[styles.slot, slotStyle]}
       entering={entering}
       exiting={tabExit}
       layout={tabSlide}
@@ -188,14 +193,7 @@ export const TabItem = ({
               },
               idleStyle,
             ]}
-            numberOfLines={1}
-            onTextLayout={(event) => {
-              const width = event.nativeEvent.lines[0]?.width ?? 0;
-              if (!labelWidths) return;
-              const next = [...labelWidths.get()];
-              next[index] = width;
-              labelWidths.set(next);
-            }}>
+            numberOfLines={1}>
             {tab.label}
           </Animated.Text>
           <Animated.Text

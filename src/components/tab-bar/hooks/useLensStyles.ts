@@ -29,7 +29,8 @@ export const useLensStyles = (bar: BarState) => {
     heading,
     held,
     holding,
-    itemWidth,
+    scaleX,
+    slotPlan,
     jelly,
     landing,
     lastIndex,
@@ -37,7 +38,6 @@ export const useLensStyles = (bar: BarState) => {
     lensPosition,
     lensPresence,
     lift,
-    middleIndex,
     moved,
     moving,
     pillShiftX,
@@ -241,13 +241,14 @@ export const useLensStyles = (bar: BarState) => {
   );
 
   const coveredIcons = useDerivedValue(() => {
-    const width = itemWidth.get();
-    const half = width * motion.tapLens.iconHalf;
+    const plan = slotPlan.get();
+    const scale = scaleX.get();
     const left = leftEdge.get();
     const right = rightEdge.get();
     const strength = iconCover.get();
     return tabs.map((_, index) => {
-      const center = barWidth.get() / 2 + pillShiftX.get() + (index - middleIndex) * width;
+      const half = (plan.widths[index] ?? 0) * scale * motion.tapLens.iconHalf;
+      const center = barWidth.get() / 2 + pillShiftX.get() + ((plan.centers[index] ?? 0) - barWidth.get() / 2) * scale;
       const overlap = Math.min(right, center + half) - Math.max(left, center - half);
       return half > 0
         ? strength * clamp01((overlap / (half * 2) - motion.tapLens.coverFrom) / (1 - motion.tapLens.coverFrom))

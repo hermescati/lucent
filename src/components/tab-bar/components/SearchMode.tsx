@@ -17,6 +17,7 @@ import { useClearButton } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
+import type { SlotPlan } from '../helpers/slots';
 import type { TabSpec } from '../helpers/triggers';
 import type { GlassPress, useGlassPress } from '../hooks/useGlassPress';
 import { clearButton, layout, motion, placeholderBlend, searchFieldText } from '../tokens';
@@ -53,7 +54,7 @@ interface Props {
   backPress: ReturnType<typeof useGlassPress>;
   travel: {
     index: number;
-    slotWidth: SharedValue<number>;
+    slots: SharedValue<SlotPlan>;
     width: SharedValue<number>;
     circle: SharedValue<number>;
     press: SharedValue<number>;
@@ -173,7 +174,7 @@ export const SearchMode = ({
     return () => clearTimeout(timer);
   }, [active, searchTab.automaticallyActivatesSearch]);
 
-  const { index: travelIndex, slotWidth, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
+  const { index: travelIndex, slots, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
   const backStyle = useAnimatedStyle(() => ({
     opacity: (mode.get() > motion.backTravel.handoff ? 1 : 0) * (1 - wide.get()),
     transform: [{ translateY: sink.get() }, { scale: 1 + backPress.press.get() * motion.pressGrow }],
@@ -192,7 +193,7 @@ export const SearchMode = ({
     const fit = rowFit.get();
     const settled = 1 - away;
     const width = Math.max(barWidth.get(), 1);
-    const slot = layout.tabBarInlinePadding + (travelIndex + 0.5) * slotWidth.get();
+    const slot = slots.get().centers[travelIndex] ?? 0;
     const ride = modeInset * settled + (lerp(width, modeHeight, settled) / width) * slot;
     const rideEnd = modeInset + (modeHeight / width) * slot;
     const fromX = ride - backCenter - (rideEnd - backCenter) * settled;

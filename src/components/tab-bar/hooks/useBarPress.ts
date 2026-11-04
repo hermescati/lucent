@@ -7,6 +7,7 @@ import type { BarState } from './useBarState';
 import type { SearchMorph } from './useSearchMorph';
 import { setTabBarCollapsed } from '../context/collapse';
 import { clamp01, inlinePad, lerp, modeInset, tick } from '../helpers/bar';
+import { slotIndexAt } from '../helpers/slots';
 import { motion } from '../tokens';
 
 export interface BarActions {
@@ -37,19 +38,18 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     edgesReady,
     expandOnly,
     focused,
-    fullItemWidth,
     glideFrom,
     glideSpan,
     glideTo,
     gliding,
     hasSearch,
-    itemWidth,
+    scaleX,
+    slotPlan,
     jellyVelocity,
     landing,
     lensPosition,
     lensPresence,
     lift,
-    middleIndex,
     modeTarget,
     moved,
     nudge,
@@ -78,7 +78,9 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
 
   const positionAt = (x: number) => {
     'worklet';
-    return clampIndex((x - barWidth.get() / 2 - barShiftX.get()) / itemWidth.get() + middleIndex);
+    // Back to the bar's own scale, then to the tab at that place (helpers/slots).
+    const unscaled = barWidth.get() / 2 + (x - barWidth.get() / 2 - barShiftX.get()) / Math.max(scaleX.get(), 0.01);
+    return clampIndex(slotIndexAt(slotPlan.get(), unscaled));
   };
 
   const startDrip = (amount = 1) => {
@@ -141,8 +143,11 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     }
     dragOrigin.set(index);
     if (!switching) {
-      const tabCenter = barWidth.get() / 2 + pillShiftX.get() + (index - middleIndex) * itemWidth.get();
-      pokeSide.set(clamp01((x - tabCenter) / Math.max(itemWidth.get(), 1) + 0.5) * 2 - 1);
+      const plan = slotPlan.get();
+      const tabCenter =
+        barWidth.get() / 2 + pillShiftX.get() + ((plan.centers[index] ?? 0) - barWidth.get() / 2) * scaleX.get();
+      const tabWidth = (plan.widths[index] ?? 0) * scaleX.get();
+      pokeSide.set(clamp01((x - tabCenter) / Math.max(tabWidth, 1) + 0.5) * 2 - 1);
       poke.set(
         withSequence(
           withSpring(motion.poke.tap, motion.springs.pokeIn),
@@ -172,8 +177,10 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     const follow = width > 0 ? ((x - width / 2) / (width / 2)) * motion.nudgeFollow : 0;
     nudge.set(withSpring(rubber + follow, motion.springs.track));
     const position = positionAt(x);
-    const lastCenter = barWidth.get() - inlinePad - fullItemWidth.get() / 2;
-    const pushTarget = hasSearch ? clamp01((x - lastCenter) / Math.max(fullItemWidth.get() / 2, 1)) : 0;
+    const plan = slotPlan.get();
+    const lastCenter = plan.centers[plan.centers.length - 1] ?? barWidth.get();
+    const lastHalf = (plan.widths[plan.widths.length - 1] ?? 0) / 2;
+    const pushTarget = hasSearch ? clamp01((x - lastCenter) / Math.max(lastHalf, 1)) : 0;
     push.set(withSpring(pushTarget, motion.springs.track));
     lensPosition.set(withSpring(position, motion.springs.track));
     const index = Math.round(position);

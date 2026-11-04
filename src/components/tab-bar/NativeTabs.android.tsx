@@ -18,14 +18,14 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { FloatingTabBar } from './components/FloatingTabBar';
+import { MoreList } from './components/MoreList';
+import { TabIcon } from './components/TabIcon';
 import { TabBarCollapseProvider, useTabBarCollapse } from './context/collapse';
 import { SearchHostProvider, useSearchHost } from './context/search';
 import { barSpanFor, fullHeight } from './helpers/bar';
+import { MoreContext, splitEntries, useMore } from './helpers/more';
 import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
 import { useTabBarOffset } from './hooks/useTabBarOffset';
-import { MoreList } from './components/MoreList';
-import { TabIcon } from './components/TabIcon';
-import { MoreContext, splitEntries, useMore } from './helpers/more';
 import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';

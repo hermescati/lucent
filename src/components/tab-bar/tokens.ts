@@ -8,6 +8,9 @@ export const layout = {
   tabBarMaxWidth: 360,
   // iOS 27's tab bar outline is a crisp hairline, a pixel at its ends, thinner than the other glass's rim.
   tabBarInlinePadding: 7,
+  // Around and between the tabs, as iOS 27 spaces them (helpers/slots; simulator): 24pt at each end, 28pt between,
+  // shrinking evenly once a tab's content is wider than its share.
+  tabSpacing: { end: 24, gap: 28 },
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,
   tabBarGap: 8,

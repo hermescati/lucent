@@ -1,8 +1,8 @@
 import { useContext, type ReactNode } from 'react';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 
-import { motion } from '../tokens';
 import { createLucentContext } from '../../../theme/context';
+import { motion } from '../tokens';
 
 export interface TabBarCollapseState {
   progress: SharedValue<number>;

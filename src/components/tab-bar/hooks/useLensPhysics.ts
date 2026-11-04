@@ -1,6 +1,7 @@
 import { useFrameCallback, withSpring } from 'react-native-reanimated';
 
 import { clamp01, fullHeight, lerp } from '../helpers/bar';
+import { slotCenterAt, slotWidthAt } from '../helpers/slots';
 import { layout, motion } from '../tokens';
 import type { BarPress } from './useBarPress';
 import type { BarState } from './useBarState';
@@ -23,6 +24,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     heading,
     held,
     itemWidth,
+    slotPlan,
     jelly,
     jellyVelocity,
     landing,
@@ -145,21 +147,25 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
 
     const reach =
       middleIndex > 0 ? (lift.get() * held.get() * motion.lensEdgeReach * (position - middleIndex)) / middleIndex : 0;
+    // Each tab at its own place and width (helpers/slots), scaled with the bar as it minimizes.
+    const plan = slotPlan.get();
+    const scale = scaleX.get();
     const center =
       barWidth.get() / 2 +
       pillShiftX.get() +
-      (position - middleIndex) * width +
+      (slotCenterAt(plan, position) - barWidth.get() / 2) * scale +
       reach +
       push.get() * motion.lensPushTravel;
+    const slot = slotWidthAt(plan, position) * scale;
     // iOS 27 fits the resting pill to its tab: a little wider than its slot, and wide enough for its label.
     const label = labelWidths.get()[Math.round(position)] ?? 0;
-    const restHalf = Math.max(width + motion.pillFit.slot, label + motion.pillFit.label) / 2;
+    const restHalf = Math.max(slot + motion.pillFit.slot, label + motion.pillFit.label) / 2;
     const spread = Math.max(
       lift.get(),
       Math.min(1, landing.get() * tapStay.get() * tapSlide.get() * motion.tapLanding.hold),
     );
     const halfWidth =
-      lerp(restHalf, (width / 2) * motion.lensLift.x, spread * free) *
+      lerp(restHalf, (slot / 2) * motion.lensLift.x, spread * free) *
       lerp(1, motion.switchTravel.wide, gliding.get() ? lift.get() : 0);
     const edgeInset = (fullHeight - layout.bubbleRestHeight) / 2;
     const barLeft = pillShiftX.get() + (barWidth.get() * (1 - scaleX.get())) / 2 + edgeInset;

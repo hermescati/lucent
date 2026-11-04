@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedReaction,
@@ -15,8 +15,6 @@ import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
-import { moreName, useMore } from '../helpers/more';
-import { tabEnterAfter } from '../helpers/presence';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
 import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
@@ -30,6 +28,8 @@ import {
   tabBarGroup,
   tick,
 } from '../helpers/bar';
+import { moreName, useMore } from '../helpers/more';
+import { tabEnterAfter } from '../helpers/presence';
 import { reselectTab } from '../helpers/reselect';
 import { useBarGlass } from '../hooks/useBarGlass';
 import { useBarPress } from '../hooks/useBarPress';
@@ -192,7 +192,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     color,
     coveredIcons,
     focusedIndex,
-    fullItemWidth,
+    slotPlan,
     glassStyle,
     hasBadges,
     iconCover,
@@ -238,7 +238,16 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     overlayWidthStyle,
     rowPadStyle,
     swell,
+    plan,
+    setLabelSize,
   } = { ...state, ...search, ...press, ...lens, ...barGlass };
+
+  // Each tab at its place, as iOS 27 spaces them.
+  const slotStyles = plan.lefts.map((left, index) => ({
+    flex: 0,
+    width: plan.widths[index],
+    marginLeft: index === 0 ? left : left - plan.lefts[index - 1] - plan.widths[index - 1],
+  }));
 
   // Tabs grow in as they're added, not as the bar first appears.
   const ready = useSharedValue(false);
@@ -251,6 +260,18 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     <Animated.View
       style={[styles.bar, { bottom, left: barLeft, width: barSpan }, barLiftStyle]}
       pointerEvents="box-none">
+      {/* The tabs' labels at their own widths, unconstrained by their slots, which are sized from them. */}
+      <View style={styles.measure} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+        {tabs.map((tab) => (
+          <Text
+            key={tab.name}
+            style={styles.measureLabel}
+            numberOfLines={1}
+            onTextLayout={(event) => setLabelSize(tab.name, event.nativeEvent.lines[0]?.width ?? 0)}>
+            {tab.label}
+          </Text>
+        ))}
+      </View>
       <NativeGlassBackdrop group={tabBarGroup} style={styles.backdrop}>
         <AnimatedNativeGlassView
           style={styles.barGlass}
@@ -324,7 +345,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                     tintColor={tintColor}
                     selected={index === focusedIndex}
                     lensPosition={lensPosition}
-                    labelWidths={state.labelWidths}
                     lift={lift}
                     shine={shine}
                     presence={lensPresence}
@@ -335,6 +355,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                     collapseSpread={collapseSpread}
                     inkTone={inkTone}
                     swell={swell}
+                    slotStyle={slotStyles[index]}
                     entering={tabEnter}
                     handoff={index === backIndex ? searchMode : undefined}
                     onActivate={selectTab}
@@ -359,7 +380,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                 tintColor={tintColor}
                 selected={index === focusedIndex}
                 lensPosition={lensPosition}
-                labelWidths={state.labelWidths}
                 lift={lift}
                 shine={shine}
                 presence={lensPresence}
@@ -370,6 +390,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                 collapseSpread={collapseSpread}
                 inkTone={inkTone}
                 swell={swell}
+                slotStyle={slotStyles[index]}
                 entering={tabEnter}
                 revealed
                 onActivate={selectTab}
@@ -438,7 +459,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       tintColor={tintColor}
                       selected={index === focusedIndex}
                       lensPosition={lensPosition}
-                      labelWidths={state.labelWidths}
                       lift={lift}
                       shine={shine}
                       presence={lensPresence}
@@ -449,6 +469,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       collapseSpread={collapseSpread}
                       inkTone={inkTone}
                       swell={swell}
+                      slotStyle={slotStyles[index]}
                       entering={tabEnter}
                       handoff={index === backIndex ? searchMode : undefined}
                       badgeOnly
@@ -479,7 +500,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           backPress={backPress}
           travel={{
             index: backIndex,
-            slotWidth: fullItemWidth,
+            slots: slotPlan,
             width: barWidth,
             circle: searchCenter,
             press: searchPress.press,
@@ -570,10 +591,21 @@ const styles = StyleSheet.create({
     borderRadius: lensFullHeight / 2,
     overflow: 'hidden',
   },
+  // The tabs at the places their slot styles give them (helpers/slots), from the bar's left edge.
   row: {
     ...StyleSheet.absoluteFill,
     flexDirection: 'row',
     paddingVertical: rowInset,
-    paddingHorizontal: inlinePad,
+  },
+  measure: {
+    position: 'absolute',
+    left: -10000,
+    top: 0,
+    opacity: 0,
+  },
+  measureLabel: {
+    position: 'absolute',
+    fontSize: layout.tabLabelSize,
+    fontWeight: '500',
   },
 });
