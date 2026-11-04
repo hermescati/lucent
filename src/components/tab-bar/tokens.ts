@@ -11,6 +11,35 @@ export const layout = {
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,
   tabBarGap: 8,
+  // More's list (iOS 27 simulator, iPhone 18 Pro): rows 51pt tall from just under the status bar; icons centred 25pt
+  // in, labels from 50pt (a point's bearing after), hairlines from 50pt to 20.3pt short of the edge, above the first
+  // row and under each; a chevron 6.4 by 11pt ending 21.3pt in. A Material symbol at 22 draws about SF's 16.6pt glyph.
+  moreList: {
+    rowHeight: 51,
+    separator: 1,
+    textInset: 50,
+    labelNudge: 1,
+    separatorInset: 20.3,
+    chevronInset: 21.3,
+    iconSize: 22,
+    chevron: { width: 7, height: 12, stroke: 2 },
+    colors: {
+      light: {
+        background: '#FFFFFF',
+        separator: '#E8E8E8',
+        label: '#000000',
+        chevron: '#C5C5C7',
+        pressed: '#D1D1D6',
+      },
+      dark: {
+        background: '#000000',
+        separator: '#2A2A2C',
+        label: '#FFFFFF',
+        chevron: '#464649',
+        pressed: '#2C2C2E',
+      },
+    },
+  },
   // Two tabs beside search's circle: iOS 27 fits the bar to them and keeps it at the left, the circle staying at the
   // right (simulator, iPhone 18 Pro: 205.3 wide, against 290 for three).
   tabBarTwoTabWidth: 205.3,

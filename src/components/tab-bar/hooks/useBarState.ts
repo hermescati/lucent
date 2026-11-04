@@ -16,6 +16,7 @@ import {
 
 import { useGlassPress } from './useGlassPress';
 import { barItemMotion } from '../../../core/motion/island';
+import { moreName, useMore } from '../helpers/more';
 import { islandTo } from '../helpers/presence';
 import { useKeyboard } from './useKeyboard';
 import { useTabBarOffset } from './useTabBarOffset';
@@ -54,7 +55,12 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const iconDim = motion.pressIconDim[scheme];
   const collapse = useTabBarCollapse();
   const { getTrigger, switchTab } = useTabTrigger({ name: tabs[0].name });
-  const focusedIndex = tabs.findIndex((tab) => getTrigger(tab.name)?.isFocused);
+  const more = useMore();
+  // More's tab is the selected one while its list shows or one of the tabs under it does.
+  const underMore = more !== null && (more.open || more.overflow.some((tab) => getTrigger(tab.name)?.isFocused));
+  const focusedIndex = underMore
+    ? tabs.findIndex((tab) => tab.name === moreName)
+    : tabs.findIndex((tab) => getTrigger(tab.name)?.isFocused);
   const searchFocused = searchTab ? (getTrigger(searchTab.name)?.isFocused ?? false) : false;
   const { setQuery, emit, command, setActive: setSearchActive } = useSearchActions();
   const { height: keyboardHeight, progress: keyboardProgress } = useKeyboard();

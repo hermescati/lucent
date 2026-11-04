@@ -5,7 +5,7 @@ import type {
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
-import { memo, useEffect, type ReactNode } from 'react';
+import { memo, useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -23,7 +23,9 @@ import { SearchHostProvider, useSearchHost } from './context/search';
 import { barSpanFor, fullHeight } from './helpers/bar';
 import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
 import { useTabBarOffset } from './hooks/useTabBarOffset';
+import { MoreList } from './components/MoreList';
 import { TabIcon } from './components/TabIcon';
+import { MoreContext, splitEntries, useMore } from './helpers/more';
 import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
@@ -31,6 +33,7 @@ import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
 import {
   InsideTabsContext,
   TabBarReachContext,
+  TabCoveredContext,
   TabSearchActiveContext,
   TabsTintContext,
 } from '../../core/tabs/TabBarReach';
@@ -52,6 +55,10 @@ const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
 // Tells what floats above the bar, such as a stack's bottom toolbar, how far up the bar reaches as it minimizes.
 const TabSearchActive = ({ children }: { children: ReactNode }) => (
   <TabSearchActiveContext value={useSearchHost().active}>{children}</TabSearchActiveContext>
+);
+
+const TabCovered = ({ children }: { children: ReactNode }) => (
+  <TabCoveredContext value={useMore()?.open ?? false}>{children}</TabCoveredContext>
 );
 
 const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: ReactNode }) => {
@@ -90,8 +97,11 @@ const Screens = memo(({ background }: { background: ColorValue }) => (
       iOS does, for screens without their own colour. */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: background }]} />
       <TabSearchActive>
-        <TabSlot detachInactiveScreens={false} />
+        <TabCovered>
+          <TabSlot detachInactiveScreens={false} />
+        </TabCovered>
       </TabSearchActive>
+      <MoreList />
     </NativeGlassBackdrop>
   </InsideGlassBackdrop.Provider>
 ));
@@ -108,8 +118,16 @@ const NativeTabsRoot = ({
 }: LucentNativeTabsProps) => {
   const triggers = parseTriggers(children);
   const visible = triggers.filter((trigger) => !trigger.hidden);
-  const primary = visible.filter((trigger) => !trigger.search);
-  const search = visible.find((trigger) => trigger.search);
+  const {
+    barTabs: primary,
+    barSearch: search,
+    overflow,
+  } = splitEntries(
+    visible.filter((trigger) => !trigger.search),
+    visible.find((trigger) => trigger.search),
+  );
+  const [moreOpen, setMoreOpen] = useState(false);
+  const more = overflow.length > 0 ? { overflow, open: moreOpen, setOpen: setMoreOpen } : null;
   const { colors } = useTheme();
   // Hidden, the bar stays mounted and fades, as iOS's does, rather than going and coming back whole.
   const shown = !hidden;
@@ -124,57 +142,59 @@ const NativeTabsRoot = ({
   const presenceStyle = useAnimatedStyle(() => ({ opacity: presence.get() }));
 
   return (
-    <GestureHandlerRootView style={styles.fill}>
-      <KeyboardProvider>
-        <SearchHostProvider>
-          <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
-            <Tabs style={styles.fill}>
-              <InsideTabsContext value>
-                <TabsTintContext value={colorString(tintColor)}>
-                  <TabBarReachProvider shown={!hidden && primary.length > 0}>
-                    <Screens background={colors.background} />
-                  </TabBarReachProvider>
-                </TabsTintContext>
-              </InsideTabsContext>
-              {primary.length > 0 ? (
-                <Animated.View
-                  pointerEvents={shown ? 'box-none' : 'none'}
-                  importantForAccessibility={shown ? 'auto' : 'no-hide-descendants'}
-                  style={[StyleSheet.absoluteFill, presenceStyle]}>
-                  {/* Hidden tabs' icons drawn once, out of sight: a symbol's first draw takes a few frames, which would
+    <MoreContext value={more}>
+      <GestureHandlerRootView style={styles.fill}>
+        <KeyboardProvider>
+          <SearchHostProvider>
+            <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
+              <Tabs style={styles.fill}>
+                <InsideTabsContext value>
+                  <TabsTintContext value={colorString(tintColor)}>
+                    <TabBarReachProvider shown={!hidden && primary.length > 0}>
+                      <Screens background={colors.background} />
+                    </TabBarReachProvider>
+                  </TabsTintContext>
+                </InsideTabsContext>
+                {primary.length > 0 ? (
+                  <Animated.View
+                    pointerEvents={shown ? 'box-none' : 'none'}
+                    importantForAccessibility={shown ? 'auto' : 'no-hide-descendants'}
+                    style={[StyleSheet.absoluteFill, presenceStyle]}>
+                    {/* Hidden tabs' icons drawn once, out of sight: a symbol's first draw takes a few frames, which would
                   leave a tab added later showing its label before its icon. */}
-                  <View style={styles.warm} pointerEvents="none" importantForAccessibility="no-hide-descendants">
-                    {triggers
-                      .filter((trigger) => trigger.hidden && !trigger.search)
-                      .map((trigger) => (
-                        <TabIcon
-                          key={trigger.name}
-                          icon={trigger.icon}
-                          selected={false}
-                          size={layout.tabIconSize}
-                          color="black"
-                        />
-                      ))}
-                  </View>
-                  <FloatingTabBar
-                    tabs={primary}
-                    searchTab={search}
-                    tintColor={colorString(tintColor)}
-                    badgeColor={colorString(badgeBackgroundColor)}
-                    badgeTextColor={colorString(badgeTextColor)}
-                  />
-                </Animated.View>
-              ) : null}
-              <TabList style={styles.hidden}>
-                {triggers.map((trigger) => (
-                  <TabTrigger key={trigger.name} name={trigger.name} href={hrefFor(trigger.name)} />
-                ))}
-              </TabList>
-            </Tabs>
-          </TabBarCollapseProvider>
-        </SearchHostProvider>
-      </KeyboardProvider>
-    </GestureHandlerRootView>
+                    <View style={styles.warm} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                      {triggers
+                        .filter((trigger) => trigger.hidden && !trigger.search)
+                        .map((trigger) => (
+                          <TabIcon
+                            key={trigger.name}
+                            icon={trigger.icon}
+                            selected={false}
+                            size={layout.tabIconSize}
+                            color="black"
+                          />
+                        ))}
+                    </View>
+                    <FloatingTabBar
+                      tabs={primary}
+                      searchTab={search}
+                      tintColor={colorString(tintColor)}
+                      badgeColor={colorString(badgeBackgroundColor)}
+                      badgeTextColor={colorString(badgeTextColor)}
+                    />
+                  </Animated.View>
+                ) : null}
+                <TabList style={styles.hidden}>
+                  {triggers.map((trigger) => (
+                    <TabTrigger key={trigger.name} name={trigger.name} href={hrefFor(trigger.name)} />
+                  ))}
+                </TabList>
+              </Tabs>
+            </TabBarCollapseProvider>
+          </SearchHostProvider>
+        </KeyboardProvider>
+      </GestureHandlerRootView>
+    </MoreContext>
   );
 };
 

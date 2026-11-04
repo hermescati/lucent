@@ -15,6 +15,7 @@ import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
+import { moreName, useMore } from '../helpers/more';
 import { tabEnterAfter } from '../helpers/presence';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
 import { continuousCapsule } from '../../../core/glass/continuous';
@@ -64,15 +65,32 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     tabs,
   } = { ...state, ...search };
 
+  const more = useMore();
   const selectTab = (index: number, wait = 0) => {
     if (tabs[index]?.disabled) {
       return;
     }
-    setTimeout(() => requestAnimationFrame(() => switchTab(tabs[index].name, {})), wait);
+    // More isn't a route: it shows its list over the last tab chosen, which any other tab closes.
+    const opening = tabs[index].name === moreName;
+    setTimeout(
+      () =>
+        requestAnimationFrame(() => {
+          more?.setOpen(opening);
+          if (!opening) {
+            switchTab(tabs[index].name, {});
+          }
+        }),
+      wait,
+    );
   };
 
   const reselect = (index: number) => {
     const tab = tabs[index];
+    if (tab?.name === moreName) {
+      // Again, it comes back to its list from a tab under it, as iOS's does.
+      more?.setOpen(true);
+      return;
+    }
     if (tab && !tab.disabled) {
       // The tab's own stack, not the whole tree: router.canDismiss() counts history anywhere, and popping a stack
       // already at its first screen is an action no navigator handles.
