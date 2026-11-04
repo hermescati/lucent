@@ -429,8 +429,10 @@ half4 main(float2 coord) {
     float gain = mix(tone.y, frostTone.y, frosted);
     float curve = mix(tone.z, frostTone.z, frosted);
     float bow = mix(toneBow.x, toneBow.y, frosted);
-    float3 lit = max(col, float3(0.0));
-    float3 mapped = base + gain * pow(lit, float3(curve)) + bow * lit * (1.0 - min(lit, float3(1.0)));
+    // On brightness, with the colour carried over on top, as iOS 27's dark glass does: per channel, the curve would
+    // squash a full channel (an orange's red) along with the light.
+    float lit = clamp(luma(col), 0.0, 1.0);
+    float3 mapped = col - lit + base + gain * pow(lit, curve) + bow * lit * (1.0 - lit);
     col = mix(col, mapped, tone.w);
   }
   float saturate = tone.w > 0.0 ? mix(chroma, frostTone.w, frosted) : chroma;

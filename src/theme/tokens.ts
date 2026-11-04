@@ -37,8 +37,9 @@ export const glass = {
   wideRadius: { dark: 16, light: 9 },
   wideMix: { dark: 0.35, light: 0.22 },
   pressWideMix: { dark: 0.8, light: 0.85 },
-  chroma: { dark: 1.6, light: 1.9 },
-  // iOS 27's dark glass over a grey ramp (simulator), backdrop x 0–1: the bar is 0.125 + 0.6x + 0.38x(1−x), and the
+  // How far colour sits from grey, after the tone: dark fitted over red, green, blue, orange and browns (simulator).
+  chroma: { dark: 1.2, light: 1.9 },
+  // iOS 27's dark glass over a grey ramp (simulator), backdrop luma x 0–1: the bar is 0.125 + 0.6x + 0.38x(1−x), and the
   // tab bar's selected pill, under the frost, 0.039 + 0.52x + 0.33x(1−x), within 3 levels from black to white.
   tone: {
     dark: {
@@ -51,7 +52,7 @@ export const glass = {
       frostGain: 0.52,
       frostGamma: 1,
       frostBow: 0.33,
-      frostChroma: 2.6,
+      frostChroma: 1.4,
     },
     light: {
       on: 0,
