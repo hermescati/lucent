@@ -294,10 +294,17 @@ export const search = {
   iconCentre: 21,
   text: 42,
   fontSize: 17,
-  clearSize: 18,
+  // iOS 27's clear button: a 17pt circle with a 7pt cross, about 1.9pt thick, cut out of it.
+  clearSize: 17,
+  clearCross: 7,
+  clearStroke: 1.9,
   trailing: 12,
   // In the navigation bar: below the bar's row, and the room it takes, with the gap under it.
   header: { height: 44, block: 52, margin: 16 },
+  // A field that scrolls away under the title is no glass at rest on iOS 27, but a flat pill of UIKit's tertiary fill
+  // (simulator): it turns to glass as it rises, focused, by `glassBy` of the way.
+  fill: { light: 'rgba(118, 118, 128, 0.12)', dark: 'rgba(118, 118, 128, 0.24)' },
+  glassBy: 0.5,
   // Focused, the field and a close button sit above the keyboard, this far from the screen's edges.
   focused: { margin: 8, gap: 12, close: 48, closeIcon: 29 },
 } as const;

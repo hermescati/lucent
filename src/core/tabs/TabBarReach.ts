@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
+
 import { createLucentContext } from '../../theme/context';
 
 /**
@@ -20,3 +21,11 @@ export const TabBarReachContext = createLucentContext<TabBarReach | null>('TabBa
 
 /** The tab bar's reach, or `null` outside `NativeTabs` or with its bar hidden. */
 export const useTabBarReach = () => useContext(TabBarReachContext);
+
+/**
+ * Whether the screen is inside `NativeTabs`, its bar shown or not. iOS places a stack's search by it: in a tab, up in
+ * the navigation bar; outside one, at the bottom of an iPhone.
+ */
+export const InsideTabsContext = createLucentContext<boolean>('InsideTabs', false);
+
+export const useInsideTabs = () => useContext(InsideTabsContext);

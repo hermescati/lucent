@@ -121,6 +121,22 @@ const SearchPlacements = ({ mode }: ScreenProps) => (
   </Body>
 );
 
+// Notes: with no toolbar or tab bar, iOS 26 floats the field at the bottom of an iPhone screen.
+const SearchBottom = ({ mode }: ScreenProps) => (
+  <Body mode={mode}>
+    <Stack.Screen options={{ title: 'Notes', headerLargeTitle: true }} />
+    <Stack.SearchBar placeholder="Search" />
+  </Body>
+);
+
+// With no toolbar or tab bar, a glass magnifier alone at the bottom, which opens the field.
+const SearchButton = ({ mode }: ScreenProps) => (
+  <Body mode={mode}>
+    <Stack.Screen options={{ title: 'Journal', headerLargeTitle: true }} />
+    <Stack.SearchBar placement="integratedButton" placeholder="Search" />
+  </Body>
+);
+
 // No bar: the content runs up under the status bar. Swipe back to leave.
 const NoBar = ({ mode }: ScreenProps) => {
   const palette = usePalette();
@@ -392,6 +408,8 @@ const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   search: Search,
   'large-title-search': LargeTitleSearch,
   'search-placements': SearchPlacements,
+  'search-bottom': SearchBottom,
+  'search-button': SearchButton,
   'no-bar': NoBar,
   'buttons-only': ButtonsOnly,
   grouping: Grouping,

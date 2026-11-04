@@ -1,3 +1,4 @@
+import { useInsideTabs } from '../../../core/tabs/TabBarReach';
 import { searchPlacement } from '../search/SearchBar.android';
 import { useSearch } from '../search/store.android';
 import { search } from '../tokens';
@@ -10,7 +11,8 @@ import { useBottomToolbar } from '../toolbar/Toolbar.android';
 export const useHeaderSearchBlock = (routeKey: string) => {
   const state = useSearch(routeKey);
   const toolbar = useBottomToolbar(routeKey);
-  const placement = state ? searchPlacement(state.props, toolbar) : undefined;
+  const inTabs = useInsideTabs();
+  const placement = state ? searchPlacement(state.props, toolbar, inTabs) : undefined;
   const inBar = placement === 'header';
   return {
     block: inBar ? search.header.block : 0,

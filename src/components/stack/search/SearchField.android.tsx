@@ -2,12 +2,19 @@ import { SymbolView } from 'expo-symbols';
 import { useEffect } from 'react';
 import { BackHandler, Pressable, StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useDerivedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import { cancelSearch } from './SearchBar.android';
 import { setSearchInput, updateSearch, useSearch, type SearchState } from './store.android';
 import { useBackClaim } from '../../../core/back/claims';
 import { useLucentTheme } from '../../../theme/LucentProvider';
+import { systemTint } from '../../../theme/colors';
 import { BarCapsule } from '../header/BarCapsule.android';
 import { barItem, search, searchMotion, toolbar } from '../tokens';
 import { useToolbarOffset } from '../toolbar/offset.android';
@@ -23,15 +30,26 @@ const keyboardTypes: Record<NonNullable<LucentSearchBarProps['inputType']>, Keyb
 const colorString = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
 const useFieldColors = (props: LucentSearchBarProps) => {
-  const { color } = useLucentTheme(colorString(props.tintColor));
+  const { color, scheme } = useLucentTheme();
   return {
     text: colorString(props.textColor) ?? color.text,
     placeholder: colorString(props.hintTextColor) ?? color.placeholder,
     icon: colorString(props.headerIconColor) ?? color.text,
     clear: color.clearButton,
-    tint: color.tint,
+    // The cross is cut out of the clear button: it shows the field's near-white or near-black.
+    clearCross: scheme === 'dark' ? '#000000' : '#FFFFFF',
+    // UIKit's search field takes its own tint, or the system's blue: not the app's accent.
+    tint: colorString(props.tintColor) ?? systemTint[scheme],
   };
 };
+
+/** iOS's clear button, `xmark.circle.fill`: a filled circle with a cross cut out of it. */
+const ClearGlyph = ({ fill, cross }: { fill: string; cross: string }) => (
+  <View style={[styles.clearCircle, { backgroundColor: fill }]}>
+    <View style={[styles.clearBar, styles.clearBarDown, { backgroundColor: cross }]} />
+    <View style={[styles.clearBar, styles.clearBarUp, { backgroundColor: cross }]} />
+  </View>
+);
 
 const Magnifier = ({ color, show }: { color: string; show: boolean }) =>
   show ? (
@@ -92,7 +110,7 @@ const SearchInput = ({ routeKey, state, autoFocus }: { routeKey: string; state: 
             props.onChangeText?.({ nativeEvent: { text: '' } } as never);
           }}
           style={styles.clear}>
-          <SymbolView name={{ android: 'cancel' }} size={search.clearSize} tintColor={colors.clear} />
+          <ClearGlyph fill={colors.clear} cross={colors.clearCross} />
         </Pressable>
       ) : null}
     </>
@@ -249,11 +267,7 @@ export const FocusedSearch = ({ routeKey }: { routeKey: string }) => {
 // on iOS (it plays the rise in reverse), and iOS's rise ends with a point of overshoot that this leaves out. Also: the
 // magnifier among the bar's items (`integratedButton` beside a toolbar) opens the field up in the bar, not at the bottom:
 // on iOS 27 its capsule stretches left into the field over about 300ms, the back button and title fading, its glyphs
-// blurring into the placeholder, and the close button buds off the field's end as glass necks apart. And: at rest under
-// the title (and as it's pulled into view), iOS 27 draws the field as a plain grey fill, not glass; it only turns to
-// glass when focused and risen into the row. Lucent draws it as glass throughout. And: the clear button is iOS's
-// `xmark.circle.fill`, a filled dark circle with the cross cut out of it, where this draws Material's outlined
-// `cancel`, a thin ring with a cross inside.
+// blurring into the placeholder, and the close button buds off the field's end as glass necks apart.
 interface HeaderSearchProps {
   routeKey: string;
   // From 0 at rest below the title to 1 risen into the bar's row, focused.
@@ -261,8 +275,9 @@ interface HeaderSearchProps {
 }
 
 /**
- * The search bar in the navigation bar: a glass field below the title, as beside a toolbar on iOS. Focused, it rises
- * into the bar's row and narrows, and a close button slides in from the screen's edge beside it.
+ * The search bar in the navigation bar: a field below the title, a flat grey pill if it scrolls away and glass if it
+ * stays, as iOS 27 draws them. Focused, it rises into the bar's row as glass and narrows, and a close button slides in
+ * from the screen's edge beside it.
  */
 export const HeaderSearch = ({ routeKey, progress }: HeaderSearchProps) => {
   const state = useSearch(routeKey);
@@ -272,6 +287,12 @@ export const HeaderSearch = ({ routeKey, progress }: HeaderSearchProps) => {
 
 const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { state: SearchState }) => {
   useSearchBack(routeKey, state.focused);
+  const { scheme } = useLucentTheme();
+  const barTint = colorString(state.props.barTintColor);
+  // A field that scrolls away is a flat pill at rest, and turns to glass as it rises; one that stays is glass throughout.
+  const flat = state.props.hideWhenScrolling !== false;
+  const glass = useDerivedValue(() => (flat ? Math.min(progress.get() / search.glassBy, 1) : 1));
+  const fillStyle = useAnimatedStyle(() => ({ opacity: 1 - glass.get() }));
   const room = barItem.height + search.focused.gap;
   const fieldStyle = useAnimatedStyle(() => ({ marginRight: progress.get() * room }));
   const closeStyle = useAnimatedStyle(() => ({
@@ -281,7 +302,13 @@ const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { s
   return (
     <View style={styles.headerRow}>
       <Animated.View style={[styles.headerField, fieldStyle]}>
-        <BarCapsule height={search.header.height} tint={colorString(state.props.barTintColor)} disabled>
+        {flat ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.headerFill, { backgroundColor: barTint ?? search.fill[scheme] }, fillStyle]}
+          />
+        ) : null}
+        <BarCapsule height={search.header.height} tint={barTint} disabled presence={flat ? glass : undefined}>
           <View style={styles.display}>
             <SearchInput routeKey={routeKey} state={state} />
           </View>
@@ -312,6 +339,21 @@ const styles = StyleSheet.create({
     top: '50%',
     marginTop: -search.clearSize / 2,
   },
+  clearCircle: {
+    width: search.clearSize,
+    height: search.clearSize,
+    borderRadius: search.clearSize / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearBar: {
+    position: 'absolute',
+    width: search.clearCross * Math.SQRT2,
+    height: search.clearStroke,
+    borderRadius: search.clearStroke / 2,
+  },
+  clearBarDown: { transform: [{ rotate: '45deg' }] },
+  clearBarUp: { transform: [{ rotate: '-45deg' }] },
   display: { flex: 1, alignSelf: 'stretch', minHeight: toolbar.height },
   bottom: {
     position: 'absolute',
@@ -340,5 +382,6 @@ const styles = StyleSheet.create({
   },
   headerRow: { height: search.header.height, marginHorizontal: search.header.margin, justifyContent: 'center' },
   headerField: { height: search.header.height },
+  headerFill: { ...StyleSheet.absoluteFill, borderRadius: search.header.height / 2 },
   headerClose: { position: 'absolute', right: 0 },
 });

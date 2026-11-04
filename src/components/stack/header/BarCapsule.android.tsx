@@ -213,10 +213,20 @@ interface Props {
   grow?: boolean;
   // 0 at rest; 1 swells it taller and wider about its middle, as when one of its items shows or hides.
   swell?: SharedValue<number>;
+  // How much of its glass shows, 0 to 1, its content staying whole: for a capsule that turns into glass from a plain fill.
+  presence?: SharedValue<number>;
 }
 
 /** The glass behind a group of bar items: a capsule that lifts and glows under the finger, as a glass button does. */
-export const BarCapsule = ({ children, tint, disabled, height = barItem.height, grow = false, swell }: Props) => {
+export const BarCapsule = ({
+  children,
+  tint,
+  disabled,
+  height = barItem.height,
+  grow = false,
+  swell,
+  presence,
+}: Props) => {
   const row = useContext(RowContext);
   const id = useId();
   const material = useBarMaterial();
@@ -240,8 +250,9 @@ export const BarCapsule = ({ children, tint, disabled, height = barItem.height, 
       marginHorizontal: -wider,
     };
   });
-  const corners = useAnimatedProps(() => ({
+  const glassProps = useAnimatedProps(() => ({
     cornerRadius: (height + height * barItemMotion.swellY * (swell?.get() ?? 0)) / 2,
+    presence: presence?.get() ?? 1,
   }));
 
   if (shared) {
@@ -263,7 +274,7 @@ export const BarCapsule = ({ children, tint, disabled, height = barItem.height, 
       {...material}
       lift
       cornerRadius={height / 2}
-      animatedProps={swell ? corners : undefined}
+      animatedProps={swell || presence ? glassProps : undefined}
       // Apple's capsule: the curve eases into the straight sides rather than meeting them as a semicircle.
       continuous={1}
       glassTint={tint}

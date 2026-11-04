@@ -47,7 +47,7 @@ import { InsideGlassBackdrop, useInsideGlassBackdrop } from '../../core/glass/Ba
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
 import { HeaderScrollProvider } from '../../core/header/scroll.android';
 import { useHasKeyboardProvider } from '../../core/keyboard';
-import { useTabBarReach } from '../../core/tabs/TabBarReach';
+import { useInsideTabs, useTabBarReach } from '../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../theme/LucentProvider';
 import { createLucentContext } from '../../theme/context';
 
@@ -267,7 +267,8 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const offset = useToolbarOffset();
   const tabBar = useTabBarReach();
   const tint = typeof options.headerTintColor === 'string' ? options.headerTintColor : undefined;
-  const placement = search ? searchPlacement(search.props, bottomToolbar) : undefined;
+  const inTabs = useInsideTabs();
+  const placement = search ? searchPlacement(search.props, bottomToolbar, inTabs) : undefined;
   // In search mode from the bottom, the field takes the toolbar's place above the keyboard.
   const searching = Boolean(search?.focused) && placement !== 'header';
   const bottomBar = Boolean(bottomToolbar) || placement === 'bottom' || placement === 'button';

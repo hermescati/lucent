@@ -23,14 +23,19 @@ const hasSlot = (toolbar: LucentToolbarProps) =>
 export const searchPlacement = (
   props: LucentSearchBarProps,
   toolbar: LucentToolbarProps | undefined,
+  inTabs: boolean,
 ): SearchPlacement => {
   const { placement } = props;
   if (placement === 'stacked' || placement === 'inline' || props.allowToolbarIntegration === false) return 'header';
   // On iPhone, iOS 27 draws `integratedCentered` beside a bottom toolbar as `integratedButton` (simulator).
   if (placement === 'integratedCentered' && !toolbar) return 'header';
   if (toolbar && hasSlot(toolbar)) return 'slot';
-  if (placement === 'integratedButton' || placement === 'integratedCentered') return toolbar ? 'barButton' : 'button';
-  if (toolbar) return 'header';
+  // In a tab, the bottom is the tab bar's, so iOS 27 puts the button up among the bar's items, and the field under the
+  // title, even with the tab bar hidden (simulator). Outside tabs, it floats them at the bottom.
+  if (placement === 'integratedButton' || placement === 'integratedCentered') {
+    return toolbar || inTabs ? 'barButton' : 'button';
+  }
+  if (toolbar || inTabs) return 'header';
   return 'bottom';
 };
 

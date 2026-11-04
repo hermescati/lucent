@@ -27,7 +27,7 @@ import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
-import { TabBarReachContext } from '../../core/tabs/TabBarReach';
+import { InsideTabsContext, TabBarReachContext } from '../../core/tabs/TabBarReach';
 
 const Trigger = Object.assign(triggerPart<LucentNativeTabTriggerProps>('trigger'), {
   Label: triggerPart<NativeTabsTriggerLabelProps>('label'),
@@ -104,16 +104,18 @@ const NativeTabsRoot = ({
         <SearchHostProvider>
           <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
             <Tabs style={styles.fill}>
-              <TabBarReachProvider shown={!hidden && primary.length > 0}>
-                <InsideGlassBackdrop.Provider value>
-                  <NativeGlassBackdrop style={styles.fill}>
-                    {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
+              <InsideTabsContext value>
+                <TabBarReachProvider shown={!hidden && primary.length > 0}>
+                  <InsideGlassBackdrop.Provider value>
+                    <NativeGlassBackdrop style={styles.fill}>
+                      {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
                     screens, as iOS does, for screens without their own colour. */}
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-                    <TabSlot detachInactiveScreens={false} />
-                  </NativeGlassBackdrop>
-                </InsideGlassBackdrop.Provider>
-              </TabBarReachProvider>
+                      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+                      <TabSlot detachInactiveScreens={false} />
+                    </NativeGlassBackdrop>
+                  </InsideGlassBackdrop.Provider>
+                </TabBarReachProvider>
+              </InsideTabsContext>
               {primary.length > 0 ? (
                 <Animated.View
                   pointerEvents={shown ? 'box-none' : 'none'}
