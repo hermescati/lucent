@@ -415,6 +415,8 @@ export const useLensStyles = (bar: BarState) => {
     const right = full * (side > 0 ? round : side < 0 ? lead : 1);
     return {
       backgroundColor: interpolateColor(1 - grey.get(), [0, 1], [color.lens, color.lensActive]),
+      // Round, the pill's drawn with Apple's continuous ends (lensFillProps); flattened against the bar's end, here.
+      opacity: side !== 0 ? 1 : 0,
       borderTopLeftRadius: left,
       borderBottomLeftRadius: left,
       borderTopRightRadius: right,
@@ -422,8 +424,15 @@ export const useLensStyles = (bar: BarState) => {
     };
   });
 
+  // The resting pill's fill, drawn with Apple's continuous ends, as iOS 27's pill is (simulator).
+  const lensFillProps = useAnimatedProps(() => ({
+    fill: interpolateColor(1 - grey.get(), [0, 1], [color.lens, color.lensActive]),
+    opacity: wallFlat.get().side !== 0 ? 0 : 1,
+  }));
+
   return {
     coveredIcons,
+    lensFillProps,
     grey,
     iconCover,
     lensFillStyle,

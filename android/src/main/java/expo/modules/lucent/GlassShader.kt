@@ -352,7 +352,8 @@ half4 main(float2 coord) {
     col = disc / total;
   }
 
-  float frosted = frost > 0.0 ? frost * clamp(0.5 - capsule(coord, frostRect), 0.0, 1.0) : 0.0;
+  float frostEdge = continuous > 0.0 ? mix(capsule(coord, frostRect), continuousCapsule(coord, frostRect), continuous) : capsule(coord, frostRect);
+  float frosted = frost > 0.0 ? frost * clamp(0.5 - frostEdge, 0.0, 1.0) : 0.0;
   if (frosted > 0.0 && frostRadius > 0.5) {
     float2 at = base + offset;
     float2 frostMid = (frostRect.xy + frostRect.zw) * 0.5;

@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedReaction, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
+import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
 import {
   fullHeight,
@@ -27,6 +30,8 @@ import { useLensPhysics } from '../hooks/useLensPhysics';
 import { useLensStyles } from '../hooks/useLensStyles';
 import { useSearchMorph } from '../hooks/useSearchMorph';
 import { layout, motion } from '../tokens';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const { badgeColor, badgeTextColor } = props;
@@ -141,6 +146,15 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   useLensPhysics({ ...state, ...press });
   const lens = useLensStyles(state);
   const lensWidthStyle = useAnimatedStyle(() => ({ width: state.lensBase.get() }));
+  // The pill's outline at its unscaled size, which changes only with the bar's layout.
+  const [fillWidth, setFillWidth] = useState<number>(layout.bubbleRestWidth);
+  useAnimatedReaction(
+    () => Math.round(state.lensBase.get() * 10) / 10,
+    (width, previous) => {
+      if (width !== previous && width > 0) scheduleOnRN(setFillWidth, width);
+    },
+  );
+  const fillPath = useMemo(() => continuousCapsule(fillWidth, lensFullHeight), [fillWidth]);
   const barGlass = useBarGlass({ ...state, ...search, ...lens });
   const {
     backDrag,
@@ -165,6 +179,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     inkTone,
     keyboardReach,
     keyboardSpread,
+    lensFillProps,
     lensFillStyle,
     lensGlassStyle,
     lensIconProps,
@@ -225,6 +240,9 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
             />
             <Animated.View pointerEvents="none" style={[styles.lens, lensStyle, lensWidthStyle]}>
+              <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 ${fillWidth} ${lensFullHeight}`}>
+                <AnimatedPath d={fillPath} animatedProps={lensFillProps} />
+              </Svg>
               <Animated.View style={[styles.lensLayer, lensFillStyle]} />
             </Animated.View>
           </Animated.View>
