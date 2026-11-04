@@ -229,7 +229,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             <Pressable
               style={StyleSheet.absoluteFill}
               onPress={searchFocused ? (searchIdle ? () => command('focus') : closeSearch) : openSearch}
-              onPressIn={searchPress.onPressIn}
+              onPressIn={() => searchPress.onPressIn()}
               onPressOut={searchPress.onPressOut}
               accessibilityRole="tab"
               accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : searchTab.label}

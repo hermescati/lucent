@@ -242,6 +242,8 @@ export const motion = {
   // back after the finger lifts, the neck thinning to a strand before it lets go. A tap of 50ms grows it fully, as a
   // hold does (simulator, which can't press lightly).
   fieldPressGrow: 0.05,
+  // Touched in its text rather than on the clear button, it swells about 4%: this much of `fieldPressGrow`.
+  fieldTapPeak: 0.8,
   // How much its glass brightens held: iOS's goes from about 245 to 253 over white content.
   fieldPressGlow: 0.05,
   pressIconDim: { dark: 0.4, light: 0.9 },

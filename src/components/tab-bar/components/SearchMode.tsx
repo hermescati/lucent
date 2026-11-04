@@ -235,7 +235,7 @@ export const SearchMode = ({
           style={styles.back}
           pointerEvents={keyboardUp ? 'none' : 'auto'}
           onPress={goBack}
-          onPressIn={backPress.onPressIn}
+          onPressIn={() => backPress.onPressIn()}
           onPressOut={backPress.onPressOut}
           accessibilityRole="button"
           accessibilityLabel={backTab.label}>
@@ -272,7 +272,13 @@ export const SearchMode = ({
             <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
           </Animated.View>
         </Animated.View>
-        <View style={styles.text}>
+        {/* Touched in its text, the field swells a little less than under its clear button (iOS 27 simulator). The text
+          box takes the touch itself, so the swell follows the touch rather than a press. */}
+        <View
+          style={styles.text}
+          onTouchStart={() => fieldPress.onPressIn(motion.fieldTapPeak)}
+          onTouchEnd={() => fieldPress.onPressOut()}
+          onTouchCancel={() => fieldPress.onPressOut()}>
           <Animated.View style={[styles.layer, inputStyle]}>
             <TextInput
               ref={input}
@@ -316,7 +322,7 @@ export const SearchMode = ({
           <ClearButton
             color={color.clearButton}
             onPress={clearQuery}
-            onPressIn={fieldPress.onPressIn}
+            onPressIn={() => fieldPress.onPressIn()}
             onPressOut={fieldPress.onPressOut}
           />
         </Animated.View>
