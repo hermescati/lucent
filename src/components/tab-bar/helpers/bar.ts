@@ -6,6 +6,8 @@ import { layout } from '../tokens';
 export const rowInset = space[4];
 export const inlinePad = layout.tabBarInlinePadding;
 export const fullHeight = layout.tabBarHeight;
+/** The bar's width on a screen this wide: inset at its sides, up to a cap, and centred. */
+export const barSpanFor = (width: number) => Math.min(width - layout.tabBarSideInset * 2, layout.tabBarMaxWidth);
 export const lensFullHeight = fullHeight - rowInset * 2;
 export const lensCompactScaleY = (layout.tabBarCompactHeight - rowInset * 2) / lensFullHeight;
 export const labelShift = layout.tabLabelHeight / 2;

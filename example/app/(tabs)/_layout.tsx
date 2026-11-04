@@ -1,11 +1,18 @@
 import { NativeTabs } from 'expo-lucent/navigation';
+import { usePathname } from 'expo-router';
 
 import { useSettings } from '@/components/settings';
 
+// Screens with a bottom toolbar: the toolbar stories and one navigation bar story. As in Apple's apps, the tab bar steps
+// aside for it: in a tab, iOS would draw the tab bar over the toolbar, and Lucent does the same on Android.
+const hasToolbar = (pathname: string) =>
+  pathname.startsWith('/components/toolbar/') || pathname === '/components/navigation-bar/search-placements';
+
 export default function TabsLayout() {
   const { tint, minimize } = useSettings();
+  const pathname = usePathname();
   return (
-    <NativeTabs tintColor={tint} minimizeBehavior={minimize}>
+    <NativeTabs tintColor={tint} minimizeBehavior={minimize} hidden={hasToolbar(pathname)}>
       <NativeTabs.Trigger name="components">
         <NativeTabs.Trigger.Icon sf="square.grid.2x2" md="widgets" />
         <NativeTabs.Trigger.Label>Components</NativeTabs.Trigger.Label>

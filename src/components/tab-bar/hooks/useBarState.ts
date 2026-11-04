@@ -19,7 +19,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { glass, space } from '../../../theme/tokens';
 import { setTabBarCollapsed, useTabBarCollapse } from '../context/collapse';
 import { useSearchHost } from '../context/search';
-import { clamp01, fullHeight, inlinePad, lerp } from '../helpers/bar';
+import { barSpanFor, clamp01, fullHeight, inlinePad, lerp } from '../helpers/bar';
 import type { TabSpec } from '../helpers/triggers';
 import { layout, motion } from '../tokens';
 
@@ -42,7 +42,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   };
   const bottom = useTabBarOffset();
   const window = useWindowDimensions();
-  const barSpan = Math.min(window.width - layout.tabBarSideInset * 2, layout.tabBarMaxWidth);
+  const barSpan = barSpanFor(window.width);
   const barLeft = (window.width - barSpan) / 2;
   const theme = useLucentTheme(tintColor);
   const { color, scheme } = theme;
@@ -314,6 +314,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     smoothSpeed,
     squish,
     squishVelocity,
+    getTrigger,
     switchTab,
     tabs,
     tapDipping,

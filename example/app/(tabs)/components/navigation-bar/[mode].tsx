@@ -277,6 +277,39 @@ const BackButtonStyles = ({ mode }: ScreenProps) => {
 
 // Mail › Mailboxes: Edit on the leading side. A left item replaces the back button unless the screen asks to keep both,
 // as UIKit's leftItemsSupplementBackButton does.
+// ClickFlare's header: screen actions, a bell with the unread count, and the organisation's avatar as a bare circle.
+const Badges = ({ mode }: ScreenProps) => {
+  const [unread, setUnread] = useState(3);
+  return (
+    <Body mode={mode}>
+      <Stack.Screen options={{ title: 'Campaigns', headerLargeTitle: true }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="line.3.horizontal.decrease"
+          md="filter_list"
+          accessibilityLabel="Filter"
+          onPress={() => {}}
+        />
+        <Stack.Toolbar.Button icon="bell" md="notifications" accessibilityLabel="Notifications" onPress={() => {}}>
+          {unread > 0 ? <Stack.Toolbar.Badge>{String(unread)}</Stack.Toolbar.Badge> : null}
+        </Stack.Toolbar.Button>
+        <Stack.Toolbar.View hidesSharedBackground>
+          <View style={styles.orgAvatar}>
+            <Text style={styles.orgInitial}>C</Text>
+          </View>
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
+      <Section title="Unread">
+        <Choice
+          labels={['None', '3', '128']}
+          selectedIndex={unread === 0 ? 0 : unread === 3 ? 1 : 2}
+          onSelect={(index) => setUnread([0, 3, 128][index])}
+        />
+      </Section>
+    </Body>
+  );
+};
+
 const LeftItems = ({ mode }: ScreenProps) => {
   const [both, setBoth] = useState(false);
   return (
@@ -366,6 +399,7 @@ const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   done: Done,
   'back-button': BackButtonStyles,
   'left-items': LeftItems,
+  badges: Badges,
   'title-view': TitleView,
   opaque: Opaque,
   'opaque-colour': OpaqueColour,
@@ -388,5 +422,14 @@ const styles = StyleSheet.create({
   },
   initials: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
   contactName: { fontSize: 11 },
+  orgAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#C2410C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orgInitial: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
   colour: { height: 200, borderRadius: 26, borderCurve: 'continuous', backgroundColor: '#C2410C' },
 });

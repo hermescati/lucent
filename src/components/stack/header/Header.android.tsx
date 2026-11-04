@@ -27,9 +27,10 @@ import Animated, {
 import { BackButton } from './BackButton.android';
 import { BarSearchButtonContext } from './BarItems.android';
 import { useBarTop } from './barTop.android';
-import { BarMeltContext, meltLook } from './melt.android';
+import { BarMeltContext } from './melt.android';
 import { useHeaderSearchBlock } from './searchBlock.android';
 import { getHeader } from './store.android';
+import { useSwipeMelt } from './swipeMelt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { headerOffset, searchLift } from '../../../core/header/scroll.android';
 import { useLucentTheme } from '../../../theme/LucentProvider';
@@ -38,7 +39,7 @@ import { HeaderSearch, SearchButton } from '../search/SearchField.android';
 import { getSearch, updateSearch } from '../search/store.android';
 import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
-import { bar, barMotion, search as searchMetrics, searchMotion, swipeMotion, title } from '../tokens';
+import { bar, barMotion, search as searchMetrics, searchMotion, title } from '../tokens';
 import type { LucentStackScreenOptions } from '../types';
 
 const colorString = (value: ColorValue | undefined) => (typeof value === 'string' ? value : undefined);
@@ -244,8 +245,6 @@ const backHistory = (navigation: Navigation, backTitle: string | undefined): Men
 };
 
 // Buttons popping in: the capsules come almost at once, and the icons sharpen as it settles.
-const meltIn = { duration: barMotion.meltIn, easing: Easing.out(Easing.cubic) };
-
 /**
  * iOS 26's navigation bar on Android: glass items in a row at the top, the title centred between them or large below,
  * collapsing into the bar as the content scrolls. native-stack renders it for each screen through `header`.
@@ -339,63 +338,30 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const entrance = useSharedValue(back ? 0 : 1);
   const itemsStyle = useAnimatedStyle(() => ({ opacity: entrance.get() }));
 
-  // A push or a pop moves the screens under one bar on iOS: the buttons stay where they stand while the pages and their
-  // titles slide. So the top screen's buttons hold against its slide, and the uncovered screen's hold against its
-  // parallax. Buttons only one of the two screens has pop in and out: they blur, swell and fade (`meltLook`), going as
-  // their screen goes and coming as it comes; held back, nothing changes. A back button both screens have stays put.
+  // The buttons hold against the slide and melt in and out with their screen (`useSwipeMelt`). A back button both
+  // screens have stays put.
   const role = useContext(SwipeRoleContext);
   const goBack = useContext(StackBackContext);
   const swipe = useContext(SwipeProgressContext);
   const { width } = useWindowDimensions();
   // Both screens have a back button when there's a screen below the one below.
   const backStays = navigation.getState().index >= 2;
-  const melt = useSharedValue(back ? 1 : 0);
-  // The title and the buttons come in once the screen does: as a push slides it in, or, for a screen shown another way,
-  // once the bar is up.
+  const { melt, holdStyle, meltStyle, meltBlur } = useSwipeMelt(Boolean(back));
+  // The title comes in once the screen does: as a push slides it in, or, for a screen shown another way, once the bar
+  // is up.
   const screenHidden = useContext(ScreenHiddenContext);
   useAnimatedReaction(
     () => screenHidden?.get() ?? 0,
     (now, before) => {
       if (now !== 0 || before === 0) return;
-      const slid = before != null;
       entrance.set(
         withDelay(
           barMotion.itemsDelay,
           withTiming(1, { duration: barMotion.itemsFade, easing: Easing.out(Easing.quad) }),
         ),
       );
-      // Slid in, its buttons pop in as the push starts, as iOS's do.
-      const delay = slid ? 0 : barMotion.itemsDelay;
-      melt.set(withDelay(delay, withTiming(0, meltIn)));
     },
   );
-  useAnimatedReaction(
-    () => swipe?.phase.get() ?? swipePhase.idle,
-    (phase, previous) => {
-      if (phase === previous || !role) return;
-      if ((role === 'top' && phase === swipePhase.going) || (role === 'below' && phase === swipePhase.pushing)) {
-        melt.set(withTiming(1, { duration: barMotion.meltOut }));
-      } else if (role === 'below' && phase === swipePhase.going) {
-        melt.set(withTiming(0, meltIn));
-      } else if (role === 'below') {
-        // Uncovered by a drag, it waits gone; back at rest, it's whole for the next time it shows.
-        melt.set(phase === swipePhase.idle ? 0 : 1);
-      }
-    },
-  );
-  const holdStyle = useAnimatedStyle(() => {
-    const phase = swipe?.phase.get() ?? swipePhase.idle;
-    if (!role || phase === swipePhase.idle) return { transform: [{ translateX: 0 }] };
-    const progress = Math.max(swipe?.progress.get() ?? 0, 0);
-    return {
-      transform: [{ translateX: role === 'top' ? -progress * width : (1 - progress) * width * swipeMotion.parallax }],
-    };
-  });
-  const meltStyle = useAnimatedStyle(() => {
-    const look = meltLook(melt.get());
-    return { opacity: look.opacity, transform: [{ scale: look.scale }] };
-  });
-  const meltBlur = useAnimatedProps(() => ({ radius: meltLook(melt.get()).blur }));
   // The back button both screens have: the one going hides as the other shows, the same button in the same place.
   const backStyle = useAnimatedStyle(() => {
     const phase = swipe?.phase.get() ?? swipePhase.idle;

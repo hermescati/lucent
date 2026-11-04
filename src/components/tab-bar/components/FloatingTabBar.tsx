@@ -43,6 +43,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     searchTab,
     setQuery,
     settledIndex,
+    getTrigger,
     switchTab,
     tabs,
   } = { ...state, ...search };
@@ -57,7 +58,10 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const reselect = (index: number) => {
     const tab = tabs[index];
     if (tab && !tab.disabled) {
-      reselectTab(tab);
+      // The tab's own stack, not the whole tree: router.canDismiss() counts history anywhere, and popping a stack
+      // already at its first screen is an action no navigator handles.
+      const stack = getTrigger(tab.name)?.route?.state;
+      reselectTab(tab, (stack?.index ?? 0) > 0);
     }
   };
 

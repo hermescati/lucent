@@ -16,6 +16,9 @@ export const useTabBarScroll = () => {
   const collapse = useTabBarCollapse();
   const lastOffset = useSharedValue(0);
   const travelled = useSharedValue(0);
+  // Only a drag or its fling minimizes the bar: not the content starting scrolled past a hidden search field, nor a
+  // scroll to the top.
+  const touched = useSharedValue(false);
 
   return useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -30,6 +33,9 @@ export const useTabBarScroll = () => {
         setTabBarCollapsed(collapse, 0);
         return;
       }
+      if (!touched.get()) {
+        return;
+      }
       const previous = travelled.get();
       const next = Math.sign(delta) === Math.sign(previous) || previous === 0 ? previous + delta : delta;
       travelled.set(next);
@@ -39,6 +45,18 @@ export const useTabBarScroll = () => {
       } else if (toward < -motion.collapseDistance) {
         setTabBarCollapsed(collapse, 0);
       }
+    },
+    onBeginDrag: () => {
+      touched.set(true);
+    },
+    onMomentumBegin: () => {
+      touched.set(true);
+    },
+    onEndDrag: () => {
+      touched.set(false);
+    },
+    onMomentumEnd: () => {
+      touched.set(false);
     },
   });
 };

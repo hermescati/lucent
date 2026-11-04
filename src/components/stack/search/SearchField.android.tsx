@@ -249,7 +249,11 @@ export const FocusedSearch = ({ routeKey }: { routeKey: string }) => {
 // on iOS (it plays the rise in reverse), and iOS's rise ends with a point of overshoot that this leaves out. Also: the
 // magnifier among the bar's items (`integratedButton` beside a toolbar) opens the field up in the bar, not at the bottom:
 // on iOS 27 its capsule stretches left into the field over about 300ms, the back button and title fading, its glyphs
-// blurring into the placeholder, and the close button buds off the field's end as glass necks apart.
+// blurring into the placeholder, and the close button buds off the field's end as glass necks apart. And: at rest under
+// the title (and as it's pulled into view), iOS 27 draws the field as a plain grey fill, not glass; it only turns to
+// glass when focused and risen into the row. Lucent draws it as glass throughout. And: the clear button is iOS's
+// `xmark.circle.fill`, a filled dark circle with the cross cut out of it, where this draws Material's outlined
+// `cancel`, a thin ring with a cross inside.
 interface HeaderSearchProps {
   routeKey: string;
   // From 0 at rest below the title to 1 risen into the bar's row, focused.

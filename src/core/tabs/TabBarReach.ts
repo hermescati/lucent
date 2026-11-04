@@ -9,6 +9,11 @@ import { createLucentContext } from '../../theme/context';
 export interface TabBarReach {
   reach: SharedValue<number>;
   rest: number;
+  // How far the bar's middle sits above the screen's bottom edge; it minimizes about it.
+  middle: number;
+  // How far the minimized bar's circles' centres sit in from the screen's sides, and how wide they are.
+  circle: number;
+  compact: number;
 }
 
 export const TabBarReachContext = createLucentContext<TabBarReach | null>('TabBarReach', null);

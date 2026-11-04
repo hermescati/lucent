@@ -113,7 +113,7 @@ export const modes: NavigationBarMode[] = [
 </Stack.Toolbar>
 <Stack.SearchBar placement="integratedButton" placeholder="Search" />`,
     support: 'both',
-    gap: "The folder and grid buttons at the bottom are the screen's bottom toolbar: with it there, search goes up into the navigation bar as a magnifier on the trailing buttons' capsule. integratedCentered draws the same on iPhone. In this playground iOS keeps the toolbar under the tab bar, out of sight, where Lucent floats it above. On iOS the magnifier opens the field in the bar, its capsule stretching into it; Lucent opens it at the bottom for now.",
+    gap: "The folder and grid buttons at the bottom are the screen's bottom toolbar: with it there, search goes up into the navigation bar as a magnifier on the trailing buttons' capsule. integratedCentered draws the same on iPhone. The tab bar hides on this screen, as in Apple's apps, so the toolbar has the bottom. On iOS the magnifier opens the field in the bar, its capsule stretching into it; Lucent opens it at the bottom for now.",
   },
   {
     slug: 'no-bar',
@@ -154,6 +154,23 @@ export const modes: NavigationBarMode[] = [
 </Stack.Toolbar>`,
     support: 'both',
     gap: "Icon buttons share a capsule until one has separateBackground; a text button always gets its own. A Spacer doesn't split them in the navigation bar, on either platform: switch to it on this screen to see. It only does in the bottom toolbar.",
+  },
+  {
+    slug: 'badges',
+    group: 'buttons',
+    name: 'Badges and views',
+    summary: 'A count on a button, and a bare view beside the buttons',
+    apple: 'Music (profile), Mail (unread count)',
+    uikit: 'UIBarButtonItem.badge and a custom view with hidesSharedBackground (iOS 26)',
+    code: `<Stack.Toolbar placement="right">
+  <Stack.Toolbar.Button icon="bell" md="notifications">
+    <Stack.Toolbar.Badge>3</Stack.Toolbar.Badge>
+  </Stack.Toolbar.Button>
+  <Stack.Toolbar.View hidesSharedBackground>
+    <Avatar />
+  </Stack.Toolbar.View>
+</Stack.Toolbar>`,
+    support: 'both',
   },
   {
     slug: 'done',
@@ -254,7 +271,11 @@ const supportLabels: Record<Support, string> = {
 };
 
 /** What the screen shows, where Apple uses it, and how far Lucent gets. */
-export const ModeDetails = ({ mode }: { mode: NavigationBarMode }) => (
+export const ModeDetails = ({
+  mode,
+}: {
+  mode: Pick<NavigationBarMode, 'apple' | 'uikit' | 'support' | 'gap' | 'code'>;
+}) => (
   <>
     <Section footer={mode.gap}>
       <Row label="Apple uses it in" detail={mode.apple} />

@@ -18,8 +18,9 @@ interface ReselectOptions {
   disableScrollToTop?: boolean;
 }
 
-export const reselectTab = ({ disablePopToTop, disableScrollToTop }: ReselectOptions) => {
-  if (!disablePopToTop && router.canDismiss()) {
+/** A second tap on the focused tab: back to the first screen of its stack, or, there already, the top of its content. */
+export const reselectTab = ({ disablePopToTop, disableScrollToTop }: ReselectOptions, canPop: boolean) => {
+  if (!disablePopToTop && canPop) {
     router.dismissAll();
     return;
   }

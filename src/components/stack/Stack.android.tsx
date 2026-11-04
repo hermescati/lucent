@@ -18,7 +18,7 @@ import {
 import { BackHandler, processColor, StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import Animated, { useAnimatedReaction, useAnimatedStyle, useEvent, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useEvent, useSharedValue } from 'react-native-reanimated';
 
 import { AnimatedScreenEnter } from './enter.android';
 import { isTransparent, largeTitlePlacement, opaqueBar, showsBack } from './header/Header.android';
@@ -47,6 +47,7 @@ import { InsideGlassBackdrop, useInsideGlassBackdrop } from '../../core/glass/Ba
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
 import { HeaderScrollProvider } from '../../core/header/scroll.android';
 import { useHasKeyboardProvider } from '../../core/keyboard';
+import { useTabBarReach } from '../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../theme/LucentProvider';
 import { createLucentContext } from '../../theme/context';
 
@@ -264,6 +265,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const bottomToolbar = useBottomToolbar(key);
   const search = useSearch(key);
   const offset = useToolbarOffset();
+  const tabBar = useTabBarReach();
   const tint = typeof options.headerTintColor === 'string' ? options.headerTintColor : undefined;
   const placement = search ? searchPlacement(search.props, bottomToolbar) : undefined;
   // In search mode from the bottom, the field takes the toolbar's place above the keyboard.
@@ -279,6 +281,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const swipe = swipeFor(options);
   // The screen a swipe back uncovers, which it dims.
   const below = state.routes[state.index - 1]?.key === key;
+  const routeIndex = state.routes.findIndex((route: { key: string }) => route.key === key);
   const lucent = Boolean((options as Record<string, unknown>)[pushed]);
 
   // A screen Lucent pushes waits unseen until the swipe has it off-screen to the right, then slides in over the one it
@@ -377,7 +380,8 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
     <HeaderScrollProvider
       routeKey={key}
       transparent
-      toolbar={bottomBar ? offset + toolbar.height + toolbar.contentGap : 0}
+      // Inside NativeTabs a bottom toolbar sits under the tab bar, so the bar's own inset is the one that counts.
+      toolbar={bottomBar && !(tabBar && bottomToolbar) ? offset + toolbar.height + toolbar.contentGap : 0}
       start={placement === 'header' && search?.props.hideWhenScrolling !== false ? searchMetrics.header.block : 0}
       // A search field in the bar scrolls away before the title, so its stack doesn't snap.
       snap={
@@ -404,7 +408,12 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
             bar stay clear, and here they're the top screen's, held in place over this one. */}
           {below ? <SwipeDim /> : null}
           {bottomToolbar && !searching ? (
-            <BottomToolbar toolbar={bottomToolbar} tintColor={tint} routeKey={key} />
+            // Its buttons hold and melt through a push or a pop, as the bar's do.
+            <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
+              <ScreenHiddenContext value={hidden}>
+                <BottomToolbar toolbar={bottomToolbar} tintColor={tint} routeKey={key} pushed={routeIndex > 0} />
+              </ScreenHiddenContext>
+            </SwipeRoleContext>
           ) : null}
           {placement === 'bottom' && !searching ? <BottomSearch routeKey={key} /> : null}
           {placement === 'button' && !searching ? <BottomSearchButton routeKey={key} /> : null}

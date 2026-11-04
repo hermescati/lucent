@@ -51,6 +51,16 @@ export const closeGlyph = {
 
 export const placeholderBlend = { dark: 'plus-lighter', light: 'multiply' } as const;
 
+/**
+ * The bar going and coming as a screen hides it (`hidden`), as iOS 27's does (measured on the simulator): gone in a
+ * couple of frames, its glyphs at once and its glass just after; back over about 300ms, eased out, glass and glyphs
+ * together.
+ */
+export const barPresence = {
+  hide: 60,
+  show: 300,
+};
+
 export const motion = {
   springs: {
     track: { duration: 110, dampingRatio: 1 },
