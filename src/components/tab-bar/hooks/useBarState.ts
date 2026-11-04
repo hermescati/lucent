@@ -269,9 +269,17 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   });
   // The pill's unscaled width: at rest it's scaled the same both ways, so its ends stay round, a capsule as iOS's is,
   // rather than stretched into ellipses.
-  const lensBase = useDerivedValue(
-    () => ((fullItemWidth.get() + motion.pillFit.slot) * lensFullHeight) / layout.bubbleRestHeight,
-  );
+  // It's the selected tab's own resting pill (as useLensPhysics fits it: its slot, or its label, with a margin), so the
+  // pill rests unstretched on any tab now that tabs differ in width; taken from the settled tab, not the moving
+  // pill, so it changes once per switch.
+  const lensBase = useDerivedValue(() => {
+    const index = Math.max(settledIndex.get(), 0);
+    const plan = slotPlan.get();
+    const slot = plan.widths[index] ?? fullItemWidth.get();
+    const label = labelWidths.get()[index] ?? 0;
+    const rest = Math.max(slot + motion.pillFit.slot, label + motion.pillFit.label);
+    return (rest * lensFullHeight) / layout.bubbleRestHeight;
+  });
   const itemWidth = useDerivedValue(() => fullItemWidth.get() * scaleX.get());
   const barShiftX = useDerivedValue(
     () => -(barWidth.get() * (1 - scaleX.get())) / 2 + (fullHeight * (1 - scaleY.get())) / 2,
