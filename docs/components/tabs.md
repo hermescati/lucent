@@ -92,6 +92,7 @@ The `svg` icon supports `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`,
 - **Drag across the bar** and the lens follows your finger, landing on the tab you let go over.
 - **Tapping the current tab again** pops the tab's stack back to its first screen or, when already there, scrolls its `TabScrollView` to the top. The trigger's `disablePopToTop` and `disableScrollToTop` turn each off.
 - **`Badge`** draws a red capsule at the icon's top-right; an empty badge is a plain red dot. `badgeBackgroundColor`, `badgeTextColor` and the badge's `selectedBackgroundColor` apply. In search mode the back button keeps its tab's badge.
+- **In search mode** the search tab's first screen hides its navigation bar, as iOS 27 does, and the content moves up into its place. The ref's `cancelSearch` brings it back.
 - **A `disabled` tab** looks normal and still reacts to a tap or drag, but the lens slides back to the current tab and nothing navigates.
 - **`minimizeBehavior`:** `onScrollDown` and `onScrollUp` work as on iOS. `automatic` and `never` don't minimize, which is what iOS does on iPhone.
 - **Icons** use `md` (Material Symbol), an image `src` or Lucent's `svg`. `VectorIcon` isn't drawn yet.

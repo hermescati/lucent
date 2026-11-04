@@ -19,7 +19,7 @@ import Animated, {
 
 import { FloatingTabBar } from './components/FloatingTabBar';
 import { TabBarCollapseProvider, useTabBarCollapse } from './context/collapse';
-import { SearchHostProvider } from './context/search';
+import { SearchHostProvider, useSearchHost } from './context/search';
 import { barSpanFor, fullHeight } from './helpers/bar';
 import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
 import { useTabBarOffset } from './hooks/useTabBarOffset';
@@ -27,7 +27,12 @@ import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
-import { InsideTabsContext, TabBarReachContext, TabsTintContext } from '../../core/tabs/TabBarReach';
+import {
+  InsideTabsContext,
+  TabBarReachContext,
+  TabSearchActiveContext,
+  TabsTintContext,
+} from '../../core/tabs/TabBarReach';
 
 const Trigger = Object.assign(triggerPart<LucentNativeTabTriggerProps>('trigger'), {
   Label: triggerPart<NativeTabsTriggerLabelProps>('label'),
@@ -44,6 +49,10 @@ const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
   behavior === 'onScrollDown' || behavior === 'onScrollUp' ? behavior : null;
 
 // Tells what floats above the bar, such as a stack's bottom toolbar, how far up the bar reaches as it minimizes.
+const TabSearchActive = ({ children }: { children: ReactNode }) => (
+  <TabSearchActiveContext value={useSearchHost().active}>{children}</TabSearchActiveContext>
+);
+
 const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: ReactNode }) => {
   const offset = useTabBarOffset();
   const collapse = useTabBarCollapse();
@@ -112,7 +121,9 @@ const NativeTabsRoot = ({
                         {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
                     screens, as iOS does, for screens without their own colour. */}
                         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-                        <TabSlot detachInactiveScreens={false} />
+                        <TabSearchActive>
+                          <TabSlot detachInactiveScreens={false} />
+                        </TabSearchActive>
                       </NativeGlassBackdrop>
                     </InsideGlassBackdrop.Provider>
                   </TabBarReachProvider>

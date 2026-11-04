@@ -51,7 +51,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const { getTrigger, switchTab } = useTabTrigger({ name: tabs[0].name });
   const focusedIndex = tabs.findIndex((tab) => getTrigger(tab.name)?.isFocused);
   const searchFocused = searchTab ? (getTrigger(searchTab.name)?.isFocused ?? false) : false;
-  const { setQuery, emit, command } = useSearchActions();
+  const { setQuery, emit, command, setActive: setSearchActive } = useSearchActions();
   const { height: keyboardHeight, progress: keyboardProgress } = useKeyboard();
   const [backIndex, setBackIndex] = useState(Math.max(focusedIndex, 0));
   if (focusedIndex >= 0 && focusedIndex !== backIndex) {
@@ -249,6 +249,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     edgesReady,
     emit,
     command,
+    setSearchActive,
     expandOnly,
     focused,
     focusedIndex,

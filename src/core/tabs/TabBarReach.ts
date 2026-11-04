@@ -37,3 +37,11 @@ export const useInsideTabs = () => useContext(InsideTabsContext);
 export const TabsTintContext = createLucentContext<string | undefined>('TabsTint', undefined);
 
 export const useTabsTint = () => useContext(TabsTintContext);
+
+/**
+ * Whether the tab bar's search tab is in search mode, focused or not, and not cancelled. iOS 27 hides the search tab's
+ * navigation bar meanwhile (simulator): it fades and lifts away as the field opens, and snaps back on `cancelSearch`.
+ */
+export const TabSearchActiveContext = createLucentContext<boolean>('TabSearchActive', false);
+
+export const useTabSearchActive = () => useContext(TabSearchActiveContext);

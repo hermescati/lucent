@@ -1,3 +1,4 @@
+import { useIsFocused } from 'expo-router';
 import type { NativeStackHeaderProps } from 'expo-router/native-stack';
 import { useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
@@ -35,6 +36,7 @@ import { getHeader } from './store.android';
 import { useSwipeMelt } from './swipeMelt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { headerOffset, searchLift } from '../../../core/header/scroll.android';
+import { useTabSearchActive } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
 import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
@@ -256,7 +258,11 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const top = useBarTop();
   const { color, scheme } = useLucentTheme();
   const scrolled = headerOffset(route.key);
-  const { block, hidden, collapses, button, focusedInBar, barFocused } = useHeaderSearchBlock(route.key);
+  const { block, hidden: searchHides, collapses, button, focusedInBar, barFocused } = useHeaderSearchBlock(route.key);
+  // The tab bar's search tab, in search mode, hides its root screen's bar, as iOS 27 does.
+  const tabSearch = useTabSearchActive();
+  const focused = useIsFocused();
+  const hidden = searchHides || (tabSearch && focused && navigation.getState().routes[0]?.key === route.key);
   // The row steps aside for search: a field rising into it, or one opening in it from the magnifier.
   const rowAside = focusedInBar || barFocused;
   // Search opened from the magnifier stays up as it plays back out, once closed.

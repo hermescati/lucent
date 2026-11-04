@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
@@ -110,6 +110,10 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     setSearchIdle(false);
     idleFade.set(0);
   }
+  // The search tab's navigation bar steps aside while search is on, as iOS's does.
+  const searchActive = state.searchFocused && !searchIdle;
+  const { setSearchActive } = state;
+  useEffect(() => setSearchActive(searchActive), [searchActive, setSearchActive]);
   const idleSearch = () => {
     setQuery('');
     emit('onCancelButtonPress');

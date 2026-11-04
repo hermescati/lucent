@@ -34,11 +34,14 @@ interface SearchActions {
   emit: (name: SearchEventName) => void;
   attach: (part: SearchControls) => () => void;
   command: (name: keyof SearchControls) => void;
+  // The tab bar tells the screens when its search tab is in search mode.
+  setActive: (active: boolean) => void;
 }
 
 interface SearchHost extends SearchActions {
   query: string;
   focused: boolean;
+  active: boolean;
   props: SearchBarProps;
 }
 
@@ -54,6 +57,7 @@ interface Props {
 export const SearchHostProvider = ({ children }: Props) => {
   const [query, setQueryState] = useState('');
   const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(false);
   const nativeText = useRef<((text: string) => void) | null>(null);
   const [props, setProps] = useState<SearchBarProps>({});
   const latest = useRef<SearchBarProps>({});
@@ -134,10 +138,13 @@ export const SearchHostProvider = ({ children }: Props) => {
   }, []);
 
   const actions = useMemo(
-    () => ({ track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command }),
+    () => ({ track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command, setActive }),
     [track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command],
   );
-  const value = useMemo(() => ({ ...actions, query, focused, props }), [actions, query, focused, props]);
+  const value = useMemo(
+    () => ({ ...actions, query, focused, active, props }),
+    [actions, query, focused, active, props],
+  );
 
   return (
     <SearchActionsContext value={actions}>
@@ -149,6 +156,8 @@ export const SearchHostProvider = ({ children }: Props) => {
 const fallbackHost: SearchHost = {
   query: '',
   focused: false,
+  active: false,
+  setActive: () => {},
   track: () => {},
   writeText: () => {},
   attachText: () => {},
