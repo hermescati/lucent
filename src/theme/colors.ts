@@ -55,8 +55,8 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barTint: 'rgba(90, 90, 90, 0)',
     barFallback: '#2F2F32',
     barShadow: 'rgba(0, 0, 0, 0.03)',
-    // iOS 27's selected pill is about half as bright as the bar around it in dark mode, over a dark list or a photo.
-    lens: 'rgba(0, 0, 0, 0.35)',
+    // iOS 27's selected pill in dark mode is the bar's frost tone (glass.tone.dark.frost*), with no fill over it.
+    lens: 'rgba(0, 0, 0, 0)',
     lensActive: 'rgba(0, 0, 0, 0)',
     lensRim: 'rgba(255, 255, 255, 0.16)',
     lensRimEarly: 'rgba(255, 255, 255, 0.16)',

@@ -316,6 +316,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = rimOpticDarken
     state[i++] = if (opaque) 0f else haze
     state[i++] = hazeRadius * density
+    state[i++] = toneBow
+    state[i++] = frostBow
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -418,6 +420,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
     glassShader.setFloatUniform("fadeBlur", state[fadeBlurAt], state[fadeBlurAt + 1], state[fadeBlurAt + 2])
     glassShader.setFloatUniform("rimOptic", state[opticAt], state[opticAt + 1])
+    glassShader.setFloatUniform("toneBow", state[opticAt + 4], state[opticAt + 5])
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
     val inner = hazed(blurPx, state[opticAt + 2], state[opticAt + 3])

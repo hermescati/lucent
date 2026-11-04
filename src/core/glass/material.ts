@@ -69,6 +69,8 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   frostGain: glass.tone[scheme].frostGain,
   frostGamma: glass.tone[scheme].frostGamma,
   frostChroma: glass.tone[scheme].frostChroma,
+  toneBow: glass.tone[scheme].bow,
+  frostBow: glass.tone[scheme].frostBow,
   falloff: glass.falloff[scheme],
   dispersion: glass.dispersion,
   saturation: glass.saturation[scheme],

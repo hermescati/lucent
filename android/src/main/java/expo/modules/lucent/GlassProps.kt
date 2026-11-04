@@ -113,6 +113,10 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var frostGain = 1f
   var frostGamma = 1f
   var frostChroma = 1f
+  // A bow on the tone curve, gain·x(1−x) on top of base + gain·x^gamma: iOS 27's dark glass lifts dark backdrops less
+  // than a power curve can. For the glass, and under the frost (the tab bar's pill).
+  var toneBow = 0f
+  var frostBow = 0f
   var sampleBackdrop = false
     set(value) {
       field = value

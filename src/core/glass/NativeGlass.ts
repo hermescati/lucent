@@ -108,6 +108,8 @@ export interface NativeGlassViewProps extends ViewProps {
   frostGain?: number;
   frostGamma?: number;
   frostChroma?: number;
+  toneBow?: number;
+  frostBow?: number;
   sampleBackdrop?: boolean;
   onBackdropLuma?: (event: { luma: number }) => void;
   frostLeft?: number;

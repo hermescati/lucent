@@ -71,6 +71,7 @@ uniform float frostRadius;
 uniform float frostMagnify;
 uniform float3 fadeBlur;
 uniform float2 rimOptic;
+uniform float2 toneBow;
 uniform float4 tone;
 uniform float4 frostTone;
 uniform float chroma;
@@ -427,7 +428,9 @@ half4 main(float2 coord) {
     float base = mix(tone.x, frostTone.x, frosted);
     float gain = mix(tone.y, frostTone.y, frosted);
     float curve = mix(tone.z, frostTone.z, frosted);
-    float3 mapped = base + gain * pow(max(col, float3(0.0)), float3(curve));
+    float bow = mix(toneBow.x, toneBow.y, frosted);
+    float3 lit = max(col, float3(0.0));
+    float3 mapped = base + gain * pow(lit, float3(curve)) + bow * lit * (1.0 - min(lit, float3(1.0)));
     col = mix(col, mapped, tone.w);
   }
   float saturate = tone.w > 0.0 ? mix(chroma, frostTone.w, frosted) : chroma;
