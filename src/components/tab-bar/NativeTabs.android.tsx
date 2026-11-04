@@ -23,6 +23,7 @@ import { SearchHostProvider, useSearchHost } from './context/search';
 import { barSpanFor, fullHeight } from './helpers/bar';
 import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
 import { useTabBarOffset } from './hooks/useTabBarOffset';
+import { TabIcon } from './components/TabIcon';
 import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
@@ -140,6 +141,21 @@ const NativeTabsRoot = ({
                   pointerEvents={shown ? 'box-none' : 'none'}
                   importantForAccessibility={shown ? 'auto' : 'no-hide-descendants'}
                   style={[StyleSheet.absoluteFill, presenceStyle]}>
+                  {/* Hidden tabs' icons drawn once, out of sight: a symbol's first draw takes a few frames, which would
+                  leave a tab added later showing its label before its icon. */}
+                  <View style={styles.warm} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                    {triggers
+                      .filter((trigger) => trigger.hidden && !trigger.search)
+                      .map((trigger) => (
+                        <TabIcon
+                          key={trigger.name}
+                          icon={trigger.icon}
+                          selected={false}
+                          size={layout.tabIconSize}
+                          color="black"
+                        />
+                      ))}
+                  </View>
                   <FloatingTabBar
                     tabs={primary}
                     searchTab={search}
@@ -167,6 +183,12 @@ export const NativeTabs = Object.assign(NativeTabsRoot, { Trigger, BottomAccesso
 const styles = StyleSheet.create({
   fill: {
     flex: 1,
+  },
+  warm: {
+    position: 'absolute',
+    left: -1000,
+    top: 0,
+    flexDirection: 'row',
   },
   hidden: {
     display: 'none',
