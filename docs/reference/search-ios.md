@@ -66,9 +66,18 @@ Lucent drives the morphs off the keyboard's progress rather than a clock, so the
 
 - Matches the bar's capsule metrics: 16pt-ish margins, 47pt tall, the magnifier's middle about 21pt in and the text about 42pt in. Lucent's is within a point.
 
+## The field's text and glyphs
+
+Measured on the field under the title, against the field's middle and edges:
+
+- The magnifier's ink is 16pt square, from 14pt to 30pt in from the field's leading edge, a third of a point above its middle. Material's glyph draws its ink left of and below its box's middle, so Lucent moves it (`iconNudge`) to land there.
+- The text is 17pt, starting about 41pt in, centred on the field's middle; Android's text box puts it a point lower, so Lucent lifts it (`textNudge`). The resting field's label, drawn as text, sits about a point below the middle, as iOS's does.
+- The clear button's middle is 24.5pt in from the field's trailing edge.
+
 ## Not matched yet on Android
 
-- The search field is still React Native's `TextInput` inside the glass, not a rebuild of `UISearchTextField`; the magnifier is Material's glyph, a little lighter than SF's.
-- The magnifier in the bar: iOS's field settles within a point, no overshoot to speak of, so Lucent's has none.
+- The magnifier's stroke: SF's is heavier than Material's regular weight. Android takes a heavier Material Symbols weight only by bundling another font (`expo-symbols/androidWeights/*`), left for a decision.
+- The glass field is about 2pt shorter on Android rim to rim (42.7 against 45 for the field under the title): the glass draws its shape a little inside its box. For the glass pass.
+- The close button's cross is a little smaller and heavier than SF's xmark.
 - On the emulator, the close button buds off later than 330ms when the keyboard is opening: the emulator's UI thread is busy with it.
 - The example app redraws at about 60fps while idle on the emulator, which goes back to before this work. Left for the glass pass at the end, with the shaders' GPU cost.

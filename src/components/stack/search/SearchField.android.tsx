@@ -76,7 +76,7 @@ const Magnifier = ({ color, show }: { color: string; show: boolean }) =>
       name={{ android: 'search' }}
       size={search.iconSize}
       tintColor={color}
-      style={[styles.icon, { left: search.iconCentre - search.iconSize / 2 }]}
+      style={[styles.icon, { left: search.iconCentre - search.iconSize / 2 + search.iconNudge.x }]}
     />
   ) : null;
 
@@ -534,20 +534,25 @@ const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { s
 };
 
 const styles = StyleSheet.create({
-  icon: { position: 'absolute', top: '50%', marginTop: -search.iconSize / 2 },
+  icon: { position: 'absolute', top: '50%', marginTop: -search.iconSize / 2 + search.iconNudge.y },
   input: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
-    right: search.trailing + search.clearSize + 8,
+    top: search.textNudge,
+    bottom: -search.textNudge,
+    right: search.clearTrailing + search.clearSize + 8,
     fontSize: search.fontSize,
     padding: 0,
     includeFontPadding: false,
   },
-  displayText: { textAlignVertical: 'center', lineHeight: toolbar.height },
+  displayText: {
+    textAlignVertical: 'center',
+    lineHeight: toolbar.height,
+    top: search.displayNudge,
+    bottom: -search.displayNudge,
+  },
   clear: {
     position: 'absolute',
-    right: search.trailing,
+    right: search.clearTrailing,
     top: '50%',
     marginTop: -search.clearSize / 2,
   },

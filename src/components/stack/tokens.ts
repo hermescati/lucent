@@ -292,12 +292,22 @@ export const search = {
   buttonIcon: 28,
   // The magnifier's middle and where the text starts, from the field's leading edge.
   iconCentre: 21,
+  // Material's magnifier draws its ink a little left of and below its box's middle, where SF's sits centred: moved by
+  // this much, its ink sits where iOS 27's does, 22pt in and a third of a point above the field's middle.
+  iconNudge: { x: 2.4, y: -2 },
   text: 42,
   fontSize: 17,
+  // Android's text box puts the text this much lower in the field than UIKit does.
+  textNudge: -1.1,
+  // The resting field's label, drawn as text rather than a text box, sits this much lower than the box would put it:
+  // iOS centres its text about a point below the field's middle.
+  displayNudge: 1.3,
   // iOS 27's clear button: a 17pt circle with a 7pt cross, about 1.9pt thick, cut out of it.
   clearSize: 17,
   clearCross: 7,
   clearStroke: 1.9,
+  // The clear button's right edge from the field's trailing edge: its middle sits 24.5pt in on iOS 27.
+  clearTrailing: 16,
   trailing: 12,
   // In the navigation bar: below the bar's row, and the room it takes, with the gap under it.
   header: { height: 44, block: 52, margin: 16 },
