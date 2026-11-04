@@ -19,6 +19,7 @@ import {
 /** The bar's glass shapes (tabs pill, search circle and field) and its press growth. */
 export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
   const {
+    lensBase,
     backBump,
     backLight,
     backPress,
@@ -90,12 +91,12 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const pad = glass.pad;
     const fit = rowFit.get();
     const ride = modeTarget.get() === 0 ? settled : 0;
-    const frostCenter = inlinePad + layout.bubbleRestWidth / 2 + lensGeometry.get().translateX;
+    const frostCenter = inlinePad + lensBase.get() / 2 + lensGeometry.get().translateX;
     const frostRideEnd = modeInset + (modeHeight / width) * frostCenter;
     const frostX = fit.x + frostCenter * fit.scale - (frostRideEnd - modeInset - modeHeight / 2) * ride;
     const frostY = fullHeight / 2 + lensGeometry.get().translateY;
     const frostShrink = lerp(1, modeHeight / lensFullHeight, ride);
-    const frostHalfX = ((layout.bubbleRestWidth * lensGeometry.get().scaleX) / 2) * frostShrink;
+    const frostHalfX = ((lensBase.get() * lensGeometry.get().scaleX) / 2) * frostShrink;
     const frostHalfY = ((lensFullHeight * lensGeometry.get().scaleY) / 2) * frostShrink;
 
     const growX = barGrowth.get() * motion.barGrow.x * (1 - settled);

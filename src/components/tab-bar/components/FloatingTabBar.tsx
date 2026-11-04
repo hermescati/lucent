@@ -140,6 +140,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const press = useBarPress({ ...state, ...search, selectTab, reselect });
   useLensPhysics({ ...state, ...press });
   const lens = useLensStyles(state);
+  const lensWidthStyle = useAnimatedStyle(() => ({ width: state.lensBase.get() }));
   const barGlass = useBarGlass({ ...state, ...search, ...lens });
   const {
     backDrag,
@@ -223,7 +224,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               pointerEvents="none"
               style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
             />
-            <Animated.View pointerEvents="none" style={[styles.lens, lensStyle]}>
+            <Animated.View pointerEvents="none" style={[styles.lens, lensStyle, lensWidthStyle]}>
               <Animated.View style={[styles.lensLayer, lensFillStyle]} />
             </Animated.View>
           </Animated.View>
@@ -320,7 +321,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             ))}
           </View>
         </NativeGlassBackdrop>
-        <Animated.View style={[styles.lens, lensGlassStyle]}>
+        <Animated.View style={[styles.lens, lensGlassStyle, lensWidthStyle]}>
           <AnimatedNativeGlassView
             style={styles.lensGlass}
             animatedProps={lensSideProps}
@@ -345,7 +346,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             shadowOffset={glass.lensShadowOffset}
           />
         </Animated.View>
-        <Animated.View style={[styles.lens, lensIconStyle]}>
+        <Animated.View style={[styles.lens, lensIconStyle, lensWidthStyle]}>
           <AnimatedNativeGlassView
             style={styles.lensGlass}
             animatedProps={lensIconProps}

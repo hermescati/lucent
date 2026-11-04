@@ -104,7 +104,7 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
     lensRim: 'rgba(0, 0, 0, 0.16)',
-    lensRimEarly: 'rgba(0, 0, 0, 0.06)',
+    lensRimEarly: 'rgba(0, 0, 0, 0)',
     lensTint: 'rgba(0, 0, 0, 0)',
     lensTintEarly: 'rgba(255, 255, 255, 0)',
     lensHeldTint: 'rgba(0, 0, 0, 0)',

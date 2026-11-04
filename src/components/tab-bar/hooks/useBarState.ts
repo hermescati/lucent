@@ -19,7 +19,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { glass, space } from '../../../theme/tokens';
 import { setTabBarCollapsed, useTabBarCollapse } from '../context/collapse';
 import { useSearchActions } from '../context/search';
-import { barSpanFor, clamp01, fullHeight, inlinePad, lerp } from '../helpers/bar';
+import { barSpanFor, clamp01, fullHeight, inlinePad, lensFullHeight, lerp } from '../helpers/bar';
 import type { TabSpec } from '../helpers/triggers';
 import { layout, motion } from '../tokens';
 
@@ -187,6 +187,11 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const scaleX = useDerivedValue(() => lerp(1, compactSize.get() / Math.max(barWidth.get(), 1), collapsed.get()));
   const scaleY = useDerivedValue(() => lerp(1, compactSize.get() / fullHeight, collapsed.get()));
   const fullItemWidth = useDerivedValue(() => (barWidth.get() - inlinePad * 2) / tabCount);
+  // The pill's unscaled width: at rest it's scaled the same both ways, so its ends stay round, a capsule as iOS's is,
+  // rather than stretched into ellipses.
+  const lensBase = useDerivedValue(
+    () => ((fullItemWidth.get() + motion.pillFit.slot) * lensFullHeight) / layout.bubbleRestHeight,
+  );
   const itemWidth = useDerivedValue(() => (barWidth.get() * scaleX.get() - inlinePad * 2) / tabCount);
   const barShiftX = useDerivedValue(
     () => -(barWidth.get() * (1 - scaleX.get())) / 2 + (fullHeight * (1 - scaleY.get())) / 2,
@@ -269,6 +274,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     inkTone,
     labelWidths,
     itemWidth,
+    lensBase,
     jelly,
     jellyVelocity,
     keyboardProgress,

@@ -15,6 +15,7 @@ import type { BarState } from './useBarState';
 /** The lens's shape, fill, glass optics and how much it covers each tab icon. */
 export const useLensStyles = (bar: BarState) => {
   const {
+    lensBase,
     barWidth,
     collapsed,
     color,
@@ -70,7 +71,7 @@ export const useLensStyles = (bar: BarState) => {
   });
 
   const lensGeometry = useDerivedValue(() => {
-    const fullWidth = layout.bubbleRestWidth;
+    const fullWidth = lensBase.get();
     const left = leftEdge.get();
     const right = rightEdge.get();
     const span = Math.max(0, right - left);
@@ -291,7 +292,7 @@ export const useLensStyles = (bar: BarState) => {
     const optics = lerp(1, clamp01(lift.get() * motion.tapSlide.glassRamp), slide);
     const travel = switchOptics.get();
     const bendScale = optics * lerp(1, motion.tapSlide.bend, slide) * travel;
-    const centerX = inlinePad + layout.bubbleRestWidth / 2 + geometry.translateX;
+    const centerX = inlinePad + lensBase.get() / 2 + geometry.translateX;
     const centerY = fullHeight / 2 + geometry.translateY;
     const reveal = lensOut.get();
     return {
@@ -358,7 +359,7 @@ export const useLensStyles = (bar: BarState) => {
   const lensSideProps = useAnimatedProps(() => {
     const position = lensPosition.get();
     const geometry = lensGeometry.get();
-    const restWidth = layout.bubbleRestWidth;
+    const restWidth = lensBase.get();
     const lensCenter = inlinePad + restWidth / 2 + geometry.translateX;
     const gapMiddle = lerp(
       barWidth.get() + layout.tabBarGap / 2,

@@ -89,7 +89,7 @@ export const glass = {
   // The selected ink lightens with what's under the bar in dark mode, read from the window under the bar's glass:
   // about 0.25 over a dark list and 0.36 over a photo on the emulator.
   inkLuma: { dark: { from: 0.26, to: 0.4, step: 0.1 }, light: { from: 0.72, to: 0.9, step: 0.1 } },
-  lensFrostClear: { dark: 0.9, light: 0.6 },
+  lensFrostClear: { dark: 0.9, light: 0 },
   lensFrostRadius: { dark: 16, light: 10 },
   lensFrostMagnify: { dark: 0.7, light: 0.7 },
   lensFalloff: 0,
