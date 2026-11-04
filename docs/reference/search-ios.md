@@ -54,6 +54,12 @@ Closing:
 - From the bottom field, the large title and content are back at once, and the field rides the keyboard down, widening again as the close button fades.
 - From the magnifier, the field shrinks at once to its empty circle, which rides the keyboard down; the magnifier fades back in at the end.
 
+With the keyboard down in search mode (searched with text, or with a hardware keyboard), the field and close button keep the toolbar's margins, 28pt from the screen's sides, rather than the 8pt they take above the keyboard. While a field in the navigation bar has the keyboard, a bottom toolbar stays down under it.
+
+Typing: the search key leaves search mode on with the text, the keyboard down. Android's keyboard behaves the same from its own search key; a hardware Enter key can commit an autocorrection first.
+
+In dark mode the placeholder is lighter than the theme's: (59, 59, 61) of glass goes to (138, 138, 141) under it, about rgba(235, 235, 245, 0.45). The magnifier and text are white, the clear button a white circle with the cross cut out, and the cursor the system blue.
+
 Lucent drives the morphs off the keyboard's progress rather than a clock, so they keep step with Android's keyboard; with no keyboard (a hardware one), a clock stands in.
 
 ## The field at the bottom

@@ -423,6 +423,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
                   pushed={routeIndex > 0}
                   searching={searching && placement === 'slot'}
                   returning={focusShown && !searching && placement === 'slot'}
+                  stayDown={Boolean(search?.focused) && (placement === 'header' || placement === 'barButton')}
                 />
               </ScreenHiddenContext>
             </SwipeRoleContext>

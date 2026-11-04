@@ -305,6 +305,9 @@ export const search = {
   // (simulator): it turns to glass as it rises, focused, by `glassBy` of the way.
   fill: { light: 'rgba(118, 118, 128, 0.12)', dark: 'rgba(118, 118, 128, 0.24)' },
   glassBy: 0.5,
+  // The placeholder in dark mode, lighter than the theme's: (59, 59, 61) of glass goes to (138, 138, 141) under it on
+  // iOS 27 (simulator). In light mode it's the theme's.
+  placeholderDark: 'rgba(235, 235, 245, 0.45)',
   // Focused, the field and a close button sit above the keyboard, this far from the screen's edges.
   focused: { margin: 8, gap: 12, close: 48, closeIcon: 29 },
 } as const;

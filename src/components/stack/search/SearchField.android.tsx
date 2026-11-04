@@ -52,7 +52,7 @@ const useFieldColors = (props: LucentSearchBarProps, tint?: string) => {
   const { color, scheme } = useLucentTheme();
   return {
     text: colorString(props.textColor) ?? color.text,
-    placeholder: colorString(props.hintTextColor) ?? color.placeholder,
+    placeholder: colorString(props.hintTextColor) ?? (scheme === 'dark' ? search.placeholderDark : color.placeholder),
     icon: colorString(props.headerIconColor) ?? color.text,
     clear: color.clearButton,
     // The cross is cut out of the clear button: it shows the field's near-white or near-black.
@@ -309,8 +309,9 @@ const FocusedSearchBody = ({ routeKey, state, from, open, onClosed }: FocusedSea
   const rect = displayRects.get(routeKey);
   const fromLeft = from === 'button' ? circle : (rect?.x ?? toolbar.margin);
   const fromRight = from === 'button' ? circle : rect ? width - rect.x - rect.width : toolbar.margin;
-  const toLeft = margin;
-  const toRight = margin + close + gap;
+  // Above the keyboard it takes nearly the screen's width; with the keyboard down (searched, or a hardware one), it
+  // keeps the toolbar's margins, as iOS's does.
+  const side = useDerivedValue(() => toolbar.margin + (margin - toolbar.margin) * keyboard.progress.get());
   // The magnifier and text keep the focused field's layout, the magnifier centred in the circle.
   const shift = from === 'button' ? toolbar.height / 2 - search.iconCentre : 0;
 
@@ -353,11 +354,13 @@ const FocusedSearchBody = ({ routeKey, state, from, open, onClosed }: FocusedSea
   );
   const fieldStyle = useAnimatedStyle(() => ({
     bottom: bottom.get(),
-    left: fromLeft + (toLeft - fromLeft) * grow.get(),
-    right: fromRight + (toRight - fromRight) * grow.get(),
+    left: fromLeft + (side.get() - fromLeft) * grow.get(),
+    right: fromRight + (side.get() + close + gap - fromRight) * grow.get(),
     opacity: fade.get(),
   }));
   const contentStyle = useAnimatedStyle(() => ({
+    // The focused field's width throughout, so the text box is never a sliver: focused as one, Android lets it go.
+    width: width - side.get() * 2 - close - gap,
     opacity: from === 'button' ? grow.get() : 1,
     transform: [{ translateX: shift * (1 - grow.get()) }],
   }));
@@ -368,6 +371,7 @@ const FocusedSearchBody = ({ routeKey, state, from, open, onClosed }: FocusedSea
   const closeLook = useDerivedValue(() => meltLook(1 - Math.min(bud.get(), closeFade.get())));
   const closeStyle = useAnimatedStyle(() => ({
     bottom: bottom.get(),
+    right: side.get(),
     opacity: closeLook.get().opacity,
     transform: [{ scale: closeLook.get().scale }],
   }));
@@ -378,7 +382,7 @@ const FocusedSearchBody = ({ routeKey, state, from, open, onClosed }: FocusedSea
       <Animated.View pointerEvents={open ? 'box-none' : 'none'} style={[styles.focusedField, fieldStyle]}>
         <BarCapsule height={toolbar.height} grow disabled presence={glass}>
           <View style={styles.focusedClip}>
-            <Animated.View style={[styles.focusedContent, { width: width - toLeft - toRight }, contentStyle]}>
+            <Animated.View style={[styles.focusedContent, contentStyle]}>
               <SearchInput routeKey={routeKey} state={state} autoFocus tint={from === 'slot' ? tabsTint : undefined} />
             </Animated.View>
           </View>

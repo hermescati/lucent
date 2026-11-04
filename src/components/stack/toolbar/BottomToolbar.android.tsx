@@ -32,6 +32,8 @@ interface Props {
   // comes back once the keyboard's down.
   searching?: boolean;
   returning?: boolean;
+  // Stays down under the keyboard, as iOS's does while a field in the navigation bar has it.
+  stayDown?: boolean;
 }
 
 // Room above and below the items inside the clip, for their shadows and a held item's growing glass.
@@ -52,12 +54,13 @@ export const BottomToolbar = ({
   pushed,
   searching = false,
   returning = false,
+  stayDown = false,
 }: Props) => {
   const { color } = useLucentTheme();
   const rest = useToolbarOffset();
   const tabBar = useTabBarReach();
   const { height: keyboard, progress } = useReanimatedKeyboardAnimation();
-  const followKeyboard = !props.disableImePadding;
+  const followKeyboard = !props.disableImePadding && !stayDown;
   const tint = typeof props.tintColor === 'string' ? props.tintColor : (tintColor ?? color.text);
   // Its end items sit under the minimized bar's circles, as on iOS, where both are the same distance in.
   const side = tabBar ? tabBar.circle - toolbar.icon / 2 : toolbar.margin;
