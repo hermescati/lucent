@@ -290,18 +290,21 @@ export const BarCapsule = ({
 };
 
 const barEdge = ({
-  rim,
   rimWidth,
   rimSide,
+  rimOptic,
+  rimOpticTop,
+  rimOpticDarken,
   shadow,
   shadowRadius,
   shadowOffset,
   shadowSpread,
 }: ReturnType<typeof regularMaterial>) => ({
-  rim,
   rimWidth,
   rimSide,
-  rimCrisp: false,
+  rimOptic,
+  rimOpticTop,
+  rimOpticDarken,
   shadow,
   shadowRadius,
   shadowOffset,

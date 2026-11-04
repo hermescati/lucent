@@ -310,9 +310,10 @@ const Panel = ({ from, to, progress, alignRight, alignBottom, contentHeight, dim
       {...material}
       lift
       blurRadius={menu.blurRadius}
+      // Frosted through: menus keep their own blur, without the bars' haze.
+      haze={0}
       tint={colors.tint}
       rim={colors.rim}
-      rimWidth={menu.rimWidth}
       shadow={colors.shadow}
       shadowRadius={menu.shadowRadius}
       shadowOffset={menu.shadowOffset}

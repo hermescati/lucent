@@ -237,8 +237,7 @@ export const menu = {
   // Away from the screen's edges, wherever the button is.
   screenMargin: 8,
   blurRadius: 20,
-  // A thin outline and a wide, soft shadow, which lift the menu off a page as light as it is.
-  rimWidth: 0.7,
+  // A wide, soft shadow, which lifts the menu off a page as light as it is.
   shadowRadius: 24,
   shadowOffset: 4,
   shadowSpread: 0,

@@ -38,8 +38,19 @@ const tintAt = (base: string, tinted: string, amount: number) => {
   return `rgba(${r}, ${g}, ${b}, ${lerp(from[3], glassOpacity.opaque, toward)})`;
 };
 
+// iOS 27's outline and haze (see `glass.edge`, `glass.haze`), which every regular glass shares.
+export const glassEdge = (scheme: LucentTheme['scheme']) => ({
+  rimOutside: true,
+  rimOptic: true,
+  rimWidth: glass.edge.width * PixelRatio.get(),
+  rimOpticTop: glass.edge.top[scheme],
+  rimOpticDarken: glass.edge.darken[scheme],
+});
+
 export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTheme) => ({
-  blurRadius: glass.blurRadius[scheme],
+  blurRadius: glass.haze.blur,
+  haze: glass.haze.weight,
+  hazeRadius: glass.haze.radius,
   bezel: glass.bezel[scheme],
   refraction: glass.refraction[scheme],
   pullBottom: glass.pullBottom[scheme],
@@ -75,10 +86,8 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   tint: tintAt(color.barTint, color.barFallback, level),
   fallback: color.barFallback,
   shadow: color.barShadow,
-  rim: color.barRim,
-  rimWidth: glass.rimWidth,
-  rimOutside: true,
   rimSide: glass.rimSide,
+  ...glassEdge(scheme),
   insetShade: glass.insetShade[scheme],
   insetOffset: glass.insetOffset,
   insetBlur: glass.insetBlur,
@@ -97,10 +106,7 @@ export const useGlassMaterial = (style: GlassStyle, colorScheme: GlassColorSchem
     outset: glass.pad,
     shadowRadius: 0,
     shadow: 'rgba(0, 0, 0, 0)',
-    rim: theme.color.glassOutline,
-    rimWidth: glass.outlineWidth * PixelRatio.get(),
     rimSide: glass.outlineSide,
-    rimCrisp: true,
-    rimOutside: true,
+    ...glassEdge(theme.scheme),
   };
 };

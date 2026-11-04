@@ -61,8 +61,12 @@ export const glass = {
   edgeSoft: { dark: 0.08, light: 0.02 },
   sharpWidth: 1.17,
   softWidth: 2.2,
-  rimWidth: 1.6,
-  outlineWidth: 0.45,
+  // iOS 27's outline (simulator, over greys and colours): a ring 0.5pt wide just outside the glass, the backdrop under
+  // it darkened rather than a stroke. Full at the sides; a quarter where it faces up or down in light mode, and none in
+  // dark, where it also eases off over light backdrops.
+  edge: { width: 0.5, top: { light: 0.25, dark: 0 }, darken: { light: 0, dark: 0.88 } },
+  // Its material over stripes: a near-sharp image at about 28% over a blur far wider than 16pt, at every stripe period.
+  haze: { weight: 0.72, radius: 40, blur: 0.4 },
   outlineSide: 1.1,
   rimSide: 3,
   insetShade: { dark: 0, light: 0 },

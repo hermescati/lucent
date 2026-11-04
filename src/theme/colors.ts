@@ -8,9 +8,6 @@ export interface LucentColors {
   barTint: string;
   barFallback: string;
   barShadow: string;
-  barRim: string;
-  tabBarRim: string;
-  glassOutline: string;
   lens: string;
   lensActive: string;
   lensRim: string;
@@ -58,9 +55,6 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barTint: 'rgba(90, 90, 90, 0)',
     barFallback: '#2F2F32',
     barShadow: 'rgba(0, 0, 0, 0.03)',
-    barRim: 'rgba(255, 255, 255, 0)',
-    tabBarRim: 'rgba(0, 0, 0, 0.12)',
-    glassOutline: 'rgba(0, 0, 0, 0.8)',
     // iOS 27's selected pill is about half as bright as the bar around it in dark mode, over a dark list or a photo.
     lens: 'rgba(0, 0, 0, 0.35)',
     lensActive: 'rgba(0, 0, 0, 0)',
@@ -97,11 +91,6 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barTint: 'rgba(251, 251, 251, 0.53)',
     barFallback: '#F4F5F9',
     barShadow: 'rgba(0, 0, 0, 0.012)',
-    barRim: 'rgba(0, 0, 0, 0.12)',
-    // iOS 27's tab bar outline (simulator): a crisp hairline, darker at the sides than the top and bottom, and lighter
-    // over white than over grey; this sits between the two.
-    tabBarRim: 'rgba(0, 0, 0, 0.15)',
-    glassOutline: 'rgba(0, 0, 0, 0.16)',
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
     lensRim: 'rgba(0, 0, 0, 0.16)',

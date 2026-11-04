@@ -1,6 +1,6 @@
 import { useTabTrigger } from 'expo-router/ui';
 import { useEffect, useState } from 'react';
-import { PixelRatio, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import {
   useAnimatedReaction,
   useDerivedValue,
@@ -91,17 +91,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const backPress = useGlassPress();
   const backLight = useSharedValue(0);
   const backDragging = useSharedValue(false);
-  const glassStyle = {
-    ...regularMaterial(theme),
-    rim: theme.color.tabBarRim,
-    rimWidth: layout.tabBarRim.width * PixelRatio.get(),
-    rimOptic: true,
-    rimOpticTop: layout.tabBarRim.top[theme.scheme],
-    rimOpticDarken: layout.tabBarRim.darken[theme.scheme],
-    blurRadius: layout.tabBarHaze.blur,
-    haze: layout.tabBarHaze.weight,
-    hazeRadius: layout.tabBarHaze.radius,
-  };
+  const glassStyle = regularMaterial(theme);
   const nudge = useSharedValue(0);
   const pressSquash = useSharedValue(0);
   const searchMode = useSharedValue(searchFocused ? 1 : 0);
