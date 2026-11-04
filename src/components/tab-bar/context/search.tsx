@@ -23,22 +23,27 @@ export interface TabSearch {
   cancel: () => void;
 }
 
-interface SearchHost {
-  query: string;
-  focused: boolean;
+// What doesn't change as the text does, apart, so what only needs these doesn't render again on every keystroke.
+interface SearchActions {
   track: (name: SearchEventName) => void;
   writeText: (text: string) => void;
   attachText: (write: ((text: string) => void) | null) => void;
   setQuery: (text: string) => void;
   replaceQuery: (text: string) => void;
-  props: SearchBarProps;
   register: (props: SearchBarProps | null) => void;
   emit: (name: SearchEventName) => void;
   attach: (part: SearchControls) => () => void;
   command: (name: keyof SearchControls) => void;
 }
 
+interface SearchHost extends SearchActions {
+  query: string;
+  focused: boolean;
+  props: SearchBarProps;
+}
+
 const SearchHostContext = createLucentContext<SearchHost | null>('SearchHost', null);
+const SearchActionsContext = createLucentContext<SearchActions | null>('SearchActions', null);
 
 const textEvent = <T,>(text: string) => ({ nativeEvent: { text } }) as unknown as NativeSyntheticEvent<T>;
 
@@ -128,25 +133,17 @@ export const SearchHostProvider = ({ children }: Props) => {
     handler?.(textEvent(text.current));
   }, []);
 
-  const value = useMemo(
-    () => ({
-      query,
-      focused,
-      track,
-      writeText,
-      attachText,
-      setQuery,
-      replaceQuery,
-      props,
-      register,
-      emit,
-      attach,
-      command,
-    }),
-    [query, focused, track, writeText, attachText, setQuery, replaceQuery, props, register, emit, attach, command],
+  const actions = useMemo(
+    () => ({ track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command }),
+    [track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command],
   );
+  const value = useMemo(() => ({ ...actions, query, focused, props }), [actions, query, focused, props]);
 
-  return <SearchHostContext value={value}>{children}</SearchHostContext>;
+  return (
+    <SearchActionsContext value={actions}>
+      <SearchHostContext value={value}>{children}</SearchHostContext>
+    </SearchActionsContext>
+  );
 };
 
 const fallbackHost: SearchHost = {
@@ -165,6 +162,9 @@ const fallbackHost: SearchHost = {
 };
 
 export const useSearchHost = (): SearchHost => useContext(SearchHostContext) ?? fallbackHost;
+
+/** The search's actions alone: unlike `useSearchHost`, doesn't render again as the text changes. */
+export const useSearchActions = (): SearchActions => useContext(SearchActionsContext) ?? fallbackHost;
 
 export const useTabSearch = (): TabSearch => {
   const { query, focused, writeText, command } = useSearchHost();

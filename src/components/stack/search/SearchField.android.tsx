@@ -10,6 +10,7 @@ import {
   View,
   type KeyboardTypeOptions,
 } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
   Easing,
@@ -30,7 +31,7 @@ import { cancelSearch } from './SearchBar.android';
 import { getSearchInput, setSearchInput, updateSearch, useSearch, type SearchState } from './store.android';
 import { useBackClaim } from '../../../core/back/claims';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
-import { useClearFade } from '../../../core/search/clearFade';
+import { useClearButton } from '../../../core/search/clearFade';
 import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
@@ -95,7 +96,13 @@ interface SearchInputProps {
 const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => {
   const { props } = state;
   const colors = useFieldColors(props, tint);
-  const clearStyle = useClearFade(Boolean(state.text));
+  const clear = useClearButton(Boolean(state.text), {
+    onClear: () => {
+      updateSearch(routeKey, { text: '' });
+      props.onChangeText?.({ nativeEvent: { text: '' } } as never);
+    },
+    hitSlop: 8,
+  });
   const showIcon = props.shouldShowHintSearchIcon !== false;
   return (
     <>
@@ -131,19 +138,22 @@ const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => 
         onSubmitEditing={() => props.onSearchButtonPress?.({ nativeEvent: { text: state.text } } as never)}
         style={[styles.input, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
       />
-      <Animated.View pointerEvents={state.text ? 'auto' : 'none'} style={[styles.clear, clearStyle]}>
-        <Pressable
+      <GestureDetector gesture={clear.gesture}>
+        <View
+          pointerEvents={state.text ? 'auto' : 'none'}
+          style={styles.clear}
+          accessible={Boolean(state.text)}
           accessibilityRole="button"
           accessibilityLabel="Clear text"
-          accessibilityElementsHidden={!state.text}
-          hitSlop={8}
-          onPress={() => {
-            updateSearch(routeKey, { text: '' });
-            props.onChangeText?.({ nativeEvent: { text: '' } } as never);
-          }}>
-          <ClearGlyph fill={colors.clear} cross={colors.clearCross} />
-        </Pressable>
-      </Animated.View>
+          accessibilityActions={[{ name: 'activate' }]}
+          onAccessibilityAction={clear.onClear}>
+          <Animated.View style={clear.fadeStyle}>
+            <Animated.View style={clear.dimStyle}>
+              <ClearGlyph fill={colors.clear} cross={colors.clearCross} />
+            </Animated.View>
+          </Animated.View>
+        </View>
+      </GestureDetector>
     </>
   );
 };

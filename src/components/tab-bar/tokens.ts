@@ -36,8 +36,6 @@ export const searchFieldText = {
 } as const;
 
 export const clearButton = {
-  // Under the finger (iOS 27 simulator: black to about 200 over a 246 field).
-  pressedOpacity: 0.2,
   size: 17,
   span: 5,
   stroke: 1.8,

@@ -18,7 +18,7 @@ import { regularMaterial } from '../../../core/glass/material';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { glass, space } from '../../../theme/tokens';
 import { setTabBarCollapsed, useTabBarCollapse } from '../context/collapse';
-import { useSearchHost } from '../context/search';
+import { useSearchActions } from '../context/search';
 import { barSpanFor, clamp01, fullHeight, inlinePad, lerp } from '../helpers/bar';
 import type { TabSpec } from '../helpers/triggers';
 import { layout, motion } from '../tokens';
@@ -51,7 +51,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const { getTrigger, switchTab } = useTabTrigger({ name: tabs[0].name });
   const focusedIndex = tabs.findIndex((tab) => getTrigger(tab.name)?.isFocused);
   const searchFocused = searchTab ? (getTrigger(searchTab.name)?.isFocused ?? false) : false;
-  const { setQuery, emit, command } = useSearchHost();
+  const { setQuery, emit, command } = useSearchActions();
   const { height: keyboardHeight, progress: keyboardProgress } = useKeyboard();
   const [backIndex, setBackIndex] = useState(Math.max(focusedIndex, 0));
   if (focusedIndex >= 0 && focusedIndex !== backIndex) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useManualGesture, type PanGesture } from 'react-native-gesture-handler';
 import { KeyboardEvents } from 'react-native-keyboard-controller';
 import Animated, {
   useAnimatedProps,
@@ -13,13 +13,13 @@ import { ClearButton } from './ClearButton';
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
-import { useClearFade } from '../../../core/search/clearFade';
+import { useClearButton } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
 import type { TabSpec } from '../helpers/triggers';
 import type { GlassPress, useGlassPress } from '../hooks/useGlassPress';
-import { layout, motion, placeholderBlend, searchFieldText } from '../tokens';
+import { clearButton, layout, motion, placeholderBlend, searchFieldText } from '../tokens';
 
 const fullHeight = layout.tabBarHeight;
 const modeHeight = layout.searchModeHeight;
@@ -104,8 +104,36 @@ export const SearchMode = ({
   const { query, setQuery, props: searchProps, emit, attach } = useSearchHost();
   const placeholder = searchProps.placeholder ?? '';
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-  // Always there, so the text's room doesn't change: iOS fades it in and out.
-  const clearStyle = useClearFade(Boolean(query));
+  const clearQuery = () => {
+    setQuery('');
+    input.current?.focus();
+  };
+  // Always there, so the text's room doesn't change: iOS fades it in and out. Held, it swells the field.
+  const clear = useClearButton(Boolean(query), {
+    onClear: clearQuery,
+    onPressIn: () => {
+      'worklet';
+      fieldPress.onPressIn();
+    },
+    onPressOut: fieldPress.onPressOut,
+    hitSlop: clearButton.hitSlop,
+  });
+  // Touched in its text, the field swells a little less than under its clear button (iOS 27 simulator). The text box
+  // takes the touch itself, so this only watches it, on the UI thread, so the swell starts with the touch.
+  const fieldTouch = useManualGesture({
+    onTouchesDown: () => {
+      'worklet';
+      fieldPress.onPressIn(motion.fieldTapPeak);
+    },
+    onTouchesUp: () => {
+      'worklet';
+      fieldPress.onPressOut();
+    },
+    onTouchesCancel: () => {
+      'worklet';
+      fieldPress.onPressOut();
+    },
+  });
   const [keyboardUp, setKeyboardUp] = useState(false);
   const wide = useDerivedValue(() => clamp01(keyboard.get()));
 
@@ -144,11 +172,6 @@ export const SearchMode = ({
     const timer = setTimeout(() => input.current?.focus(), motion.searchKeyboard.focusDelay);
     return () => clearTimeout(timer);
   }, [active, searchTab.automaticallyActivatesSearch]);
-
-  const clearQuery = () => {
-    setQuery('');
-    input.current?.focus();
-  };
 
   const { index: travelIndex, slotWidth, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
   const backStyle = useAnimatedStyle(() => ({
@@ -272,60 +295,59 @@ export const SearchMode = ({
             <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
           </Animated.View>
         </Animated.View>
-        {/* Touched in its text, the field swells a little less than under its clear button (iOS 27 simulator). The text
-          box takes the touch itself, so the swell follows the touch rather than a press. */}
-        <View
-          style={styles.text}
-          onTouchStart={() => fieldPress.onPressIn(motion.fieldTapPeak)}
-          onTouchEnd={() => fieldPress.onPressOut()}
-          onTouchCancel={() => fieldPress.onPressOut()}>
-          <Animated.View style={[styles.layer, inputStyle]}>
-            <TextInput
-              ref={input}
-              style={[styles.input, searchFieldText[scheme], { color: color.text }]}
-              value={query}
-              onChangeText={setQuery}
-              placeholder={placeholder}
-              placeholderTextColor="transparent"
-              selectionColor={searchProps.tintColor ?? color.tint}
-              cursorColor={searchProps.tintColor ?? color.tint}
-              autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
-              onFocus={() => {
-                onWake();
-                emit('onFocus');
-              }}
-              onBlur={() => emit('onBlur')}
-              onSubmitEditing={() => emit('onSearchButtonPress')}
-              returnKeyType="search"
-              autoCorrect={false}
-              numberOfLines={1}
-            />
-            {query ? null : (
-              <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
-                <Text
-                  style={[styles.input, searchFieldText[scheme], { color: color.placeholderActive }]}
-                  numberOfLines={1}>
-                  {placeholder}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-          <AnimatedNativeGlassBlur style={[styles.layer, textStyle]} animatedProps={textBlurProps} pointerEvents="none">
-            <Text
-              style={[styles.input, searchFieldText[scheme], { color: query ? color.text : color.placeholder }]}
-              numberOfLines={1}>
-              {query || placeholder}
-            </Text>
-          </AnimatedNativeGlassBlur>
-        </View>
-        <Animated.View pointerEvents={query ? 'auto' : 'none'} style={clearStyle}>
-          <ClearButton
-            color={color.clearButton}
-            onPress={clearQuery}
-            onPressIn={() => fieldPress.onPressIn()}
-            onPressOut={fieldPress.onPressOut}
-          />
-        </Animated.View>
+        <GestureDetector gesture={fieldTouch}>
+          <View style={styles.text}>
+            <Animated.View style={[styles.layer, inputStyle]}>
+              <TextInput
+                ref={input}
+                style={[styles.input, searchFieldText[scheme], { color: color.text }]}
+                value={query}
+                onChangeText={setQuery}
+                placeholder={placeholder}
+                placeholderTextColor="transparent"
+                selectionColor={searchProps.tintColor ?? color.tint}
+                cursorColor={searchProps.tintColor ?? color.tint}
+                autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
+                onFocus={() => {
+                  onWake();
+                  emit('onFocus');
+                }}
+                onBlur={() => emit('onBlur')}
+                onSubmitEditing={() => emit('onSearchButtonPress')}
+                returnKeyType="search"
+                autoCorrect={false}
+                numberOfLines={1}
+              />
+              {query ? null : (
+                <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
+                  <Text
+                    style={[styles.input, searchFieldText[scheme], { color: color.placeholderActive }]}
+                    numberOfLines={1}>
+                    {placeholder}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+            <AnimatedNativeGlassBlur
+              style={[styles.layer, textStyle]}
+              animatedProps={textBlurProps}
+              pointerEvents="none">
+              <Text
+                style={[styles.input, searchFieldText[scheme], { color: query ? color.text : color.placeholder }]}
+                numberOfLines={1}>
+                {query || placeholder}
+              </Text>
+            </AnimatedNativeGlassBlur>
+          </View>
+        </GestureDetector>
+        <ClearButton
+          color={color.clearButton}
+          gesture={clear.gesture}
+          dimStyle={clear.dimStyle}
+          fadeStyle={clear.fadeStyle}
+          shown={Boolean(query)}
+          onClear={clearQuery}
+        />
       </Animated.View>
     </View>
   );
