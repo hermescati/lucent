@@ -92,6 +92,9 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var frostClear = 0f
   var frostRadius = 0f
   var frostMagnify = 0f
+  var fadeBlur = 0f
+  var fadeFrom = 0f
+  var fadeTo = 0f
   var toneBase = 0f
   var toneGain = 1f
   var toneGamma = 1f

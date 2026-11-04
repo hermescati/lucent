@@ -1,4 +1,4 @@
-import { TabScrollMarker, useTabBarInset, useTabBarScroll } from 'expo-lucent';
+import { TabScrollMarker, useTabBarInset, useTabBarScroll } from 'expo-lucent/navigation';
 import { Image, Platform, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

@@ -1,7 +1,8 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 
 import { motion } from '../tokens';
+import { createLucentContext } from '../../../theme/context';
 
 export interface TabBarCollapseState {
   progress: SharedValue<number>;
@@ -10,7 +11,7 @@ export interface TabBarCollapseState {
   minimize: 'onScrollDown' | 'onScrollUp' | null;
 }
 
-const TabBarCollapseContext = createContext<TabBarCollapseState | null>(null);
+const TabBarCollapseContext = createLucentContext<TabBarCollapseState | null>('TabBarCollapse', null);
 
 interface Props {
   minimize: TabBarCollapseState['minimize'];

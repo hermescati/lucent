@@ -1,12 +1,36 @@
 package expo.modules.lucent
 
 import android.graphics.Color
+import android.os.Build
+import android.view.RoundedCorner
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class LucentModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("Lucent")
+
+    // The screen's corner radius in dp, which a screen swiped back rounds its corners to, as iOS does; 0 before Android
+    // 12, or on a square screen.
+    Function("displayCornerRadius") {
+      val activity = appContext.currentActivity ?: return@Function 0.0
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@Function 0.0
+      val corner = activity.window?.decorView?.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
+      (corner?.radius ?: 0) / activity.resources.displayMetrics.density.toDouble()
+    }
+
+    // How far down the screen a camera cutout in the top's middle reaches, in dp: a punch hole or notch the bar has to
+    // clear. 0 without one, with one in a corner, or before Android 9.
+    Function("topCutoutBottom") {
+      val activity = appContext.currentActivity ?: return@Function 0.0
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return@Function 0.0
+      val cutout = activity.window?.decorView?.rootWindowInsets?.displayCutout ?: return@Function 0.0
+      val width = activity.window.decorView.width.takeIf { it > 0 } ?: activity.resources.displayMetrics.widthPixels
+      val bottom = cutout.boundingRects
+        .filter { it.top <= 0 && it.centerX() > width / 4 && it.centerX() < width * 3 / 4 }
+        .maxOfOrNull { it.bottom } ?: 0
+      bottom / activity.resources.displayMetrics.density.toDouble()
+    }
 
     Function("renderVectorIcon") { key: String, viewBox: List<Double>, layers: List<VectorLayer>, size: Double, scale: Double ->
       val cacheDirectory = appContext.cacheDirectory
@@ -23,6 +47,20 @@ class LucentModule : Module() {
       Prop("offscreen") { view: GlassBackdropView, value: Boolean? -> view.offscreen = value ?: false }
       Prop("saturation") { view: GlassBackdropView, value: Float? -> view.saturation = value ?: 1f }
       Prop("brightness") { view: GlassBackdropView, value: Float? -> view.brightness = value ?: 1f }
+    }
+
+    View(PredictiveBackView::class) {
+      Name("LucentPredictiveBackView")
+      Events("onBack")
+
+      Prop("enabled") { view: PredictiveBackView, value: Boolean? -> view.takesBack = value ?: false }
+    }
+
+    View(ScreenEnterView::class) {
+      Name("LucentScreenEnterView")
+      Events("onEnter")
+
+      Prop("armed") { view: ScreenEnterView, value: Boolean? -> view.armed = value ?: false }
     }
 
     View(GlassBlurView::class) {
@@ -130,6 +168,9 @@ class LucentModule : Module() {
       Prop("frost") { view: GlassView, value: Float? -> view.frost = value ?: 0f }
       Prop("frostClear") { view: GlassView, value: Float? -> view.frostClear = value ?: 0f }
       Prop("frostRadius") { view: GlassView, value: Float? -> view.frostRadius = value ?: 0f }
+      Prop("fadeBlur") { view: GlassView, value: Float? -> view.fadeBlur = value ?: 0f }
+      Prop("fadeFrom") { view: GlassView, value: Float? -> view.fadeFrom = value ?: 0f }
+      Prop("fadeTo") { view: GlassView, value: Float? -> view.fadeTo = value ?: 0f }
       Prop("toneBase") { view: GlassView, value: Float? -> view.toneBase = value ?: 0f }
       Prop("toneGain") { view: GlassView, value: Float? -> view.toneGain = value ?: 1f }
       Prop("toneGamma") { view: GlassView, value: Float? -> view.toneGamma = value ?: 1f }

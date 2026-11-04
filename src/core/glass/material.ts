@@ -1,4 +1,8 @@
-import type { LucentTheme } from '../../theme/LucentProvider';
+import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
+import { PixelRatio } from 'react-native';
+
+import { clearPresets } from './presets';
+import { useLucentTheme, type LucentTheme } from '../../theme/LucentProvider';
 import { colorTint, glass, glassOpacity } from '../../theme/tokens';
 
 const parseColor = (value: string): [number, number, number, number] | null => {
@@ -81,3 +85,22 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   tintDarken: colorTint[scheme].darken,
   tintMix: colorTint[scheme].mix,
 });
+
+// The regular or clear glass material for a GlassView-style surface, in the app's theme.
+export const useGlassMaterial = (style: GlassStyle, colorScheme: GlassColorScheme = 'auto') => {
+  const theme = useLucentTheme(undefined, colorScheme);
+  if (style === 'clear') {
+    return clearPresets[theme.scheme];
+  }
+  return {
+    ...regularMaterial(theme),
+    outset: glass.pad,
+    shadowRadius: 0,
+    shadow: 'rgba(0, 0, 0, 0)',
+    rim: theme.color.glassOutline,
+    rimWidth: glass.outlineWidth * PixelRatio.get(),
+    rimSide: glass.outlineSide,
+    rimCrisp: true,
+    rimOutside: true,
+  };
+};

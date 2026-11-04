@@ -12,6 +12,7 @@ const sets = [
 
 export default story({
   slug: 'segmented-control',
+  group: 'controls',
   name: 'Segmented Control',
   summary: 'Choose one of a few options',
   component: 'SegmentedControl',

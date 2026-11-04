@@ -1,8 +1,9 @@
 import type { GlassContainerProps } from 'expo-glass-effect';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ContainerContext, useGlassMaterial, type GlassShape } from './helpers/shared';
+import { ContainerContext, type GlassShape } from './helpers/shared';
 import { NativeGlassView } from '../../core/glass/NativeGlass';
+import { useGlassMaterial } from '../../core/glass/material';
 import { glassPress } from '../../core/glass/presets';
 
 const maxShapes = 4;

@@ -17,7 +17,7 @@ Give one trigger `role="search"` (see [Tab bar](tabs.md)), then place `SearchBar
 
 ```tsx
 // app/(tabs)/search/index.tsx
-import { SearchBar } from 'expo-lucent';
+import { SearchBar } from 'expo-lucent/navigation';
 
 const [query, setQuery] = useState('');
 
@@ -53,7 +53,7 @@ const [query, setQuery] = useState('');
 The search tab's state and commands, from any screen inside `NativeTabs`, without a ref or your own query state.
 
 ```tsx
-import { useTabSearch } from 'expo-lucent';
+import { useTabSearch } from 'expo-lucent/navigation';
 
 const { query, isFocused, setText } = useTabSearch();
 ```

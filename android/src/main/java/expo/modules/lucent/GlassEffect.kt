@@ -286,6 +286,11 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     }
     val sampleClipAt = i
     fillSampleClip(state, i)
+    i += 4
+    val fadeBlurAt = i
+    state[i++] = if (opaque) 0f else fadeBlur * density
+    state[i++] = fadeFrom * density + outPx
+    state[i++] = fadeTo * density + outPx
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -386,6 +391,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("glowShape", state[glowShapeAt], state[glowShapeAt + 1], state[glowShapeAt + 2], state[glowShapeAt + 3])
     glassShader.setFloatUniform("sampleClip", state[sampleClipAt], state[sampleClipAt + 1], state[sampleClipAt + 2], state[sampleClipAt + 3])
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
+    glassShader.setFloatUniform("fadeBlur", state[fadeBlurAt], state[fadeBlurAt + 1], state[fadeBlurAt + 2])
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
     val inner = blur(blurPx)

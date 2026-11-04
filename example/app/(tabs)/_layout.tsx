@@ -1,4 +1,4 @@
-import { NativeTabs } from 'expo-lucent';
+import { NativeTabs } from 'expo-lucent/navigation';
 
 import { useSettings } from '@/components/settings';
 

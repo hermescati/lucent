@@ -194,9 +194,14 @@ export const useSearchMorph = (bar: BarState) => {
     transform: [{ scale: searchScale.get() }],
   }));
 
-  const searchGlyphStyle = useAnimatedStyle(() => ({
-    opacity: searchMode.get() > motion.backTravel.handoff ? 0 : 1,
-  }));
+  // The bubble's contents shrink with the bar as it minimises, but iOS's magnifier barely does, so it undoes most of it.
+  const searchGlyphStyle = useAnimatedStyle(() => {
+    const bar = Math.max(scaleY.get(), 0.01);
+    return {
+      opacity: searchMode.get() > motion.backTravel.handoff ? 0 : 1,
+      transform: [{ scale: (1 - layout.searchIconShrink * (1 - bar)) / bar }],
+    };
+  });
   const closeGlyphStyle = useAnimatedStyle(() => {
     const settled = clamp01(searchMode.get());
     const pop = clamp01(searchPop.get());

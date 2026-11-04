@@ -69,6 +69,7 @@ uniform float frost;
 uniform float frostClear;
 uniform float frostRadius;
 uniform float frostMagnify;
+uniform float3 fadeBlur;
 uniform float4 tone;
 uniform float4 frostTone;
 uniform float chroma;
@@ -326,6 +327,22 @@ half4 main(float2 coord) {
     alpha = alphaSum / alphaWeight;
   } else {
     col = centre;
+  }
+
+  // A blur on top of the view's own that eases off down it: radius, then where it starts and stops easing, in y.
+  float fadeRadius = fadeBlur.x * (1.0 - smoothstep(fadeBlur.y, fadeBlur.z, coord.y));
+  if (fadeRadius > 0.5) {
+    float2 at = base + offset;
+    float3 disc = float3(0.0);
+    float total = 0.0;
+    for (int i = 0; i < 24; i++) {
+      float f = (float(i) + 0.5) / 24.0;
+      float ang = float(i) * 2.39996;
+      float w = exp(-2.0 * f);
+      disc += content.eval(clamp(at + float2(cos(ang), sin(ang)) * fadeRadius * sqrt(f), lo, hi)).rgb * w;
+      total += w;
+    }
+    col = disc / total;
   }
 
   float frosted = frost > 0.0 ? frost * clamp(0.5 - capsule(coord, frostRect), 0.0, 1.0) : 0.0;

@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { NativeSyntheticEvent } from 'react-native';
 import type { SearchBarProps as ScreensSearchBarProps } from 'react-native-screens';
+import { createLucentContext } from '../../../theme/context';
 
 export type SearchBarProps = ScreensSearchBarProps;
 
@@ -37,7 +38,7 @@ interface SearchHost {
   command: (name: keyof SearchControls) => void;
 }
 
-const SearchHostContext = createContext<SearchHost | null>(null);
+const SearchHostContext = createLucentContext<SearchHost | null>('SearchHost', null);
 
 const textEvent = <T,>(text: string) => ({ nativeEvent: { text } }) as unknown as NativeSyntheticEvent<T>;
 

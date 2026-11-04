@@ -1,8 +1,9 @@
-import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { type ReactNode, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { type LucentColorOverrides, type LucentColors, resolveColors } from './colors';
 import { glassOpacity as glassOpacityRange, type LucentScheme } from './tokens';
+import { createLucentContext } from './context';
 
 export interface LucentProviderProps {
   colorScheme?: 'auto' | LucentScheme;
@@ -19,7 +20,10 @@ interface LucentSettings {
   glassOpacity: number;
 }
 
-const LucentContext = createContext<LucentSettings>({ colorScheme: 'auto', glassOpacity: glassOpacityRange.default });
+const LucentContext = createLucentContext<LucentSettings>('Lucent', {
+  colorScheme: 'auto',
+  glassOpacity: glassOpacityRange.default,
+});
 
 export const LucentProvider = ({
   colorScheme = 'auto',

@@ -9,6 +9,7 @@ export interface LucentColors {
   barFallback: string;
   barShadow: string;
   barRim: string;
+  tabBarRim: string;
   glassOutline: string;
   lens: string;
   lensActive: string;
@@ -37,6 +38,9 @@ export interface LucentColors {
   segmentedTrack: string;
   segmentedThumb: string;
   segmentedShadow: string;
+  buttonFill: string;
+  buttonDestructive: string;
+  buttonDisabled: string;
 }
 
 export type LucentColorOverrides = Partial<Record<LucentScheme, Partial<LucentColors>>>;
@@ -55,6 +59,7 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barFallback: '#2F2F32',
     barShadow: 'rgba(0, 0, 0, 0.12)',
     barRim: 'rgba(255, 255, 255, 0)',
+    tabBarRim: 'rgba(255, 255, 255, 0)',
     glassOutline: 'rgba(0, 0, 0, 0.8)',
     lens: 'rgba(0, 0, 0, 0)',
     lensActive: 'rgba(0, 0, 0, 0)',
@@ -80,6 +85,9 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     segmentedTrack: 'rgba(118, 118, 128, 0.24)',
     segmentedThumb: '#7B7B81',
     segmentedShadow: 'rgba(0, 0, 0, 0)',
+    buttonFill: 'rgba(120, 120, 128, 0.32)',
+    buttonDestructive: '#FF4245',
+    buttonDisabled: 'rgba(235, 235, 245, 0.22)',
   },
   light: {
     text: '#000000',
@@ -89,6 +97,8 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barFallback: '#F4F5F9',
     barShadow: 'rgba(0, 0, 0, 0.012)',
     barRim: 'rgba(0, 0, 0, 0.12)',
+    // iOS's tab bar rim is lighter than its navigation bar buttons', by about an eighth.
+    tabBarRim: 'rgba(0, 0, 0, 0.105)',
     glassOutline: 'rgba(0, 0, 0, 0.16)',
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
@@ -114,6 +124,9 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     segmentedTrack: 'rgba(118, 118, 128, 0.12)',
     segmentedThumb: '#FFFFFF',
     segmentedShadow: 'rgba(0, 0, 0, 0.015)',
+    buttonFill: 'rgba(120, 120, 128, 0.16)',
+    buttonDestructive: '#FF383C',
+    buttonDisabled: 'rgba(60, 60, 67, 0.22)',
   },
 };
 

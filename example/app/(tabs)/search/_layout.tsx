@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack } from 'expo-lucent/navigation';
 
 import { useStackOptions } from '@/components/ui';
 

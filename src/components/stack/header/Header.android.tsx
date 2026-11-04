@@ -1,0 +1,655 @@
+import type { NativeStackHeaderProps } from 'expo-router/native-stack';
+import { useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  Platform,
+  processColor,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ColorValue,
+  type LayoutChangeEvent,
+} from 'react-native';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedProps,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withDelay,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+
+import { BackButton } from './BackButton.android';
+import { BarSearchButtonContext } from './BarItems.android';
+import { useBarTop } from './barTop.android';
+import { BarMeltContext, meltLook } from './melt.android';
+import { useHeaderSearchBlock } from './searchBlock.android';
+import { getHeader } from './store.android';
+import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
+import { headerOffset, searchLift } from '../../../core/header/scroll.android';
+import { useLucentTheme } from '../../../theme/LucentProvider';
+import type { MenuTree } from '../menu/items';
+import { HeaderSearch, SearchButton } from '../search/SearchField.android';
+import { getSearch, updateSearch } from '../search/store.android';
+import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
+import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
+import { bar, barMotion, search as searchMetrics, searchMotion, swipeMotion, title } from '../tokens';
+import type { LucentStackScreenOptions } from '../types';
+
+const colorString = (value: ColorValue | undefined) => (typeof value === 'string' ? value : undefined);
+
+/** The header is transparent unless the screen says otherwise, as on iOS 26. */
+export const isTransparent = (value: NativeStackHeaderProps['options']['headerTransparent']) =>
+  (typeof value === 'object' ? Platform.select(value) : value) !== false;
+
+// native-stack always gets a transparent header, so the page runs under Lucent's bar either way and the bar, drawn in the
+// page, stays at its top. Whether the app asked for an opaque one is kept here.
+export const opaqueBar = 'lucentOpaqueBar';
+
+/** Whether the app asked for a see-through bar: what it set as `headerTransparent`, before Lucent's stack overrode it. */
+export const barTransparent = (options: NativeStackHeaderProps['options']) =>
+  (options as Record<string, unknown>)[opaqueBar] !== true;
+
+// The scroll edge: iOS 26 blurs the content away under the bar once it scrolls there. A flat pane of glass that only
+// blurs does the same, and draws in glass's order, so content glass scrolling up goes under it rather than over the bar.
+// Its blur and tint come in with the scroll; the soft edge's wash is `EdgeWash`, under it. The inline title goes inside it, to draw on top.
+const edgeGlass = {
+  bezel: 0,
+  refraction: 0,
+  dispersion: 0,
+  specular: 0,
+  highlightWidth: 0,
+  edgeSharp: 0,
+  edgeSoft: 0,
+  shadowRadius: 0,
+  rimWidth: 0,
+  insetShade: 0,
+  // Square: the shader reads 0 as half the height, a capsule.
+  cornerRadius: 0.1,
+};
+
+// A colour as red, green and blue, for the edge's tint.
+const channels = (color: string) => {
+  // Any colour React Native takes (hex, rgb(), names), as an ARGB integer.
+  const n = Number(processColor(color) ?? 0);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
+};
+
+interface ScrollEdgeProps {
+  color: string;
+  height: number;
+  // How much it blurs and washes once fully in.
+  blur: number;
+  wash: number;
+  // How far the content has scrolled under the row, from 0 at rest to 1 once the edge is fully in.
+  under: SharedValue<number>;
+  // The hairline iOS draws along the edge's bottom, one device pixel tall, or none.
+  line?: string;
+  // More blur at the top, easing off to none at `to` (dp from the edge's top), as iOS's soft edge does, or none.
+  fade?: { blur: number; to: number };
+  // A strip under the edge, this tall, whose blur starts at `blur` and eases off to none, so a coloured block's sides
+  // taper below the bar rather than turning sharp at once.
+  tail?: { height: number; blur: number };
+  // How much it saturates what's under it before washing it, once fully in.
+  saturation?: number;
+  children: ReactNode;
+}
+
+const ScrollEdge = ({
+  color,
+  height,
+  blur,
+  wash,
+  under,
+  line,
+  fade,
+  tail,
+  saturation = 1,
+  children,
+}: ScrollEdgeProps) => {
+  const [r, g, b] = channels(color);
+  const animatedProps = useAnimatedProps(() => ({
+    blurRadius: under.get() * blur,
+    fadeBlur: fade ? under.get() * fade.blur : 0,
+    tint: `rgba(${r}, ${g}, ${b}, ${under.get() * wash})`,
+    saturation: 1 + under.get() * (saturation - 1),
+  }));
+  const lineStyle = useAnimatedStyle(() => ({ opacity: under.get() }));
+  const tailProps = useAnimatedProps(() => ({ fadeBlur: tail ? under.get() * tail.blur : 0 }));
+  return (
+    <>
+      {tail ? (
+        <AnimatedNativeGlassView
+          {...edgeGlass}
+          fadeTo={tail.height}
+          lift
+          animatedProps={tailProps}
+          pointerEvents="none"
+          style={[styles.edge, { top: height, height: tail.height }]}
+        />
+      ) : null}
+      <AnimatedNativeGlassView
+        {...edgeGlass}
+        fadeTo={fade?.to}
+        lift
+        animatedProps={animatedProps}
+        pointerEvents="none"
+        style={[styles.edge, { height }]}>
+        {children}
+        {line ? <Animated.View style={[styles.edgeLine, { backgroundColor: line }, lineStyle]} /> : null}
+      </AnimatedNativeGlassView>
+    </>
+  );
+};
+
+// A wash that fades down the screen's top, under the edge's glass, which blurs it with the content: `stops` are
+// alphas at heights, in dp from the top, and it ends at the last.
+const EdgeWash = ({
+  color,
+  stops,
+  under,
+}: {
+  color: string;
+  stops: [number, number][];
+  under: SharedValue<number>;
+}) => {
+  const [r, g, b] = channels(color);
+  const height = stops[stops.length - 1][1];
+  const at = ([alpha, y]: [number, number]) => `rgba(${r}, ${g}, ${b}, ${alpha}) ${Math.max(0, (y / height) * 100)}%`;
+  const style = useAnimatedStyle(() => ({ opacity: under.get() }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.edge,
+        { height, backgroundImage: `linear-gradient(to bottom, ${stops.map(at).join(', ')})` },
+        style,
+      ]}
+    />
+  );
+};
+
+// iOS's rise: an exponential ease-out with `searchMotion.lift.settle` as its time constant, scaled to end at 1.
+const liftEasing = (t: number) => {
+  'worklet';
+  const k = searchMotion.lift.duration / searchMotion.lift.settle;
+  return (1 - Math.exp(-k * t)) / (1 - Math.exp(-k));
+};
+
+// The magnifier among the trailing items: it opens search, as the field does.
+const searchButtonFor = (routeKey: string) => ({
+  label: getSearch(routeKey)?.props.placeholder ?? 'Search',
+  open: () => {
+    getSearch(routeKey)?.props.onOpen?.();
+    updateSearch(routeKey, { focused: true });
+  },
+});
+
+type HeaderOptions = NativeStackHeaderProps['options'];
+
+/** Whether the bar shows a back button: iOS hides it once a left item replaces it, unless the screen asks to keep both. */
+export const showsBack = (options: HeaderOptions, canGoBack: boolean) =>
+  canGoBack &&
+  options.headerBackVisible !== false &&
+  (options.headerLeft === undefined || options.headerBackVisible === true);
+
+/**
+ * Where the large title goes: none, under the bar's row, or on it, beside the buttons (`headerLargeTitleInline`). As
+ * UIKit does, only a screen without a back button takes it onto the row; one with keeps it under.
+ */
+export const largeTitlePlacement = (options: HeaderOptions, back: boolean): 'none' | 'below' | 'row' => {
+  if (options.headerLargeTitle !== true) return 'none';
+  return (options as LucentStackScreenOptions).headerLargeTitleInline === true && !back ? 'row' : 'below';
+};
+
+const titleOf = (props: Pick<NativeStackHeaderProps, 'options' | 'route'>) =>
+  typeof props.options.headerTitle === 'string' ? props.options.headerTitle : (props.options.title ?? props.route.name);
+
+type Navigation = NativeStackHeaderProps['navigation'];
+
+/**
+ * The screens below this one, the nearest first, as UIKit lists them in the back button's menu. The first screen of a
+ * nested stack goes back to the stack around it, as its back button does, so the list carries on there.
+ */
+const backHistory = (navigation: Navigation, backTitle: string | undefined): MenuTree | undefined => {
+  const children: MenuTree['children'] = [];
+  for (let level: Navigation | undefined = navigation; level; level = level.getParent<Navigation>()) {
+    const stack = level;
+    const { type, routes, index } = stack.getState();
+    if (type !== 'stack') continue;
+    for (let i = index - 1; i >= 0; i--) {
+      const route = routes[i];
+      const header = getHeader(route.key);
+      // A screen without a bar of its own, such as the tabs around a stack, has no title to list, unless it's the one
+      // the back button already names.
+      const label = header ? titleOf(header) : children.length === 0 ? backTitle : undefined;
+      if (!label) continue;
+      children.push({
+        kind: 'action',
+        key: route.key,
+        label,
+        destructive: false,
+        disabled: false,
+        keepPresented: false,
+        onPress: () => stack.pop(index - i),
+      });
+    }
+  }
+  return children.length ? { children } : undefined;
+};
+
+// Buttons popping in: the capsules come almost at once, and the icons sharpen as it settles.
+const meltIn = { duration: barMotion.meltIn, easing: Easing.out(Easing.cubic) };
+
+/**
+ * iOS 26's navigation bar on Android: glass items in a row at the top, the title centred between them or large below,
+ * collapsing into the bar as the content scrolls. native-stack renders it for each screen through `header`.
+ */
+export const Header = ({ options, route, navigation, back }: NativeStackHeaderProps) => {
+  const top = useBarTop();
+  const { color, scheme } = useLucentTheme();
+  const scrolled = headerOffset(route.key);
+  const { block, hidden, collapses, button, focusedInBar } = useHeaderSearchBlock(route.key);
+  // Focused, a field in the bar rises from its block into the row, as on iOS, and the content follows it up.
+  const [blockTop, setBlockTop] = useState(0);
+  const rise = Math.max(blockTop - top, 0);
+  const lift = searchLift(route.key);
+  useEffect(() => {
+    lift.set(withTiming(focusedInBar ? rise : 0, { duration: searchMotion.lift.duration, easing: liftEasing }));
+  }, [lift, focusedInBar, rise]);
+  const searchProgress = useDerivedValue(() => (rise > 0 ? lift.get() / rise : 0));
+  // The row's title and buttons step aside as it comes.
+  const rowStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(focusedInBar ? 0 : 1, {
+      duration: focusedInBar ? searchMotion.rowOut : searchMotion.rowIn,
+    }),
+  }));
+  // A search field in the bar scrolls away first; the rest of the bar follows the scroll that's left.
+  const offset = useDerivedValue(() =>
+    collapses ? scrolled.get() - Math.min(Math.max(scrolled.get(), 0), block) : scrolled.get(),
+  );
+  const searchStyle = useAnimatedStyle(() => {
+    const shrink = collapses ? Math.min(Math.max(scrolled.get(), 0), block) : 0;
+    return {
+      height: block - shrink,
+      opacity: interpolate(shrink, [0, searchMetrics.header.height / 2], [1, 0], Extrapolation.CLAMP),
+      transform: [{ translateY: -lift.get() }],
+    };
+  });
+  // In search mode from the bottom toolbar, iOS hides the bar.
+  const shownStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(hidden ? 0 : 1, { duration: searchMotion.focus }),
+  }));
+
+  const transparent = barTransparent(options);
+  const background = colorString(StyleSheet.flatten(options.headerStyle)?.backgroundColor);
+  // iOS 27 draws the bar's glass buttons in the text colour whatever `headerTintColor` says, and gives the tint to the
+  // title instead (simulator, on a coloured bar). A toolbar's or button's own `tintColor` still colours its glyphs.
+  const tint = color.text;
+  const label = titleOf({ options, route });
+  const custom =
+    typeof options.headerTitle === 'function' ? options.headerTitle({ children: label, tintColor: tint }) : null;
+
+  const showBack = showsBack(options, back !== undefined);
+  const placement = largeTitlePlacement(options, showBack);
+  const large = placement !== 'none';
+  // The large title under the row, in a block of its own, which scrolls away; on the row, the bar is an inline one's.
+  const below = placement === 'below';
+  const left = options.headerLeft?.({ tintColor: tint, canGoBack: back !== undefined, label: back?.title });
+  const right = options.headerRight?.({ tintColor: tint, canGoBack: back !== undefined });
+
+  const height = top + bar.inline + (below ? bar.large : 0) + block;
+  // An opaque bar covers what's under it, down to its bottom, which rides up with the content until only the row's left.
+  const fillStyle = useAnimatedStyle(() => ({
+    height: Math.max(top + bar.inline, height - Math.max(scrolled.get(), 0)),
+  }));
+  const collapsible = below;
+  // Measured from finger drags recorded on the simulator: the large title rides up with the content, into the bar's row,
+  // until the content has scrolled its block away. Then the two titles cross-fade on a clock, not with the scroll: the
+  // large one goes in 150ms, the inline one comes in over 300ms. Scrolling back reverses both. On the row, the large
+  // title stays where it is and the cross-fade starts as soon as content runs under the bar.
+  const collapsed = useDerivedValue(() => large && offset.get() >= (below ? barMotion.inlineAt : barMotion.rowTitleAt));
+  // Each title blurs as it fades, as iOS's do: the large one out of focus as it goes, the inline one into focus.
+  const largeGone = useDerivedValue(() => withTiming(collapsed.get() ? 1 : 0, { duration: barMotion.largeFade }));
+  const inlineIn = useDerivedValue(() =>
+    large
+      ? withTiming(collapsed.get() ? 1 : 0, { duration: barMotion.inlineFade, easing: Easing.inOut(Easing.quad) })
+      : 1,
+  );
+  const largeStyle = useAnimatedStyle(() => {
+    const y = collapsible ? offset.get() : 0;
+    return { transform: [{ translateY: -Math.max(y, 0) }], opacity: 1 - largeGone.get() };
+  });
+  const largeBlur = useAnimatedProps(() => ({ radius: largeGone.get() * barMotion.titleBlur }));
+  const inlineStyle = useAnimatedStyle(() => ({ opacity: inlineIn.get() }));
+  const inlineBlur = useAnimatedProps(() => ({ radius: (1 - inlineIn.get()) * barMotion.titleBlur }));
+
+  // The edge comes in once content runs under the row: right away for an inline bar, after the large title's block.
+  const under = useDerivedValue(() =>
+    interpolate(offset.get() - (below ? bar.large : 0), [0, barMotion.edgeOver], [0, 1], Extrapolation.CLAMP),
+  );
+
+  // A pushed screen's inline title doesn't slide in with it on an opaque bar: it fades in where it stands, a beat after
+  // the push starts (measured from a recording of the simulator).
+  const entrance = useSharedValue(back ? 0 : 1);
+  const itemsStyle = useAnimatedStyle(() => ({ opacity: entrance.get() }));
+
+  // A push or a pop moves the screens under one bar on iOS: the buttons stay where they stand while the pages and their
+  // titles slide. So the top screen's buttons hold against its slide, and the uncovered screen's hold against its
+  // parallax. Buttons only one of the two screens has pop in and out: they blur, swell and fade (`meltLook`), going as
+  // their screen goes and coming as it comes; held back, nothing changes. A back button both screens have stays put.
+  const role = useContext(SwipeRoleContext);
+  const goBack = useContext(StackBackContext);
+  const swipe = useContext(SwipeProgressContext);
+  const { width } = useWindowDimensions();
+  // Both screens have a back button when there's a screen below the one below.
+  const backStays = navigation.getState().index >= 2;
+  const melt = useSharedValue(back ? 1 : 0);
+  // The title and the buttons come in once the screen does: as a push slides it in, or, for a screen shown another way,
+  // once the bar is up.
+  const screenHidden = useContext(ScreenHiddenContext);
+  useAnimatedReaction(
+    () => screenHidden?.get() ?? 0,
+    (now, before) => {
+      if (now !== 0 || before === 0) return;
+      const slid = before != null;
+      entrance.set(
+        withDelay(
+          barMotion.itemsDelay,
+          withTiming(1, { duration: barMotion.itemsFade, easing: Easing.out(Easing.quad) }),
+        ),
+      );
+      // Slid in, its buttons pop in as the push starts, as iOS's do.
+      const delay = slid ? 0 : barMotion.itemsDelay;
+      melt.set(withDelay(delay, withTiming(0, meltIn)));
+    },
+  );
+  useAnimatedReaction(
+    () => swipe?.phase.get() ?? swipePhase.idle,
+    (phase, previous) => {
+      if (phase === previous || !role) return;
+      if ((role === 'top' && phase === swipePhase.going) || (role === 'below' && phase === swipePhase.pushing)) {
+        melt.set(withTiming(1, { duration: barMotion.meltOut }));
+      } else if (role === 'below' && phase === swipePhase.going) {
+        melt.set(withTiming(0, meltIn));
+      } else if (role === 'below') {
+        // Uncovered by a drag, it waits gone; back at rest, it's whole for the next time it shows.
+        melt.set(phase === swipePhase.idle ? 0 : 1);
+      }
+    },
+  );
+  const holdStyle = useAnimatedStyle(() => {
+    const phase = swipe?.phase.get() ?? swipePhase.idle;
+    if (!role || phase === swipePhase.idle) return { transform: [{ translateX: 0 }] };
+    const progress = Math.max(swipe?.progress.get() ?? 0, 0);
+    return {
+      transform: [{ translateX: role === 'top' ? -progress * width : (1 - progress) * width * swipeMotion.parallax }],
+    };
+  });
+  const meltStyle = useAnimatedStyle(() => {
+    const look = meltLook(melt.get());
+    return { opacity: look.opacity, transform: [{ scale: look.scale }] };
+  });
+  const meltBlur = useAnimatedProps(() => ({ radius: meltLook(melt.get()).blur }));
+  // The back button both screens have: the one going hides as the other shows, the same button in the same place.
+  const backStyle = useAnimatedStyle(() => {
+    const phase = swipe?.phase.get() ?? swipePhase.idle;
+    if (!role || phase === swipePhase.idle) return { opacity: 1 };
+    if (role === 'top') return { opacity: phase === swipePhase.going ? 0 : 1 };
+    return { opacity: phase === swipePhase.going ? 1 : 0 };
+  });
+
+  const titleColor =
+    colorString(StyleSheet.flatten(options.headerTitleStyle)?.color) ??
+    colorString(options.headerTintColor) ??
+    color.text;
+  // iOS's edge washes towards the system background, white or black, whatever the page's own colour: over a grouped
+  // page's grey it lightens, and over its cards in dark mode it darkens.
+  const hard = options.scrollEdgeEffects?.top === 'hard';
+  // iOS's soft edge, asked for by name, fades out below the bar; left to the system, the edge is a flat band with a
+  // hairline along its bottom.
+  const soft = options.scrollEdgeEffects?.top === 'soft';
+  // With no title, iOS's edge only covers the status bar, fading out well above the buttons, with no line.
+  // A view in the title's place counts as none: iOS draws a titleView's bar as a bare one (iOS 27 simulator).
+  const untitled = !hard && !large && (custom !== null || !label);
+  const rowMiddle = top + bar.row / 2;
+  const washStops: [number, number][] | null = untitled
+    ? [
+        [barMotion.untitledEdge.wash, top * barMotion.untitledEdge.washTo],
+        [0, top * barMotion.untitledEdge.reach],
+      ]
+    : soft
+      ? barMotion.edgeWash.stops[scheme].map(([alpha, y]): [number, number] => [alpha, rowMiddle + y])
+      : null;
+  // The soft edge washes towards a near-black grey in dark mode (iOS lifts black under it), the hard one to black.
+  const wash = scheme === 'dark' ? (hard ? '#000000' : barMotion.edgeWash.dark) : '#FFFFFF';
+  // UIKit centres the inline title when it fits between the bar's two sides with room to spare, and otherwise starts it
+  // after the leading side, the bar's gap from it, cut short before the trailing side: Wallet's title sits beside its
+  // back button. The room asked for is the bar's margin on each side, so a title never centres up against a button.
+  const [sides, setSides] = useState({ left: 0, right: 0, title: 0 });
+  const measure = (key: keyof typeof sides) => (event: LayoutChangeEvent) => {
+    const value = event.nativeEvent.layout.width;
+    setSides((current) => (current[key] === value ? current : { ...current, [key]: value }));
+  };
+  // The back button's room: the bar less its margins, the trailing side, and the title beside it.
+  const backRoom =
+    width -
+    2 * bar.margin -
+    (sides.right > 0 ? sides.right + bar.groupGap : 0) -
+    (custom === null && label ? sides.title + bar.groupGap : 0);
+  const leftEnd = bar.margin + sides.left + (sides.left > 0 ? bar.groupGap : 0);
+  const rightStart = width - bar.margin - sides.right - (sides.right > 0 ? bar.groupGap : 0);
+  const centredLeft = (width - sides.title) / 2;
+  const centred =
+    custom !== null || (centredLeft >= leftEnd + bar.margin && centredLeft + sides.title <= rightStart - bar.margin);
+  // Only a title that cross-fades with a large one blurs: the others go without the blur's layer.
+  const inlineText = custom ?? (
+    <Text numberOfLines={1} style={[styles.inlineTitle, centred ? null : styles.inlineLeading, { color: titleColor }]}>
+      {label}
+    </Text>
+  );
+  const inlineTitle = (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.inline,
+        !centred && { left: leftEnd, right: width - rightStart, alignItems: 'flex-start' },
+        inlineStyle,
+      ]}>
+      {large ? (
+        <AnimatedNativeGlassBlur
+          animatedProps={inlineBlur}
+          style={[styles.titleBlur, !centred && styles.titleBlurLeading]}>
+          {inlineText}
+        </AnimatedNativeGlassBlur>
+      ) : (
+        inlineText
+      )}
+    </Animated.View>
+  );
+  // The title's own width, unclipped, to decide where it goes.
+  const titleMeasure = custom ? null : (
+    <Text
+      numberOfLines={1}
+      onLayout={measure('title')}
+      style={[styles.inlineTitle, styles.measure]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      {label}
+    </Text>
+  );
+
+  return (
+    <Animated.View
+      pointerEvents={hidden ? 'none' : 'box-none'}
+      style={[styles.header, { height, paddingTop: top }, shownStyle]}>
+      {transparent && washStops ? <EdgeWash color={background ?? wash} stops={washStops} under={under} /> : null}
+      {transparent ? null : (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.edge, { backgroundColor: background ?? barMotion.opaqueFill[scheme] }, fillStyle]}
+        />
+      )}
+      {transparent ? (
+        <ScrollEdge
+          color={background ?? wash}
+          height={untitled ? top * barMotion.untitledEdge.reach : top + bar.row + barMotion.edgeReach}
+          blur={hard ? barMotion.hardBlur : soft || untitled ? barMotion.softBlur : barMotion.edgeBlur[scheme]}
+          wash={hard ? barMotion.hardTint[scheme] : washStops ? 0 : barMotion.edgeTint}
+          saturation={hard ? barMotion.hardSaturation[scheme] : 1}
+          line={hard || washStops ? undefined : barMotion.edgeLine[scheme]}
+          fade={
+            hard
+              ? undefined
+              : untitled
+                ? { blur: barMotion.softFade, to: top * barMotion.untitledEdge.reach }
+                : soft
+                  ? { blur: barMotion.softFade, to: top + bar.row }
+                  : { blur: barMotion.edgeFade, to: top + bar.row * barMotion.edgeFadeTo }
+          }
+          tail={soft && !untitled ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur } : undefined}
+          under={under}>
+          {untitled ? null : (
+            <Animated.View style={[styles.titleRow, { marginTop: top }, rowStyle]}>{inlineTitle}</Animated.View>
+          )}
+        </ScrollEdge>
+      ) : null}
+      <Animated.View pointerEvents={focusedInBar ? 'none' : 'box-none'} style={[styles.row, rowStyle]}>
+        {titleMeasure}
+        {placement === 'row' ? (
+          <View pointerEvents="none" style={styles.rowTitle}>
+            <Animated.Text
+              numberOfLines={1}
+              style={[styles.largeTitle, styles.largeOnRow, { color: titleColor }, largeStyle]}>
+              {label}
+            </Animated.Text>
+          </View>
+        ) : null}
+        {/* Without the edge's glass to draw in: an opaque bar's title, or a view in a bare bar's, which draws whole. */}
+        {transparent && !untitled ? null : (
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, itemsStyle]}>
+            {inlineTitle}
+          </Animated.View>
+        )}
+        <Animated.View pointerEvents="box-none" style={[styles.side, holdStyle]} onLayout={measure('left')}>
+          {showBack && backStays ? (
+            <Animated.View pointerEvents="box-none" style={backStyle}>
+              <BackButton
+                label={options.headerBackTitle ?? back?.title}
+                displayMode={options.headerBackButtonDisplayMode}
+                room={backRoom}
+                color={tint}
+                onPress={() => (goBack ? goBack() : navigation.goBack())}
+                history={
+                  options.headerBackButtonMenuEnabled === false
+                    ? undefined
+                    : backHistory(navigation, options.headerBackTitle ?? back?.title)
+                }
+              />
+            </Animated.View>
+          ) : null}
+          <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.side, meltStyle]} animatedProps={meltBlur}>
+            {showBack && !backStays ? (
+              <BackButton
+                label={options.headerBackTitle ?? back?.title}
+                displayMode={options.headerBackButtonDisplayMode}
+                room={backRoom}
+                color={tint}
+                onPress={() => (goBack ? goBack() : navigation.goBack())}
+                history={
+                  options.headerBackButtonMenuEnabled === false
+                    ? undefined
+                    : backHistory(navigation, options.headerBackTitle ?? back?.title)
+                }
+              />
+            ) : null}
+            {left}
+          </AnimatedNativeGlassBlur>
+        </Animated.View>
+        <AnimatedNativeGlassBlur
+          pointerEvents="box-none"
+          style={[styles.side, holdStyle]}
+          animatedProps={meltBlur}
+          onLayout={measure('right')}>
+          <Animated.View pointerEvents="box-none" style={[styles.side, meltStyle]}>
+            <BarMeltContext value={melt}>
+              {right ? (
+                <BarSearchButtonContext value={button ? searchButtonFor(route.key) : null}>
+                  {right}
+                </BarSearchButtonContext>
+              ) : button ? (
+                <SearchButton routeKey={route.key} inBar />
+              ) : null}
+            </BarMeltContext>
+          </Animated.View>
+        </AnimatedNativeGlassBlur>
+      </Animated.View>
+      {below ? (
+        <Animated.View pointerEvents="none" style={[styles.largeBlock, rowStyle]}>
+          <AnimatedNativeGlassBlur animatedProps={largeBlur}>
+            <Animated.Text numberOfLines={1} style={[styles.largeTitle, { color: titleColor }, largeStyle]}>
+              {label}
+            </Animated.Text>
+          </AnimatedNativeGlassBlur>
+        </Animated.View>
+      ) : null}
+      {block ? (
+        <Animated.View
+          style={[styles.searchBlock, !below && styles.searchBelowRow, searchStyle]}
+          onLayout={(event) => setBlockTop(event.nativeEvent.layout.y)}>
+          <HeaderSearch routeKey={route.key} progress={searchProgress} />
+        </Animated.View>
+      ) : null}
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  header: {},
+  edge: { position: 'absolute', top: 0, left: 0, right: 0 },
+  edgeLine: { position: 'absolute', left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth },
+  titleRow: { height: bar.row },
+  row: {
+    height: bar.row,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: bar.margin,
+  },
+  side: { flexDirection: 'row', alignItems: 'center', gap: bar.groupGap },
+  inline: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineTitle: { ...title.inline, includeFontPadding: false, maxWidth: '50%' },
+  inlineLeading: { maxWidth: '100%' },
+  // Room around the title for its blur to spread into.
+  titleBlur: { padding: barMotion.titleBlur * 2, margin: -barMotion.titleBlur * 2, alignItems: 'center' },
+  titleBlurLeading: { alignItems: 'flex-start', maxWidth: '100%' },
+  measure: { position: 'absolute', opacity: 0, maxWidth: undefined },
+  searchBlock: { overflow: 'hidden' },
+  searchBelowRow: { marginTop: bar.inline - bar.row },
+  // Not clipped: the large title rides up into the bar's row before it fades, as on iOS.
+  largeBlock: { height: bar.large, marginTop: bar.inline - bar.row },
+  largeTitle: {
+    fontSize: title.large.fontSize,
+    lineHeight: title.large.lineHeight,
+    fontWeight: title.large.fontWeight,
+    marginTop: title.large.top,
+    paddingHorizontal: bar.margin,
+    includeFontPadding: false,
+  },
+  // On the row, centred on its buttons (iOS 27 simulator: the letters span the row's middle).
+  rowTitle: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center' },
+  largeOnRow: { marginTop: 0 },
+});

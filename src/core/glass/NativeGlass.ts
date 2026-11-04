@@ -88,6 +88,11 @@ export interface NativeGlassViewProps extends ViewProps {
   frost?: number;
   frostClear?: number;
   frostRadius?: number;
+  // A blur on top of `blurRadius` that eases off down the view: this much at the top, easing off from `fadeFrom` to
+  // nothing at `fadeTo` (dp from the view's top).
+  fadeBlur?: number;
+  fadeFrom?: number;
+  fadeTo?: number;
   toneBase?: number;
   toneGain?: number;
   toneGamma?: number;

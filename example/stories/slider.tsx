@@ -13,6 +13,7 @@ const Readout = ({ value, step }: { value: number; step: number }) => {
 
 export default story({
   slug: 'slider',
+  group: 'controls',
   name: 'Slider',
   summary: 'Pick a value from a range by dragging',
   component: 'Slider',

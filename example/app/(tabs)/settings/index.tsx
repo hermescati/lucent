@@ -1,5 +1,5 @@
-import { Stack } from 'expo-router';
 import { Slider, isLiquidGlassAvailable } from 'expo-lucent';
+import { Stack } from 'expo-lucent/navigation';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 import { accents, useSettings, type Scheme } from '@/components/settings';

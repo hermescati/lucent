@@ -15,7 +15,7 @@ The iOS 26 floating glass tab bar. Same API as [`expo-router`'s `NativeTabs`](ht
 
 ```tsx
 // app/(tabs)/_layout.tsx
-import { NativeTabs } from 'expo-lucent';
+import { NativeTabs } from 'expo-lucent/navigation';
 
 export default function TabsLayout() {
   return (
@@ -48,7 +48,7 @@ Use `TabScrollView` in tab screens. It's a `ScrollView` that:
 - scrolls to the top when the current tab is tapped again.
 
 ```tsx
-import { TabScrollView } from 'expo-lucent';
+import { TabScrollView } from 'expo-lucent/navigation';
 
 <TabScrollView contentContainerStyle={{ padding: 16 }}>…</TabScrollView>;
 ```
@@ -58,7 +58,7 @@ It takes `ScrollView` props, except that `onScroll` must be a Reanimated handler
 For lists and custom scroll views, wire them up yourself:
 
 ```tsx
-import { TabScrollMarker, useTabBarInset, useTabBarScroll } from 'expo-lucent';
+import { TabScrollMarker, useTabBarInset, useTabBarScroll } from 'expo-lucent/navigation';
 import Animated from 'react-native-reanimated';
 
 const onScroll = useTabBarScroll();

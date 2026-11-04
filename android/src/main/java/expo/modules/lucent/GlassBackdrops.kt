@@ -54,6 +54,9 @@ abstract class GlassBackdrops(context: Context, appContext: AppContext) : GlassP
   }
 
   protected fun drawBackdrops(canvas: Canvas) {
+    // A screen on its way out can still be drawn after it's detached. Its glass has lost its host by then, and the
+    // backdrop it would fall back to may still hold the glass's own drawing: a cycle that overflows the render thread.
+    if (!isAttachedToWindow) return
     val owner = host
     if (owner != null) {
       drawHost(canvas, owner)

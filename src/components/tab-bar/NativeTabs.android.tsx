@@ -5,16 +5,23 @@ import type {
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { useDerivedValue } from 'react-native-reanimated';
 
 import { FloatingTabBar } from './components/FloatingTabBar';
-import { TabBarCollapseProvider } from './context/collapse';
+import { TabBarCollapseProvider, useTabBarCollapse } from './context/collapse';
 import { SearchHostProvider } from './context/search';
+import { fullHeight } from './helpers/bar';
 import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
+import { useTabBarOffset } from './hooks/useTabBarOffset';
+import { layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
+import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
+import { TabBarReachContext } from '../../core/tabs/TabBarReach';
 
 const Trigger = Object.assign(triggerPart<LucentNativeTabTriggerProps>('trigger'), {
   Label: triggerPart<NativeTabsTriggerLabelProps>('label'),
@@ -29,6 +36,18 @@ const BottomAccessory = Object.assign((_: NativeTabsBottomAccessoryProps) => nul
 
 const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
   behavior === 'onScrollDown' || behavior === 'onScrollUp' ? behavior : null;
+
+// Tells what floats above the bar, such as a stack's bottom toolbar, how far up the bar reaches as it minimizes.
+const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: ReactNode }) => {
+  const offset = useTabBarOffset();
+  const collapse = useTabBarCollapse();
+  const reach = useDerivedValue(
+    () => offset + fullHeight + (layout.tabBarCompactHeight - fullHeight) * (collapse?.progress.get() ?? 0),
+  );
+  return (
+    <TabBarReachContext value={shown ? { reach, rest: offset + fullHeight } : null}>{children}</TabBarReachContext>
+  );
+};
 
 const colorString = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
@@ -52,12 +71,16 @@ const NativeTabsRoot = ({
         <SearchHostProvider>
           <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
             <Tabs style={styles.fill}>
-              <NativeGlassBackdrop style={styles.fill}>
-                {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
+              <TabBarReachProvider shown={!hidden && primary.length > 0}>
+                <InsideGlassBackdrop.Provider value>
+                  <NativeGlassBackdrop style={styles.fill}>
+                    {/* The glass refracts what's drawn in here, so paint the navigation theme's background behind the
                     screens, as iOS does, for screens without their own colour. */}
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-                <TabSlot detachInactiveScreens={false} />
-              </NativeGlassBackdrop>
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+                    <TabSlot detachInactiveScreens={false} />
+                  </NativeGlassBackdrop>
+                </InsideGlassBackdrop.Provider>
+              </TabBarReachProvider>
               {!hidden && primary.length > 0 ? (
                 <FloatingTabBar
                   tabs={primary}

@@ -19,12 +19,14 @@ import android.provider.Settings
 import android.annotation.SuppressLint
 import android.view.PixelCopy
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.Window
 import com.facebook.react.uimanager.ReactOverflowView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -227,6 +229,31 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     canvas.drawRenderNode(node)
   }
 
+  // A stack's screen sits in a layout of its own, which stays put while a transition moves the screen: what covers is
+  // the screen.
+  private fun screenOf(child: View): View {
+    if (child !is ViewGroup) return child
+    for (i in 0 until child.childCount) {
+      val inner = child.getChildAt(i)
+      if (inner.javaClass.name == SCREEN_VIEW) return inner
+    }
+    return child
+  }
+
+  // What of `area` a screen over it leaves showing: screens slide sideways or up, so it's one edge moved.
+  private fun uncover(area: RectF, cover: RectF) {
+    if (!RectF.intersects(area, cover)) return
+    val spansHeight = cover.top <= area.top && cover.bottom >= area.bottom
+    val spansWidth = cover.left <= area.left && cover.right >= area.right
+    when {
+      spansHeight && spansWidth -> area.setEmpty()
+      spansHeight && cover.left > area.left -> area.right = min(area.right, cover.left)
+      spansHeight -> area.left = maxOf(area.left, cover.right)
+      spansWidth && cover.top > area.top -> area.bottom = min(area.bottom, cover.top)
+      spansWidth -> area.top = maxOf(area.top, cover.bottom)
+    }
+  }
+
   override fun recordLifted(owner: GlassBackdropView, hostInverse: Matrix) {
     val node = liftNode ?: return
     val clip = clipNode ?: return
@@ -241,11 +268,32 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     transformMatrixToGlobal(liftMatrix)
     liftMatrix.postConcat(hostInverse)
     var alpha = 1f
+    var blur = 0f
     var clipped = false
     var view: View = this
     while (view !== owner) {
       alpha *= view.alpha
+      // The backdrop draws lifted glass, so an ancestor's blur would pass it by: it takes the strongest itself.
+      if (view is GlassBlurView) blur = max(blur, view.radius)
       val parent = view.parent as? View ?: break
+      // The backdrop draws lifted glass over all the content, so a screen in a stack can't cover it: glass on a screen
+      // below another (both show while one slides in or is swiped back) keeps to what the screens above leave of it.
+      if (parent is ViewGroup && parent.javaClass.name in SCREEN_CONTAINERS) {
+        if (!clipped) {
+          liftClip.set(0f, 0f, owner.width.toFloat(), owner.height.toFloat())
+          clipped = true
+        }
+        for (i in parent.indexOfChild(view) + 1 until parent.childCount) {
+          val above = screenOf(parent.getChildAt(i))
+          if (above.visibility != View.VISIBLE || above.alpha <= 0f) continue
+          ancestorMatrix.reset()
+          above.transformMatrixToGlobal(ancestorMatrix)
+          ancestorMatrix.postConcat(hostInverse)
+          ancestorRect.set(0f, 0f, above.width.toFloat(), above.height.toFloat())
+          ancestorMatrix.mapRect(ancestorRect)
+          uncover(liftClip, ancestorRect)
+        }
+      }
       if (parent !== owner && parent is ReactOverflowView && parent.overflow != null && parent.overflow != "visible") {
         ancestorMatrix.reset()
         parent.transformMatrixToGlobal(ancestorMatrix)
@@ -276,6 +324,10 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     node.setPosition(0, 0, width, height)
     node.setClipToBounds(false)
     node.setAlpha(alpha)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val px = blur * density
+      node.setRenderEffect(if (px > 0.5f) RenderEffect.createBlurEffect(px, px, Shader.TileMode.DECAL) else null)
+    }
     val recording = node.beginRecording(width, height)
     drawingLifted = true
     try {
@@ -321,3 +373,4 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     canvas.drawRenderNode(node)
   }
 }
+

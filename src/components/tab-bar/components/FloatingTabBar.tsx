@@ -173,6 +173,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           pointerEvents="none"
           animatedProps={barGlassProps}
           {...glassStyle}
+          continuous={1}
           sampleBackdrop
           onBackdropLuma={onBackdropLuma}
         />
@@ -288,6 +289,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             inset={glass.lensPad}
             refractionYScale={glass.lensRefractionYScale}
             cornerRadius={lensFullHeight / 2}
+            continuous={1}
             blurRadius={glass.lensBlurRadius}
             bezel={glass.lensBezel}
             refraction={glass.lensRefraction}
@@ -312,6 +314,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             inset={glass.lensPad}
             refractionYScale={glass.lensRefractionYScale}
             cornerRadius={lensFullHeight / 2}
+            continuous={1}
             blurRadius={glass.lensBlurRadius}
             bezel={glass.lensBezel}
             refraction={glass.lensRefraction}

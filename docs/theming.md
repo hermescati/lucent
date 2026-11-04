@@ -22,12 +22,12 @@ export default function RootLayout() {
 
 ## Props
 
-| Prop           | Type                                                              | Default     | Notes                                                                    |
-| -------------- | ----------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
-| `colorScheme`  | `'auto' \| 'light' \| 'dark'`                                     | `'auto'`    | Which scheme Lucent's Android components draw in.                        |
-| `tintColor`    | `string`                                                          | system blue | The app's accent: the selected tab, the search caret, the slider's fill. |
-| `glassOpacity` | `number`, `0`–`1`                                                 | `0.5`       | Android only. See below.                                                 |
-| `colors`       | `{ light?: Partial<LucentColors>; dark?: Partial<LucentColors> }` | —           | Overrides single colours per scheme.                                     |
+| Prop           | Type                                                              | Default     | Notes                                                                                                                      |
+| -------------- | ----------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `colorScheme`  | `'auto' \| 'light' \| 'dark'`                                     | `'auto'`    | Which scheme Lucent's Android components draw in, `Stack`'s bar on iOS, and the status bar icons under `Stack` on Android. |
+| `tintColor`    | `string`                                                          | system blue | The app's accent: the selected tab, the search caret, the slider's fill.                                                   |
+| `glassOpacity` | `number`, `0`–`1`                                                 | `0.5`       | Android only. See below.                                                                                                   |
+| `colors`       | `{ light?: Partial<LucentColors>; dark?: Partial<LucentColors> }` | —           | Overrides single colours per scheme.                                                                                       |
 
 ### Glass opacity
 
@@ -54,7 +54,7 @@ iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings �
 | Group             | Colours                                                                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Text              | `text`, `placeholder`, `placeholderActive`                                                                                |
-| Tab bar           | `barTint`, `barFallback`, `barShadow`, `barRim`, `glassOutline`, `legibilityShadow`                                       |
+| Tab bar           | `barTint`, `barFallback`, `barShadow`, `tabBarRim`, `barRim`, `glassOutline`, `legibilityShadow`                          |
 | Tabs              | `tabAccent`, `tabActive`, `tabActiveOver` (mixed from `tintColor` unless set)                                             |
 | Lens              | `lens`, `lensActive`, `lensRim`, `lensRimEarly`, `lensTint`, `lensTintEarly`, `lensHeldTint`, `lensHeldRim`, `lensShadow` |
 | Press             | `pressFill`, `pressLift`                                                                                                  |
@@ -62,6 +62,7 @@ iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings �
 | Switch            | `switchOn`, `switchOff`, `switchThumb`                                                                                    |
 | Slider            | `sliderTrack`, `sliderThumb`, `sliderShadow`                                                                              |
 | Segmented control | `segmentedTrack`, `segmentedThumb`, `segmentedShadow`                                                                     |
+| Button            | `buttonFill`, `buttonDestructive`, `buttonDisabled`                                                                       |
 
 ## Reading the theme
 

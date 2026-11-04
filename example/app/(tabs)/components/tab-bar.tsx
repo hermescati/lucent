@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack } from 'expo-lucent/navigation';
 
 import { useSettings, type Minimize } from '@/components/settings';
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';

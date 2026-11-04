@@ -1,18 +1,17 @@
-import { Stack } from 'expo-router';
-import { SearchBar } from 'expo-lucent';
+import { Stack, SearchBar } from 'expo-lucent/navigation';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SearchBarCommands } from 'react-native-screens';
 
-import { catalogue } from '@/stories';
 import { Code, LinkRow, Page, Paragraph, Section, usePalette } from '@/components/ui';
+import { entries } from '@/stories';
 
 export default function SearchScreen() {
   const palette = usePalette();
   const [query, setQuery] = useState('');
   const search = useRef<SearchBarCommands>(null);
   const needle = query.trim().toLowerCase();
-  const results = catalogue.filter(
+  const results = entries.filter(
     (entry) => entry.href !== '/search' && `${entry.name} ${entry.summary}`.toLowerCase().includes(needle),
   );
 

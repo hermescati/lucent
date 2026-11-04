@@ -7,6 +7,7 @@ const effect = (style: 'regular' | 'clear' | 'none') => ({ style, animate: true 
 
 export default story({
   slug: 'glass',
+  group: 'materials',
   name: 'Glass',
   summary: 'GlassView, the Liquid Glass material',
   component: 'GlassView',

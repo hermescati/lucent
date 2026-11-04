@@ -1,6 +1,7 @@
 import { LucentProvider } from 'expo-lucent';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Appearance } from 'react-native';
+import { Appearance, useColorScheme } from 'react-native';
 
 export type Scheme = 'auto' | 'light' | 'dark';
 export type Minimize = 'never' | 'onScrollDown' | 'onScrollUp';
@@ -36,6 +37,8 @@ const Context = createContext<SettingsContext>({ ...defaults, set: () => {}, res
 
 export const PlaygroundProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState(defaults);
+  const system = useColorScheme();
+  const dark = (settings.scheme === 'auto' ? system : settings.scheme) === 'dark';
 
   useEffect(() => {
     Appearance.setColorScheme(settings.scheme === 'auto' ? 'unspecified' : settings.scheme);
@@ -52,9 +55,12 @@ export const PlaygroundProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <Context value={value}>
-      <LucentProvider colorScheme={settings.scheme} tintColor={settings.tint} glassOpacity={settings.glassOpacity}>
-        {children}
-      </LucentProvider>
+      {/* React Navigation's theme, as the README's quick start sets it: headers and screen backgrounds read it. */}
+      <ThemeProvider value={dark ? DarkTheme : DefaultTheme}>
+        <LucentProvider colorScheme={settings.scheme} tintColor={settings.tint} glassOpacity={settings.glassOpacity}>
+          {children}
+        </LucentProvider>
+      </ThemeProvider>
     </Context>
   );
 };

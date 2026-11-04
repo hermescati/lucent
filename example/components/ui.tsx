@@ -1,5 +1,6 @@
+import { SegmentedControl } from 'expo-lucent';
+import { TabScrollView } from 'expo-lucent/navigation';
 import { Link, type Href } from 'expo-router';
-import { SegmentedControl, TabScrollView } from 'expo-lucent';
 import type { ReactNode } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
@@ -16,14 +17,14 @@ export const usePalette = () => {
   };
 };
 
+// The same on both platforms: Lucent's Stack draws iOS 26's bar on Android, transparent over the content.
 export const useStackOptions = () => {
   const palette = usePalette();
   return {
     headerLargeTitle: true,
-    headerTransparent: Platform.OS === 'ios',
-    headerStyle: Platform.OS === 'ios' ? undefined : { backgroundColor: palette.background },
-    headerTintColor: Platform.OS === 'ios' ? undefined : palette.text,
     headerShadowVisible: false,
+    // The chevron alone, as Apple's own apps show it. UIKit's default adds the previous screen's title.
+    headerBackButtonDisplayMode: 'minimal' as const,
     contentStyle: { backgroundColor: palette.background },
   };
 };

@@ -15,7 +15,10 @@ export const layout = {
   gestureNavInsetMax: 32,
   legibilityShadowRadius: 4,
   tabIconSize: 28,
-  searchIconSize: 28,
+  // The magnifier's ink is 22.7pt across on iOS 27 at full height; Material's search glyph fills less of its box.
+  searchIconSize: 30.7,
+  // How much of the bar's shrink the magnifier follows as the bar minimises: on iOS it keeps 22pt of its 22.7.
+  searchIconShrink: 0.137,
   closeIconSize: 44,
   searchFieldIconSize: 24,
   searchFieldInset: 10,

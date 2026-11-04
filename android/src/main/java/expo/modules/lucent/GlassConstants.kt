@@ -20,7 +20,7 @@ internal const val EDGE_SOFT_STRENGTH = 0.6f
 internal val EDGE_STOPS = floatArrayOf(0f, 0.3f, 0.7f, 1f)
 internal const val ADAPTIVE_LIFT = 0.14f
 internal const val ADAPTIVE_DARKEN = 0.22f
-internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 65
+internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 68
 internal const val SAMPLE_SIZE = 8
 internal const val CONTINUOUS_STEPS = 128
 internal const val SAMPLE_INTERVAL_MS = 16L
@@ -28,9 +28,11 @@ internal const val SAMPLE_INSET = 6f
 internal const val SAMPLE_WIDTH = 8f
 internal const val SAMPLE_STEP = 0.015f
 internal const val TINT_STRENGTH = 0.85f
-internal const val PRESS_IN_OMEGA = 35f
-internal const val PRESS_IN_DAMPING = 0.8f
-internal const val PRESS_OUT_OMEGA = 17.6f
+// The press spring, fitted to recordings of iOS 26's bar and glass buttons, which share it: about 130ms to full size,
+// overshooting a little, so a quick tap lets go halfway; then a bouncier release that dips below the rest size.
+internal const val PRESS_IN_OMEGA = 24.2f
+internal const val PRESS_IN_DAMPING = 0.75f
+internal const val PRESS_OUT_OMEGA = 15.4f
 internal const val PRESS_OUT_DAMPING = 0.36f
 internal const val GLOW_RISE = 0.025f
 internal const val GLOW_FALL = 0.12f
@@ -45,3 +47,7 @@ internal const val MAX_STEP = 0.05f
 internal const val IDLE_GAP = 0.1f
 internal const val FRAME_STEP = 1f / 60f
 internal const val SUB_STEP = 0.004f
+// react-native-screens' screen containers, whose later children (whole screens) draw over the earlier. Only these: the
+// views inside a screen are its own, and its header's sits over its content without covering anything.
+internal const val SCREEN_VIEW = "com.swmansion.rnscreens.Screen"
+internal val SCREEN_CONTAINERS = setOf("com.swmansion.rnscreens.ScreenStack", "com.swmansion.rnscreens.ScreenContainer")
