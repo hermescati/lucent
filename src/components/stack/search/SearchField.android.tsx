@@ -30,6 +30,7 @@ import { cancelSearch } from './SearchBar.android';
 import { getSearchInput, setSearchInput, updateSearch, useSearch, type SearchState } from './store.android';
 import { useBackClaim } from '../../../core/back/claims';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import { useClearFade } from '../../../core/search/clearFade';
 import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
@@ -94,6 +95,7 @@ interface SearchInputProps {
 const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => {
   const { props } = state;
   const colors = useFieldColors(props, tint);
+  const clearStyle = useClearFade(Boolean(state.text));
   const showIcon = props.shouldShowHintSearchIcon !== false;
   return (
     <>
@@ -129,19 +131,19 @@ const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => 
         onSubmitEditing={() => props.onSearchButtonPress?.({ nativeEvent: { text: state.text } } as never)}
         style={[styles.input, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
       />
-      {state.text ? (
+      <Animated.View pointerEvents={state.text ? 'auto' : 'none'} style={[styles.clear, clearStyle]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Clear text"
+          accessibilityElementsHidden={!state.text}
           hitSlop={8}
           onPress={() => {
             updateSearch(routeKey, { text: '' });
             props.onChangeText?.({ nativeEvent: { text: '' } } as never);
-          }}
-          style={styles.clear}>
+          }}>
           <ClearGlyph fill={colors.clear} cross={colors.clearCross} />
         </Pressable>
-      ) : null}
+      </Animated.View>
     </>
   );
 };

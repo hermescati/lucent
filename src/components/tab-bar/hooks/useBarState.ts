@@ -101,6 +101,9 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const searchBump = useSharedValue(0);
   const backBump = useSharedValue(0);
   const searchPop = useSharedValue(searchFocused ? 1 : 0);
+  // 1 while the ref's `cancelSearch` has left search inactive on its tab: the close button folded into the field, which
+  // reaches the bar's end.
+  const searchIdle = useSharedValue(0);
   const moving = useSharedValue(0);
   const push = useSharedValue(0);
   const jelly = useSharedValue(0);
@@ -298,6 +301,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     searchFocused,
     searchMode,
     searchPop,
+    searchIdle,
     searchPress,
     searchRaise,
     searchTab,

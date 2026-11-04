@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 
 import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
@@ -41,6 +41,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     emit,
     lensPosition,
     morphSearch,
+    searchIdle: idleFade,
     searchPop,
     searchPress,
     searchTab,
@@ -105,7 +106,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   // The ref's `cancelSearch`, as iOS plays it: search goes inactive on its tab, the field emptying and letting go of the
   // keyboard as the close button folds back into its end. Tapping the field brings it back out.
   const [searchIdle, setSearchIdle] = useState(false);
-  const idleFade = useSharedValue(0);
   if (searchIdle && !state.searchFocused) {
     setSearchIdle(false);
     idleFade.set(0);

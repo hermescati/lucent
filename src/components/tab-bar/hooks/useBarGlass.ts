@@ -47,6 +47,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     searchDip,
     searchMode,
     searchPop,
+    searchIdle,
     searchPress,
     searchRaise,
     searchScale,
@@ -127,7 +128,8 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const searchX = width + layout.tabBarGap + fullHeight / 2;
     const circleY = fullHeight / 2;
     const searchRadius = (fullHeight / 2) * searchScale.get();
-    const fieldEnd = searchX + searchRadius - motion.searchPop.shift * settled + spread;
+    // Inactive, the field reaches all the way to where the close button's circle ended.
+    const fieldEnd = searchX + searchRadius - motion.searchPop.shift * settled * (1 - searchIdle.get()) + spread;
     const circleX = lerp(searchX, lerp(searchX - motion.searchPop.shift, searchX, popPlace), settled) + spread;
     const hiddenScale = modeTarget.get() === 0 ? motion.searchClose.circleScale : motion.searchPop.hiddenScale;
     const circleRadius =

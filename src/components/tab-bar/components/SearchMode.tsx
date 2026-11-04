@@ -13,6 +13,7 @@ import { ClearButton } from './ClearButton';
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import { useClearFade } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
@@ -100,6 +101,8 @@ export const SearchMode = ({
   const { query, setQuery, props: searchProps, emit, attach } = useSearchHost();
   const placeholder = searchProps.placeholder ?? '';
   const input = useRef<ComponentRef<typeof TextInput>>(null);
+  // Always there, so the text's room doesn't change: iOS fades it in and out.
+  const clearStyle = useClearFade(Boolean(query));
   const [keyboardUp, setKeyboardUp] = useState(false);
   const wide = useDerivedValue(() => clamp01(keyboard.get()));
 
@@ -305,7 +308,9 @@ export const SearchMode = ({
             </Text>
           </AnimatedNativeGlassBlur>
         </View>
-        {query ? <ClearButton color={color.clearButton} onPress={clearQuery} /> : null}
+        <Animated.View pointerEvents={query ? 'auto' : 'none'} style={clearStyle}>
+          <ClearButton color={color.clearButton} onPress={clearQuery} />
+        </Animated.View>
       </Animated.View>
     </View>
   );
