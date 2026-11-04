@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, type ScrollViewProps } from 'react-native';
 import Animated, {
   useAnimatedRef,
@@ -13,6 +13,7 @@ import { TabScrollMarker, useTabBarInset, useTabBarScroll } from './scroll';
 import {
   useHeaderInset,
   useHeaderScroll,
+  useHeaderSnap,
   useHeaderStart,
   useSearchLift,
   useToolbarInset,
@@ -24,7 +25,13 @@ export type TabScrollViewProps = Omit<ScrollViewProps, 'onScroll'> & {
 
 const scrollEventThrottle = 16;
 
-export const TabScrollView = ({ onScroll, contentContainerStyle, ...props }: TabScrollViewProps) => {
+export const TabScrollView = ({
+  onScroll,
+  onLayout,
+  onContentSizeChange,
+  contentContainerStyle,
+  ...props
+}: TabScrollViewProps) => {
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const tabScroll = useTabBarScroll();
   // A bottom toolbar on Android floats over the same stretch as the tab bar; the content clears whichever reaches higher.
@@ -38,6 +45,13 @@ export const TabScrollView = ({ onScroll, contentContainerStyle, ...props }: Tab
   const lift = useSearchLift();
   const liftStyle = useAnimatedStyle(() => ({ marginTop: lift ? -lift.get() : 0 }));
   const handler = useComposedEventHandler([tabScroll ?? null, headerScroll ?? null, onScroll ?? null]);
+  // Content that scrolls, but not far enough to collapse the large title, gets the room at its end that it lacks, as
+  // iOS gives it: the title collapses all the way rather than stopping partway.
+  const snap = useHeaderSnap();
+  const [viewport, setViewport] = useState(0);
+  const [size, setSize] = useState({ height: 0, room: 0 });
+  const natural = size.height - size.room;
+  const room = snap > 0 && viewport > 0 && natural > viewport ? Math.max(viewport + snap - natural, 0) : 0;
 
   useFocusEffect(
     useCallback(() => registerFocusedScroll(() => scrollRef.current?.scrollTo({ y: 0, animated: true })), [scrollRef]),
@@ -48,7 +62,7 @@ export const TabScrollView = ({ onScroll, contentContainerStyle, ...props }: Tab
   const baseTop = content.paddingTop ?? content.paddingVertical ?? content.padding ?? 0;
   const padded = [
     contentContainerStyle,
-    inset > 0 && typeof basePadding === 'number' ? { paddingBottom: basePadding + inset } : null,
+    (inset > 0 || room > 0) && typeof basePadding === 'number' ? { paddingBottom: basePadding + inset + room } : null,
     headerInset > 0 && typeof baseTop === 'number' ? { paddingTop: baseTop + headerInset } : null,
   ];
 
@@ -62,6 +76,15 @@ export const TabScrollView = ({ onScroll, contentContainerStyle, ...props }: Tab
         {...props}
         style={[props.style, liftStyle]}
         onScroll={handler}
+        onLayout={(event) => {
+          setViewport(event.nativeEvent.layout.height);
+          onLayout?.(event);
+        }}
+        onContentSizeChange={(width, height) => {
+          // Measured with the room given, which it takes back off to tell what the content needs.
+          setSize((current) => (current.height === height && current.room === room ? current : { height, room }));
+          onContentSizeChange?.(width, height);
+        }}
         contentContainerStyle={padded}
       />
     </TabScrollMarker>

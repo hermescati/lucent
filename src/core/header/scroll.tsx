@@ -10,6 +10,8 @@ export const useToolbarInset = (): number => 0;
 
 export const useHeaderStart = (): number => 0;
 
+export const useHeaderSnap = (): number => 0;
+
 export const useSearchLift = (): SharedValue<number> | undefined => undefined;
 
 export const HeaderScrollProvider = ({

@@ -101,29 +101,39 @@ const flingVelocity = 0.1;
  * A scroll handler that tells the screen's Lucent header how far the content has scrolled. Given the scroll view's
  * animated ref, it also does what UIKit does with a large title: a scroll that comes to rest partway through the title's
  * block carries on to whichever end is nearer, expanded or collapsed (measured on the simulator: from 20pt in it goes
- * back, from 30pt on it goes on to 52).
+ * back, from 30pt on it goes on to 52). Content too short to scroll the title away goes back to it expanded: a scroll to
+ * an end it can't reach would stop short of it, and snap again, and again.
  */
 export const useHeaderScroll = (scrollRef?: AnimatedRef<Animated.ScrollView>) => {
   const scroll = useContext(HeaderScrollContext);
   const offset = scroll?.offset;
   const snap = scroll?.snap ?? 0;
+  const settle = (y: number, room: number) => {
+    'worklet';
+    if (!scrollRef || snap <= 0 || y <= 0 || y >= snap) return;
+    const target = y >= snap / 2 && room >= snap ? snap : 0;
+    if (Math.abs(target - y) < 0.5) return;
+    scrollTo(scrollRef, 0, target, true);
+  };
   return useAnimatedScrollHandler({
     onScroll: (event) => {
       offset?.set(event.contentOffset.y);
     },
     onEndDrag: (event) => {
-      const y = event.contentOffset.y;
-      if (!scrollRef || snap <= 0 || y <= 0 || y >= snap) return;
       if (Math.abs(event.velocity?.y ?? 0) > flingVelocity) return;
-      scrollTo(scrollRef, 0, y < snap / 2 ? 0 : snap, true);
+      settle(event.contentOffset.y, event.contentSize.height - event.layoutMeasurement.height);
     },
     onMomentumEnd: (event) => {
-      const y = event.contentOffset.y;
-      if (!scrollRef || snap <= 0 || y <= 0 || y >= snap) return;
-      scrollTo(scrollRef, 0, y < snap / 2 ? 0 : snap, true);
+      settle(event.contentOffset.y, event.contentSize.height - event.layoutMeasurement.height);
     },
   });
 };
+
+/**
+ * How far content has to scroll to collapse the screen's large title, or 0 without one. iOS lets any content that
+ * scrolls at all scroll that far, so the title can go: a scroll view gives itself the room it lacks.
+ */
+export const useHeaderSnap = (): number => useContext(HeaderScrollContext)?.snap ?? 0;
 
 /** How far a scroll view's content has to start down to clear a transparent Lucent header, as iOS insets it. */
 export const useHeaderInset = (): number => {
