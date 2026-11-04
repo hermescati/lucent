@@ -60,6 +60,12 @@ interface Props {
     fit: SharedValue<{ scale: number; x: number; y: number }>;
   };
   onBack: () => void;
+  // 1 once the ref's `cancelSearch` has left search inactive on its tab, the close button folded into the field's end.
+  idle: SharedValue<number>;
+  // The ref's `cancelSearch` while search is up.
+  onCancel: () => void;
+  // The field taken up again while inactive.
+  onWake: () => void;
   backDrag: PanGesture;
   keyboard: SharedValue<number>;
   spread: SharedValue<number>;
@@ -79,6 +85,9 @@ export const SearchMode = ({
   backPress,
   travel,
   onBack,
+  idle,
+  onCancel,
+  onWake,
   backDrag,
   keyboard,
   spread,
@@ -108,12 +117,14 @@ export const SearchMode = ({
       attach({
         focus: active ? () => input.current?.focus() : undefined,
         blur: () => input.current?.blur(),
-        cancel: () => {
-          setQuery('');
-          input.current?.blur();
-        },
+        cancel: active
+          ? onCancel
+          : () => {
+              setQuery('');
+              input.current?.blur();
+            },
       }),
-    [active, attach, setQuery],
+    [active, attach, setQuery, onCancel],
   );
 
   useEffect(() => {
@@ -175,7 +186,8 @@ export const SearchMode = ({
       { translateY: dip.get() },
     ],
     left: fieldLeft - wideShift * wide.get(),
-    right: fieldRight - reach * wide.get(),
+    // Inactive, the field reaches over where the close button was.
+    right: fieldRight - reach * wide.get() - (modeHeight + layout.searchModeGap) * idle.get(),
   }));
   const glyphStyle = useAnimatedStyle(() => ({
     opacity: mode.get() > motion.backTravel.handoff ? 1 : 0,
@@ -265,7 +277,10 @@ export const SearchMode = ({
               selectionColor={searchProps.tintColor ?? color.tint}
               cursorColor={searchProps.tintColor ?? color.tint}
               autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
-              onFocus={() => emit('onFocus')}
+              onFocus={() => {
+                onWake();
+                emit('onFocus');
+              }}
               onBlur={() => emit('onBlur')}
               onSubmitEditing={() => emit('onSearchButtonPress')}
               returnKeyType="search"

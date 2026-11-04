@@ -42,6 +42,21 @@ export default function SearchScreen() {
         placeholder="Search components"
         onChangeText={(event) => setQuery(event.nativeEvent.text)}
       />
+      <Section
+        title="SearchBar ref"
+        footer="These call the ref's methods. setText doesn't fire onChangeText, so the screen sets its own query too.">
+        <View style={styles.actions}>
+          {actions.map((action) => (
+            <Pressable
+              key={action.label}
+              onPress={action.onPress}
+              style={[styles.action, { backgroundColor: palette.background }]}>
+              <Text style={[styles.actionText, { color: palette.text }]}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
+
       <Section title={needle ? `Results for “${query.trim()}”` : 'All components'}>
         {results.length > 0 ? (
           results.map((entry, index) => (
@@ -56,21 +71,6 @@ export default function SearchScreen() {
         ) : (
           <Text style={[styles.empty, { color: palette.secondary }]}>No components match</Text>
         )}
-      </Section>
-
-      <Section
-        title="SearchBar ref"
-        footer="These call the ref's methods. setText doesn't fire onChangeText, so the screen sets its own query too.">
-        <View style={styles.actions}>
-          {actions.map((action) => (
-            <Pressable
-              key={action.label}
-              onPress={action.onPress}
-              style={[styles.action, { backgroundColor: palette.background }]}>
-              <Text style={[styles.actionText, { color: palette.text }]}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
       </Section>
 
       <Code>

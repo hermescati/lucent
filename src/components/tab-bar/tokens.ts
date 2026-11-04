@@ -62,6 +62,9 @@ export const barPresence = {
 };
 
 export const motion = {
+  // The ref's \`cancelSearch\` leaves the search tab's field inactive, as iOS's does: the close button folds back into the
+  // field's end and its cross fades this fast.
+  searchIdle: { glyphFade: 120 },
   springs: {
     track: { duration: 110, dampingRatio: 1 },
     snappy: { duration: 160, dampingRatio: 1 },

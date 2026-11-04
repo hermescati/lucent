@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { withSpring } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
@@ -35,10 +36,12 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     backIndex,
     backLight,
     barWidth,
+    command,
     edgesReady,
     emit,
     lensPosition,
     morphSearch,
+    searchPop,
     searchPress,
     searchTab,
     setQuery,
@@ -97,6 +100,32 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     Keyboard.dismiss();
     backLight.set(0);
     leaveSearch();
+  };
+
+  // The ref's `cancelSearch`, as iOS plays it: search goes inactive on its tab, the field emptying and letting go of the
+  // keyboard as the close button folds back into its end. Tapping the field brings it back out.
+  const [searchIdle, setSearchIdle] = useState(false);
+  const idleFade = useSharedValue(0);
+  if (searchIdle && !state.searchFocused) {
+    setSearchIdle(false);
+    idleFade.set(0);
+  }
+  const idleSearch = () => {
+    setQuery('');
+    emit('onCancelButtonPress');
+    Keyboard.dismiss();
+    setSearchIdle(true);
+    idleFade.set(withTiming(1, { duration: motion.searchIdle.glyphFade }));
+    searchPop.set(withSpring(0, motion.springs.searchAbsorb));
+  };
+  const idleGlyphStyle = useAnimatedStyle(() => ({
+    opacity: 1 - idleFade.get(),
+  }));
+  const wakeSearch = () => {
+    if (!searchIdle) return;
+    setSearchIdle(false);
+    idleFade.set(withTiming(0, { duration: motion.searchIdle.glyphFade }));
+    searchPop.set(withSpring(1, motion.springs.searchPop));
   };
 
   const backSearch = () => {
@@ -199,11 +228,11 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           <Animated.View style={[styles.search, searchSpreadStyle]}>
             <Pressable
               style={StyleSheet.absoluteFill}
-              onPress={searchFocused ? closeSearch : openSearch}
+              onPress={searchFocused ? (searchIdle ? () => command('focus') : closeSearch) : openSearch}
               onPressIn={searchPress.onPressIn}
               onPressOut={searchPress.onPressOut}
               accessibilityRole="tab"
-              accessibilityLabel={searchFocused ? 'Close search' : searchTab.label}
+              accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : searchTab.label}
               accessibilityState={{ selected: searchFocused }}>
               <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
                 <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
@@ -212,7 +241,9 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                     <TabIcon icon={searchTab.icon} selected={false} size={layout.searchIconSize} color={color.text} />
                   </Animated.View>
                   <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
-                    <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                    <Animated.View style={idleGlyphStyle}>
+                      <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                    </Animated.View>
                   </Animated.View>
                 </Animated.View>
               </Animated.View>
@@ -369,6 +400,9 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
       {searchTab ? (
         <SearchMode
           active={searchFocused}
+          idle={idleFade}
+          onCancel={idleSearch}
+          onWake={wakeSearch}
           mode={searchMode}
           backTab={tabs[backIndex]}
           searchTab={searchTab}
