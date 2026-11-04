@@ -57,9 +57,9 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     placeholderActive: 'rgba(255, 255, 255, 0.38)',
     barTint: 'rgba(90, 90, 90, 0)',
     barFallback: '#2F2F32',
-    barShadow: 'rgba(0, 0, 0, 0.12)',
+    barShadow: 'rgba(0, 0, 0, 0.03)',
     barRim: 'rgba(255, 255, 255, 0)',
-    tabBarRim: 'rgba(255, 255, 255, 0)',
+    tabBarRim: 'rgba(0, 0, 0, 0.12)',
     glassOutline: 'rgba(0, 0, 0, 0.8)',
     // iOS 27's selected pill is about half as bright as the bar around it in dark mode, over a dark list or a photo.
     lens: 'rgba(0, 0, 0, 0.35)',
@@ -98,8 +98,9 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barFallback: '#F4F5F9',
     barShadow: 'rgba(0, 0, 0, 0.012)',
     barRim: 'rgba(0, 0, 0, 0.12)',
-    // iOS's tab bar rim is lighter than its navigation bar buttons', by about an eighth.
-    tabBarRim: 'rgba(0, 0, 0, 0.105)',
+    // iOS 27's tab bar outline, over flat grey (simulator): about a fifth dark at the top and bottom, three times that
+    // at the sides.
+    tabBarRim: 'rgba(0, 0, 0, 0.2)',
     glassOutline: 'rgba(0, 0, 0, 0.16)',
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
