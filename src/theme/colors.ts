@@ -139,20 +139,19 @@ const toHex = (channels: number[]) =>
     )
     .join('')}`;
 
-const mix = (hex: string, target: number, amount: number) => {
-  const channels = parseHex(hex);
-  return channels ? toHex(channels.map((channel) => channel + (target - channel) * amount)) : hex;
-};
-
-// The selected tab's ink on iOS 27 (simulator): in light mode the tint a shade darker over any backdrop, (244, 123, 43)
-// for #FF8433 over both a white list and a photo; in dark mode lighter as the backdrop is, from (255, 156, 75) over a
-// dark list towards (255, 218, 137) over a bright photo.
+// The selected tab's ink on iOS 27 (simulator): the tint with the same amount added to every channel, which keeps it as
+// saturated as it is (a mix toward white would wash it out). In light mode a shade darker over any backdrop, (244, 123,
+// 43) for #FF8433 over both a white list and a photo; in dark mode lighter as the backdrop is, from (255, 153, 72) over
+// a dark list towards (255, 218, 137) over a bright photo.
 const tintRamp: Record<LucentScheme, { accent: number; active: number; over: number }> = {
-  dark: { accent: 0.15, active: 0.55, over: 0.15 },
-  light: { accent: 0, active: -0.04, over: -0.04 },
+  dark: { accent: 0.083, active: 0.337, over: 0.083 },
+  light: { accent: 0, active: -0.035, over: -0.035 },
 };
 
-const shade = (hex: string, amount: number) => (amount >= 0 ? mix(hex, 255, amount) : mix(hex, 0, -amount));
+const shade = (hex: string, amount: number) => {
+  const channels = parseHex(hex);
+  return channels ? toHex(channels.map((channel) => channel + 255 * amount)) : hex;
+};
 
 export const resolveColors = (
   scheme: LucentScheme,
