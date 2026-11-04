@@ -147,7 +147,7 @@ export const toolbarModes: ToolbarMode[] = [
   <Stack.Toolbar.Button icon="square.and.pencil" md="edit_square" />
 </Stack.Toolbar>`,
     support: 'both',
-    gap: 'The field itself is still the TextInput that the search rebuild will replace.',
+    gap: "Tap the field: the toolbar rides the keyboard up as its other buttons blur away, and the field grows to the screen's width beside a close button, as on iOS. Inside tabs, the cursor takes the tab bar's tint.",
   },
 ];
 

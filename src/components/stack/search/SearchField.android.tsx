@@ -397,8 +397,6 @@ const FocusedSearchBody = ({ routeKey, state, from, open, onClosed }: FocusedSea
   );
 };
 
-// TODO: the field here is a TextInput in the bar's glass. Rebuild it on a Lucent search field that matches the text and
-// glyph metrics of iOS's UISearchTextField.
 /**
  * Search opened from the magnifier among the navigation bar's items, as iOS 27 opens it: in the bar's row, the
  * magnifier's capsule stretching left into the field, with the close button's cross at its end, which then buds off into
