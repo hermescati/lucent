@@ -108,7 +108,7 @@ export const motion = {
     jellyLead: { duration: 240, dampingRatio: 0.75 },
     barPressIn: { duration: 160, dampingRatio: 1 },
     barGrowIn: { duration: 130, dampingRatio: 1 },
-    barPressOut: { duration: 220, dampingRatio: 1 },
+    barPressOut: { duration: 140, dampingRatio: 1 },
     jellyTrail: { duration: 340, dampingRatio: 0.6 },
     jellySettle: { duration: 420, dampingRatio: 0.55 },
   },
@@ -172,7 +172,10 @@ export const motion = {
     pinch: 0.2,
     bend: 0.6,
   },
-  barGrow: { x: 6, y: 1.25, towardSearch: 1, held: 1.25 },
+  // Held, iOS 27's tab bar (simulator, over flat grey) reaches about 11.7pt out at its end, most of it the lens
+  // bulging past it, while the bar itself grows about 1.7pt above and below; it's 90% there by about 110ms and back
+  // about 130ms after letting go.
+  barGrow: { x: 2.5, y: 1.25, towardSearch: 1, held: 1.25 },
   dragSettle: { near: 0.15 },
   disabledBounce: { delay: 120 },
   poke: { tap: 0.5, holdDelay: 120, flat: 0.12, bulge: 0.04, lean: 8 },
