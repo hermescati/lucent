@@ -191,7 +191,8 @@ export const motion = {
     fillDelay: 160,
     lingerPerSlot: 50,
     holdArrive: 0.1,
-    navigateDelay: 180,
+    // iOS 27 shows the tapped tab's page as the finger lifts (simulator), not once the lens lands.
+    navigateDelay: 0,
     squishPeriod: 0.75,
     squishDamping: 0.75,
     squishKick: 0.25,
