@@ -4,7 +4,7 @@ import { useSettings, type Minimize } from '@/components/settings';
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
 export default function TabBarScreen() {
-  const { tint, minimize, set } = useSettings();
+  const { tint, minimize, accessory, tabs, searchApart, set } = useSettings();
 
   return (
     <Page>
@@ -14,6 +14,51 @@ export default function TabBarScreen() {
       </Paragraph>
 
       <Section title="Props">
+        <Row
+          label="Tabs"
+          detail="Besides search. iPhone fits five entries, search's circle included: with five tabs, search becomes one of them"
+          stacked>
+          <Options<'2' | '3' | '4' | '5'>
+            options={[
+              { label: '2', value: '2' },
+              { label: '3', value: '3' },
+              { label: '4', value: '4' },
+              { label: '5', value: '5' },
+            ]}
+            value={String(tabs) as '2' | '3' | '4' | '5'}
+            onChange={(next) => {
+              const count = Number(next) as 2 | 3 | 4 | 5;
+              set(count === 5 ? { tabs: count, searchApart: false } : { tabs: count });
+            }}
+          />
+        </Row>
+        <Row
+          label="Search"
+          detail='role="search" puts it in a circle of its own; without it, it is a tab like the others'
+          stacked>
+          <Options<'apart' | 'tab'>
+            options={[
+              { label: 'Own circle', value: 'apart' },
+              { label: 'A tab', value: 'tab' },
+            ]}
+            value={searchApart ? 'apart' : 'tab'}
+            onChange={(next) =>
+              set(
+                next === 'apart' ? { searchApart: true, tabs: Math.min(tabs, 4) as 2 | 3 | 4 } : { searchApart: false },
+              )
+            }
+          />
+        </Row>
+        <Row label="BottomAccessory" detail="A now-playing bar above the tabs, beside them once minimized" stacked>
+          <Options<'off' | 'on'>
+            options={[
+              { label: 'None', value: 'off' },
+              { label: 'Now playing', value: 'on' },
+            ]}
+            value={accessory ? 'on' : 'off'}
+            onChange={(next) => set({ accessory: next === 'on' })}
+          />
+        </Row>
         <Row label="minimizeBehavior" detail="Scroll the Gallery to see it" stacked last>
           <Options<Minimize>
             options={[
