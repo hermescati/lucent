@@ -25,6 +25,8 @@ export const moreTab: TabSpec = {
 export interface MoreState {
   // The tabs that don't fit, in order, listed on More's screen.
   overflow: TabSpec[];
+  // Every tab's name, the bar's and More's: Back from More's list goes to the one it was opened over.
+  entries: string[];
   // Whether More's list is showing, over whichever tab was last chosen.
   open: boolean;
   setOpen: (open: boolean) => void;

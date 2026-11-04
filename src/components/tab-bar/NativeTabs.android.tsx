@@ -127,7 +127,10 @@ const NativeTabsRoot = ({
     visible.find((trigger) => trigger.search),
   );
   const [moreOpen, setMoreOpen] = useState(false);
-  const more = overflow.length > 0 ? { overflow, open: moreOpen, setOpen: setMoreOpen } : null;
+  const more =
+    overflow.length > 0
+      ? { overflow, entries: visible.map((trigger) => trigger.name), open: moreOpen, setOpen: setMoreOpen }
+      : null;
   const { colors } = useTheme();
   // Hidden, the bar stays mounted and fades, as iOS's does, rather than going and coming back whole.
   const shown = !hidden;
