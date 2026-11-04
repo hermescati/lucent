@@ -1,5 +1,5 @@
 import type { NativeStackHeaderProps } from 'expo-router/native-stack';
-import { useContext, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
   Platform,
   processColor,
@@ -20,6 +20,8 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   withDelay,
+  withSequence,
+  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -35,7 +37,7 @@ import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/
 import { headerOffset, searchLift } from '../../../core/header/scroll.android';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
-import { HeaderSearch, SearchButton } from '../search/SearchField.android';
+import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
 import { getSearch, updateSearch } from '../search/store.android';
 import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
@@ -175,7 +177,8 @@ const EdgeWash = ({
   );
 };
 
-// iOS's rise: an exponential ease-out with `searchMotion.lift.settle` as its time constant, scaled to end at 1.
+// iOS's rise: an exponential ease-out with `searchMotion.lift.settle` as its time constant, scaled to end at 1, a point
+// past the row, from where it settles back.
 const liftEasing = (t: number) => {
   'worklet';
   const k = searchMotion.lift.duration / searchMotion.lift.settle;
@@ -253,19 +256,33 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const top = useBarTop();
   const { color, scheme } = useLucentTheme();
   const scrolled = headerOffset(route.key);
-  const { block, hidden, collapses, button, focusedInBar } = useHeaderSearchBlock(route.key);
+  const { block, hidden, collapses, button, focusedInBar, barFocused } = useHeaderSearchBlock(route.key);
+  // The row steps aside for search: a field rising into it, or one opening in it from the magnifier.
+  const rowAside = focusedInBar || barFocused;
+  // Search opened from the magnifier stays up as it plays back out, once closed.
+  const [barSearchShown, setBarSearchShown] = useState(barFocused);
+  if (barFocused && !barSearchShown) setBarSearchShown(true);
+  const closeBarSearch = useCallback(() => setBarSearchShown(false), []);
   // Focused, a field in the bar rises from its block into the row, as on iOS, and the content follows it up.
   const [blockTop, setBlockTop] = useState(0);
   const rise = Math.max(blockTop - top, 0);
   const lift = searchLift(route.key);
   useEffect(() => {
-    lift.set(withTiming(focusedInBar ? rise : 0, { duration: searchMotion.lift.duration, easing: liftEasing }));
+    const { duration, overshoot, back } = searchMotion.lift;
+    lift.set(
+      focusedInBar
+        ? withSequence(
+            withTiming(rise + overshoot, { duration, easing: liftEasing }),
+            withTiming(rise, { duration: back, easing: Easing.inOut(Easing.quad) }),
+          )
+        : withSpring(0, { ...searchMotion.drop, mass: 1, overshootClamping: true }),
+    );
   }, [lift, focusedInBar, rise]);
   const searchProgress = useDerivedValue(() => (rise > 0 ? lift.get() / rise : 0));
   // The row's title and buttons step aside as it comes.
   const rowStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(focusedInBar ? 0 : 1, {
-      duration: focusedInBar ? searchMotion.rowOut : searchMotion.rowIn,
+    opacity: withTiming(rowAside ? 0 : 1, {
+      duration: rowAside ? searchMotion.rowOut : searchMotion.rowIn,
     }),
   }));
   // A search field in the bar scrolls away first; the rest of the bar follows the scroll that's left.
@@ -485,7 +502,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
           )}
         </ScrollEdge>
       ) : null}
-      <Animated.View pointerEvents={focusedInBar ? 'none' : 'box-none'} style={[styles.row, rowStyle]}>
+      <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, rowStyle]}>
         {titleMeasure}
         {placement === 'row' ? (
           <View pointerEvents="none" style={styles.rowTitle}>
@@ -555,6 +572,11 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
           </Animated.View>
         </AnimatedNativeGlassBlur>
       </Animated.View>
+      {barSearchShown ? (
+        <View pointerEvents="box-none" style={[styles.barSearch, { top }]}>
+          <BarSearch routeKey={route.key} from={sides.right} open={barFocused} onClosed={closeBarSearch} />
+        </View>
+      ) : null}
       {below ? (
         <Animated.View pointerEvents="none" style={[styles.largeBlock, rowStyle]}>
           <AnimatedNativeGlassBlur animatedProps={largeBlur}>
@@ -604,6 +626,14 @@ const styles = StyleSheet.create({
   titleBlurLeading: { alignItems: 'flex-start', maxWidth: '100%' },
   measure: { position: 'absolute', opacity: 0, maxWidth: undefined },
   searchBlock: { overflow: 'hidden' },
+  barSearch: {
+    position: 'absolute',
+    left: bar.margin,
+    right: bar.margin,
+    height: bar.row,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   searchBelowRow: { marginTop: bar.inline - bar.row },
   // Not clipped: the large title rides up into the bar's row before it fades, as on iOS.
   largeBlock: { height: bar.large, marginTop: bar.inline - bar.row },

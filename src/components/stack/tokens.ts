@@ -313,9 +313,18 @@ export const searchMotion = {
   focus: 220,
   // Focusing a field in the navigation bar, measured on the iOS 27 simulator: the field rises into the row as it
   // narrows for the close button, which slides in from the screen's edge. It moves at once and eases out
-  // exponentially, a time constant of about 53ms: 35% of the way by 13ms, 85% by 100ms, 96% by 155ms, there by about
-  // 200ms. The row's title and buttons are mostly gone by the first frame.
-  lift: { duration: 320, settle: 53 },
+  // exponentially, a time constant of about 60ms: 47% of the way by 45ms, 80% by 110ms, 97% by 155ms. The row's title
+  // and buttons are mostly gone by the first frame. It ends a point past the row, at about 240ms, and settles back by
+  // about 390ms. Closing, it goes back down on a
+  // critically damped spring of about 30 rad/s, with no overshoot: 30% by 37ms, 67% by 77ms, 93% by 145ms.
+  lift: { duration: 240, settle: 60, overshoot: 1, back: 150 },
+  drop: { stiffness: 900, damping: 60 },
+  // The magnifier among the bar's items, opening (iOS 27 simulator): its capsule stretches left into a field across the
+  // row over about 90ms as the row's title and buttons go, the placeholder coming in, with the close cross at its end.
+  // About 330ms in, the close button buds off the field's end, the glass necking apart, over about 80ms.
+  // Closing plays it back over about 200ms: the placeholder goes, the close button merges back, and the field shrinks
+  // into the capsule as the row's title and buttons come back.
+  bar: { stretch: 90, content: 90, budAt: 330, bud: 80, closeFade: 60, closeMerge: 100, closeAt: 50, closeShrink: 170 },
   rowOut: 50,
   rowIn: 200,
 } as const;

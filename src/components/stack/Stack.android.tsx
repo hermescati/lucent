@@ -270,7 +270,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const inTabs = useInsideTabs();
   const placement = search ? searchPlacement(search.props, bottomToolbar, inTabs) : undefined;
   // In search mode from the bottom, the field takes the toolbar's place above the keyboard.
-  const searching = Boolean(search?.focused) && placement !== 'header';
+  const searching = Boolean(search?.focused) && placement !== 'header' && placement !== 'barButton';
   const bottomBar = Boolean(bottomToolbar) || placement === 'bottom' || placement === 'button';
   const { colors } = useTheme();
 

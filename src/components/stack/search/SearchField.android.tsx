@@ -1,22 +1,36 @@
 import { SymbolView } from 'expo-symbols';
 import { useEffect } from 'react';
-import { BackHandler, Pressable, StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
+import {
+  BackHandler,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+  type KeyboardTypeOptions,
+} from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
+  Easing,
   FadeIn,
   FadeOut,
   useAnimatedStyle,
   useDerivedValue,
+  useSharedValue,
+  withDelay,
+  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { cancelSearch } from './SearchBar.android';
-import { setSearchInput, updateSearch, useSearch, type SearchState } from './store.android';
+import { getSearchInput, setSearchInput, updateSearch, useSearch, type SearchState } from './store.android';
 import { useBackClaim } from '../../../core/back/claims';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
-import { BarCapsule } from '../header/BarCapsule.android';
-import { barItem, search, searchMotion, toolbar } from '../tokens';
+import { BarCapsule, BarGlassRow, useBarGlassRow } from '../header/BarCapsule.android';
+import { bar, barItem, search, searchMotion, toolbar } from '../tokens';
 import { useToolbarOffset } from '../toolbar/offset.android';
 import type { LucentSearchBarProps } from '../types';
 
@@ -60,6 +74,8 @@ const Magnifier = ({ color, show }: { color: string; show: boolean }) =>
       style={[styles.icon, { left: search.iconCentre - search.iconSize / 2 }]}
     />
   ) : null;
+
+const focusInput = (routeKey: string) => getSearchInput(routeKey)?.focus();
 
 /** The field's text box, which tells the search bar's handlers what's typed. */
 const SearchInput = ({ routeKey, state, autoFocus }: { routeKey: string; state: SearchState; autoFocus?: boolean }) => {
@@ -214,10 +230,18 @@ const useSearchBack = (routeKey: string, active: boolean) => {
   }, [routeKey, active]);
 };
 
-const CloseButton = ({ onPress, size = search.focused.close }: { onPress: () => void; size?: number }) => {
+const CloseButton = ({
+  onPress,
+  size = search.focused.close,
+  swell,
+}: {
+  onPress: () => void;
+  size?: number;
+  swell?: SharedValue<number>;
+}) => {
   const { color } = useLucentTheme();
   return (
-    <BarCapsule height={size}>
+    <BarCapsule height={size} swell={swell}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close search"
@@ -262,12 +286,89 @@ export const FocusedSearch = ({ routeKey }: { routeKey: string }) => {
   );
 };
 
-// TODO: the field here is a TextInput in the bar's glass. Rebuild it on a Lucent search field that matches iOS's
-// UISearchTextField (glyphs, text, clear button, cursor), then revisit the bar's search: closing a search isn't measured
-// on iOS (it plays the rise in reverse), and iOS's rise ends with a point of overshoot that this leaves out. Also: the
-// magnifier among the bar's items (`integratedButton` beside a toolbar) opens the field up in the bar, not at the bottom:
-// on iOS 27 its capsule stretches left into the field over about 300ms, the back button and title fading, its glyphs
-// blurring into the placeholder, and the close button buds off the field's end as glass necks apart.
+// TODO: the field here is a TextInput in the bar's glass. Rebuild it on a Lucent search field that matches the text and
+// glyph metrics of iOS's UISearchTextField.
+/**
+ * Search opened from the magnifier among the navigation bar's items, as iOS 27 opens it: in the bar's row, the
+ * magnifier's capsule stretching left into the field, with the close button's cross at its end, which then buds off into
+ * a glass circle of its own. `from` is the capsule's width, which the field stretches out of.
+ */
+export const BarSearch = ({ routeKey, from, open, onClosed }: BarSearchProps) => {
+  const state = useSearch(routeKey);
+  if (!state) return null;
+  return (
+    <BarGlassRow style={styles.barRow} height={barItem.height}>
+      <BarSearchBody routeKey={routeKey} state={state} from={from} open={open} onClosed={onClosed} />
+    </BarGlassRow>
+  );
+};
+
+interface BarSearchProps {
+  routeKey: string;
+  from: number;
+  // Open, it plays in; closed, it plays back out, and then says so, to be taken away.
+  open: boolean;
+  onClosed: () => void;
+}
+
+const BarSearchBody = ({ routeKey, state, from, open, onClosed }: BarSearchProps & { state: SearchState }) => {
+  useSearchBack(routeKey, open);
+  const row = useBarGlassRow();
+  const { width } = useWindowDimensions();
+  const span = width - bar.margin * 2;
+  const stretch = useSharedValue(0);
+  const bud = useSharedValue(0);
+  const shown = useSharedValue(0);
+  // The glass follows the capsules on the UI thread: they move by layout.
+  const still = useSharedValue(0);
+  useEffect(() => {
+    const motion = searchMotion.bar;
+    if (open) {
+      // Focused once it's stretched: focused on mount, while it's still a sliver, Android lets go of it again at once.
+      stretch.set(
+        withTiming(1, { duration: motion.stretch, easing: Easing.out(Easing.cubic) }, (finished) => {
+          if (finished) scheduleOnRN(focusInput, routeKey);
+        }),
+      );
+      shown.set(withTiming(1, { duration: motion.content }));
+      bud.set(withDelay(motion.budAt, withTiming(1, { duration: motion.bud, easing: Easing.inOut(Easing.quad) })));
+      row?.follow(motion.budAt + motion.bud + 50);
+      return;
+    }
+    shown.set(withTiming(0, { duration: motion.closeFade }));
+    bud.set(withTiming(0, { duration: motion.closeMerge, easing: Easing.inOut(Easing.quad) }));
+    stretch.set(
+      withDelay(
+        motion.closeAt,
+        withTiming(0, { duration: motion.closeShrink, easing: Easing.inOut(Easing.quad) }, (finished) => {
+          if (finished) scheduleOnRN(onClosed);
+        }),
+      ),
+    );
+    row?.follow(motion.closeAt + motion.closeShrink + 50);
+  }, [open, stretch, bud, shown, row, onClosed]);
+  const room = barItem.height + search.focused.gap;
+  const fieldStyle = useAnimatedStyle(() => ({
+    marginLeft: (1 - stretch.get()) * Math.max(span - Math.max(from, barItem.height), 0),
+    marginRight: bud.get() * room,
+  }));
+  const contentStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  return (
+    <>
+      <Animated.View style={[styles.barField, fieldStyle]}>
+        <BarCapsule height={barItem.height} grow disabled swell={still}>
+          <Animated.View style={[styles.display, contentStyle]}>
+            <SearchInput routeKey={routeKey} state={state} autoFocus={false} />
+          </Animated.View>
+        </BarCapsule>
+      </Animated.View>
+      <View pointerEvents={open ? 'auto' : 'none'} style={styles.barClose}>
+        <CloseButton size={barItem.height} swell={still} onPress={() => cancelSearch(routeKey)} />
+      </View>
+    </>
+  );
+};
+
 interface HeaderSearchProps {
   routeKey: string;
   // From 0 at rest below the title to 1 risen into the bar's row, focused.
@@ -382,6 +483,9 @@ const styles = StyleSheet.create({
   },
   headerRow: { height: search.header.height, marginHorizontal: search.header.margin, justifyContent: 'center' },
   headerField: { height: search.header.height },
+  barRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  barField: { flex: 1, flexDirection: 'row' },
+  barClose: { position: 'absolute', right: 0 },
   headerFill: { ...StyleSheet.absoluteFill, borderRadius: search.header.height / 2 },
   headerClose: { position: 'absolute', right: 0 },
 });

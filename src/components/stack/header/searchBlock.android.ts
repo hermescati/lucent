@@ -16,11 +16,13 @@ export const useHeaderSearchBlock = (routeKey: string) => {
   const inBar = placement === 'header';
   return {
     block: inBar ? search.header.block : 0,
-    hidden: Boolean(state?.focused) && !inBar && state?.props.hideNavigationBar !== false,
+    hidden: Boolean(state?.focused) && !inBar && placement !== 'barButton' && state?.props.hideNavigationBar !== false,
     collapses: inBar && state?.props.hideWhenScrolling !== false && !state?.focused,
     // Focused in the bar, the field rises into the row, and the row's items and title step aside.
     focusedInBar: inBar && Boolean(state?.focused),
     // A magnifier among the bar's items, which opens the field.
     button: placement === 'barButton' && !state?.focused,
+    // Opened from that magnifier, the field takes the bar's row.
+    barFocused: placement === 'barButton' && Boolean(state?.focused),
   };
 };
