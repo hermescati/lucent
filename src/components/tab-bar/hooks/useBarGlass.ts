@@ -158,23 +158,28 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const fieldGrowX = ((fieldRight - fieldLeft) * fieldGrow) / 2;
     const fieldGrowY = ((fieldBottom - fieldTop) * fieldGrow) / 2;
 
+    // Held, the field grows to within a few points of the close button but stays apart from it, as on iOS: no glass
+    // runs between the two.
+    const apart = 1 - held;
     return {
-      blend: Math.max(
-        glass.blend * clamp01(mode * 3),
-        glass.popBlend * Math.sin(Math.PI * popPlace) * settled,
-        glass.liftBlend *
-          clamp01(barGrowth.get() / motion.barGrow.held) ** 2 *
-          (1 - settled) *
-          (1 -
+      blend:
+        apart *
+        Math.max(
+          glass.blend * clamp01(mode * 3),
+          glass.popBlend * Math.sin(Math.PI * popPlace) * settled,
+          glass.liftBlend *
+            clamp01(barGrowth.get() / motion.barGrow.held) ** 2 *
+            (1 - settled) *
+            (1 -
+              clamp01(1 - (lastIndex - lensPosition.get()) / glass.lensPinchSideReach) *
+                (1 - lerp(motion.endMelt, 1, push.get()))),
+          glass.pressBlend * searchPress.press.get(),
+          (hasSearch ? glass.meltBlend : 0) *
+            shine.get() *
+            (1 - settled) *
             clamp01(1 - (lastIndex - lensPosition.get()) / glass.lensPinchSideReach) *
-              (1 - lerp(motion.endMelt, 1, push.get()))),
-        glass.pressBlend * searchPress.press.get(),
-        (hasSearch ? glass.meltBlend : 0) *
-          shine.get() *
-          (1 - settled) *
-          clamp01(1 - (lastIndex - lensPosition.get()) / glass.lensPinchSideReach) *
-          lerp(motion.endMelt, 1, push.get()),
-      ),
+            lerp(motion.endMelt, 1, push.get()),
+        ),
       dim: 0,
       frost:
         glass.lensFrost *

@@ -238,8 +238,8 @@ export const motion = {
   },
   pressGrow: 0.26,
   // The search field held by its clear button (iOS 27 simulator): the field and everything in it grow about 5% about
-  // its middle on the press spring, necking into the close button's circle beside it, and its glass brightens, settling
-  // back after the finger lifts.
+  // its middle on the press spring, staying apart from the close button's circle beside it, and its glass brightens,
+  // settling back after the finger lifts.
   fieldPressGrow: 0.05,
   // How much its glass brightens held: iOS's goes from about 245 to 253 over white content.
   fieldPressGlow: 0.05,
