@@ -70,6 +70,8 @@ uniform float frostClear;
 uniform float frostRadius;
 uniform float frostMagnify;
 uniform float3 fadeBlur;
+uniform float2 rimOptic;
+uniform float2 haze;
 uniform float4 tone;
 uniform float4 frostTone;
 uniform float chroma;
@@ -232,7 +234,7 @@ half4 main(float2 coord) {
   }
   float4 rimColor = float4(rim);
   float rimHalf = max(rimWidth, 0.5) * 0.5;
-  if (rimOutside > 0.0 && rimColor.a > 0.0 && d > -max(rimHalf, 0.5) && d < max(rimHalf * 3.0, rimWidth + 0.5)) {
+  if (rimOutside > 0.0 && (rimColor.a > 0.0 || rimOutside > 2.5) && d > -max(rimHalf, 0.5) && d < max(rimHalf * 3.0, rimWidth + 0.5)) {
     float2 g = float2(field(coord + float2(1.0, 0.0)) - field(coord - float2(1.0, 0.0)),
                       field(coord + float2(0.0, 1.0)) - field(coord - float2(0.0, 1.0)));
     float gl = length(g);
@@ -241,8 +243,19 @@ half4 main(float2 coord) {
     float stroke = rimOutside > 1.5
       ? clamp(clamp(0.5 - (dn - rimWidth), 0.0, 1.0) - clamp(0.5 - dn, 0.0, 1.0), 0.0, 1.0) * (1.0 - cover)
       : clamp(1.0 - abs(d - rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * (1.0 - cover);
-    float sa = rimColor.a * stroke * (rimOutside > 1.5 ? (rimSide > 0.0 ? mix(rimFloor, 1.0, pow(max(side, 0.0001), rimSide)) : 1.0) : mix(1.0, rimSide, side));
-    outer = float4(rimColor.rgb * sa, sa) + outer * (1.0 - sa);
+    if (rimOutside > 2.5) {
+      // iOS 27's outline isn't a stroke: it's the backdrop under it, darkened along a curve (0.118 + 0.572b of itself, so
+      // it vanishes over black and keeps 69% of white), eased off over light backdrops in dark mode, and weaker where
+      // the edge faces up or down. Drawn as a premultiplied colour over the backdrop, so each channel darkens on its own.
+      float3 b = content.eval(clamp(coord, float2(0.5), size - float2(0.5))).rgb;
+      float w = stroke * mix(rimOptic.x, 1.0, side);
+      float3 m = mix(float3(1.0), (0.118 + 0.572 * b) * (1.0 - rimOptic.y * max(luma(b) - 0.5, 0.0)), w);
+      float keep = min(m.r, min(m.g, m.b));
+      outer = float4(b * (m - keep), 1.0 - keep) + outer * keep;
+    } else {
+      float sa = rimColor.a * stroke * (rimOutside > 1.5 ? (rimSide > 0.0 ? mix(rimFloor, 1.0, pow(max(side, 0.0001), rimSide)) : 1.0) : mix(1.0, rimSide, side));
+      outer = float4(rimColor.rgb * sa, sa) + outer * (1.0 - sa);
+    }
   }
   if (cover <= 0.004) {
     return half4(outer);
@@ -350,6 +363,24 @@ half4 main(float2 coord) {
       total += w;
     }
     col = disc / total;
+  }
+
+  // iOS 27's material is mostly a very wide blur under the near-sharp image at a low weight: fine detail shows faintly at
+  // every scale rather than coarse detail strongly. The blur averages on a cube, which lands black and white stripes'
+  // mid level where iOS's does (it averages in linear light, and the backdrop reaches here already toned).
+  if (haze.x > 0.0 && haze.y > 0.5) {
+    float2 at = base + offset;
+    float3 disc = float3(0.0);
+    float total = 0.0;
+    for (int i = 0; i < 32; i++) {
+      float f = (float(i) + 0.5) / 32.0;
+      float ang = float(i) * 2.39996;
+      float w = exp(-2.0 * f);
+      float3 c = content.eval(clamp(at + float2(cos(ang), sin(ang)) * haze.y * sqrt(f), lo, hi)).rgb;
+      disc += c * c * c * w;
+      total += w;
+    }
+    col = mix(col, pow(disc / total, float3(1.0 / 3.0)), haze.x);
   }
 
   float frostEdge = continuous > 0.0 ? mix(capsule(coord, frostRect), continuousCapsule(coord, frostRect), continuous) : capsule(coord, frostRect);

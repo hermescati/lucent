@@ -212,7 +212,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = if (opaque) 0f else pinchSpread
     state[i++] = if (opaque) 0f else rimPrism
     state[i++] = rimWidth
-    state[i++] = if (!rimOutside) 0f else if (rimCrisp) 2f else 1f
+    state[i++] = if (!rimOutside) 0f else if (rimOptic) 3f else if (rimCrisp) 2f else 1f
     state[i++] = rimSide
     state[i++] = rimFloor
     state[i++] = edgeAxis
@@ -292,6 +292,11 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = if (opaque) 0f else fadeBlur * density
     state[i++] = fadeFrom * density + outPx
     state[i++] = fadeTo * density + outPx
+    val opticAt = i
+    state[i++] = rimOpticTop
+    state[i++] = rimOpticDarken
+    state[i++] = if (opaque) 0f else haze
+    state[i++] = hazeRadius * density
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -393,6 +398,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("sampleClip", state[sampleClipAt], state[sampleClipAt + 1], state[sampleClipAt + 2], state[sampleClipAt + 3])
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
     glassShader.setFloatUniform("fadeBlur", state[fadeBlurAt], state[fadeBlurAt + 1], state[fadeBlurAt + 2])
+    glassShader.setFloatUniform("rimOptic", state[opticAt], state[opticAt + 1])
+    glassShader.setFloatUniform("haze", state[opticAt + 2], state[opticAt + 3])
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
     val inner = blur(blurPx)

@@ -7,7 +7,12 @@ export const layout = {
   tabBarBottomOffsetAndroid: 28,
   tabBarMaxWidth: 360,
   // iOS 27's tab bar outline is a crisp hairline, a pixel at its ends, thinner than the other glass's rim.
-  tabBarRimWidth: 1,
+  // iOS 27's outline (simulator, over greys and colours): a ring 0.5pt wide just outside the glass, the backdrop under
+  // it darkened rather than a stroke. Full at the sides; a quarter where it faces up or down in light mode, and none in
+  // dark, where it also eases off over light backdrops.
+  tabBarRim: { width: 0.5, top: { light: 0.25, dark: 0 }, darken: { light: 0, dark: 0.88 } },
+  // Its glass over stripes: a near-sharp image at about 28% over a blur far wider than 16pt, at every stripe period.
+  tabBarHaze: { weight: 0.72, radius: 40, blur: 0.4 },
   tabBarInlinePadding: 7,
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,

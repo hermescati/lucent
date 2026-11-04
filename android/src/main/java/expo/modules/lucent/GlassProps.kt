@@ -63,6 +63,14 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var rimCrisp = false
   var rimSide = 1f
   var rimFloor = 0f
+  // The outline as iOS 27 draws it: the backdrop under it darkened, not a stroke. Its strength where the edge faces up or
+  // down (1 at the sides), and how much it eases off over light backdrops (dark mode).
+  var rimOptic = false
+  var rimOpticTop = 0f
+  var rimOpticDarken = 0f
+  // A very wide blur under the near-sharp image, at this weight and radius: iOS 27's glass is mostly haze.
+  var haze = 0f
+  var hazeRadius = 0f
   var edgeAxis = 0f
   var prismAxis = 0f
   var prismShift = 0f

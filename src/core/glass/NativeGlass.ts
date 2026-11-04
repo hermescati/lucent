@@ -60,6 +60,11 @@ export interface NativeGlassViewProps extends ViewProps {
   rimSide?: number;
   rimFloor?: number;
   rimCrisp?: boolean;
+  rimOptic?: boolean;
+  rimOpticTop?: number;
+  rimOpticDarken?: number;
+  haze?: number;
+  hazeRadius?: number;
   edgeAxis?: number;
   prismAxis?: number;
   prismShift?: number;

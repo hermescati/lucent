@@ -135,6 +135,11 @@ class LucentModule : Module() {
       Prop("rimCrisp") { view: GlassView, value: Boolean? -> view.rimCrisp = value ?: false }
       Prop("rimSide") { view: GlassView, value: Float? -> view.rimSide = value ?: 1f }
       Prop("rimFloor") { view: GlassView, value: Float? -> view.rimFloor = value ?: 0f }
+      Prop("rimOptic") { view: GlassView, value: Boolean? -> view.rimOptic = value ?: false }
+      Prop("rimOpticTop") { view: GlassView, value: Float? -> view.rimOpticTop = value ?: 0f }
+      Prop("rimOpticDarken") { view: GlassView, value: Float? -> view.rimOpticDarken = value ?: 0f }
+      Prop("haze") { view: GlassView, value: Float? -> view.haze = value ?: 0f }
+      Prop("hazeRadius") { view: GlassView, value: Float? -> view.hazeRadius = value ?: 0f }
       Prop("edgeAxis") { view: GlassView, value: Float? -> view.edgeAxis = value ?: 0f }
       Prop("prismAxis") { view: GlassView, value: Float? -> view.prismAxis = value ?: 0f }
       Prop("prismShift") { view: GlassView, value: Float? -> view.prismShift = value ?: 0f }
