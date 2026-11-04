@@ -61,7 +61,8 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     barRim: 'rgba(255, 255, 255, 0)',
     tabBarRim: 'rgba(255, 255, 255, 0)',
     glassOutline: 'rgba(0, 0, 0, 0.8)',
-    lens: 'rgba(0, 0, 0, 0)',
+    // iOS 27's selected pill is about half as bright as the bar around it in dark mode, over a dark list or a photo.
+    lens: 'rgba(0, 0, 0, 0.35)',
     lensActive: 'rgba(0, 0, 0, 0)',
     lensRim: 'rgba(255, 255, 255, 0.16)',
     lensRimEarly: 'rgba(255, 255, 255, 0.16)',
@@ -153,9 +154,12 @@ const mix = (hex: string, target: number, amount: number) => {
   return channels ? toHex(channels.map((channel) => channel + (target - channel) * amount)) : hex;
 };
 
+// The selected tab's ink on iOS 27 (simulator): in light mode the tint a shade darker over any backdrop, (244, 123, 43)
+// for #FF8433 over both a white list and a photo; in dark mode lighter as the backdrop is, from (255, 156, 75) over a
+// dark list towards (255, 218, 137) over a bright photo.
 const tintRamp: Record<LucentScheme, { accent: number; active: number; over: number }> = {
-  dark: { accent: 0.15, active: 0.55, over: 0.05 },
-  light: { accent: 0, active: -0.15, over: -0.25 },
+  dark: { accent: 0.15, active: 0.55, over: 0.15 },
+  light: { accent: 0, active: -0.04, over: -0.04 },
 };
 
 const shade = (hex: string, amount: number) => (amount >= 0 ? mix(hex, 255, amount) : mix(hex, 0, -amount));
