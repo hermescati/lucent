@@ -117,6 +117,7 @@ class LucentModule : Module() {
       Prop("glowY") { view: GlassView, value: Float? -> view.glowY = value ?: 0f }
       Prop("glowSpread") { view: GlassView, value: Float? -> view.glowSpread = value ?: 0f }
       Prop("glowStrength") { view: GlassView, value: Float? -> view.glowStrength = value ?: 0f }
+      Prop("glowShape") { view: GlassView, value: Int? -> view.glowShape = value ?: -1 }
       Prop("shadowRadius") { view: GlassView, value: Float? -> view.shadowRadius = value ?: 0f }
       Prop("shadowOffset") { view: GlassView, value: Float? -> view.shadowOffset = value ?: 0f }
       Prop("shadowSpread") { view: GlassView, value: Float? -> view.shadowSpread = value ?: 0f }

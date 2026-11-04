@@ -403,6 +403,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           idle={idleFade}
           onCancel={idleSearch}
           onWake={wakeSearch}
+          fieldPress={state.fieldPress}
           mode={searchMode}
           backTab={tabs[backIndex]}
           searchTab={searchTab}

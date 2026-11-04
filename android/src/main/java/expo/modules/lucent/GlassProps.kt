@@ -44,6 +44,8 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var glowY = 0f
   var glowSpread = 0f
   var glowStrength = 0f
+  // Which of `shapes` the glow stays inside, or -1 for the first (the whole view with one shape).
+  var glowShape = -1
   var shadowRadius = 0f
   var shadowOffset = 0f
   var shadowSpread = 0f

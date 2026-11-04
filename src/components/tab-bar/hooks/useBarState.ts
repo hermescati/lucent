@@ -86,6 +86,8 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   }, [disabledKey, disabledTabs]);
   const hasBadges = tabs.some((tab) => tab.badge !== undefined);
   const searchPress = useGlassPress();
+  // The search field's glass under a finger on its clear button: it swells and brightens, as iOS's does.
+  const fieldPress = useGlassPress();
   const backPress = useGlassPress();
   const backLight = useSharedValue(0);
   const backDragging = useSharedValue(false);
@@ -303,6 +305,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     searchPop,
     searchIdle,
     searchPress,
+    fieldPress,
     searchRaise,
     searchTab,
     setQuery,

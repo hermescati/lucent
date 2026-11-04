@@ -18,7 +18,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
 import type { TabSpec } from '../helpers/triggers';
-import type { useGlassPress } from '../hooks/useGlassPress';
+import type { GlassPress, useGlassPress } from '../hooks/useGlassPress';
 import { layout, motion, placeholderBlend, searchFieldText } from '../tokens';
 
 const fullHeight = layout.tabBarHeight;
@@ -67,6 +67,8 @@ interface Props {
   onCancel: () => void;
   // The field taken up again while inactive.
   onWake: () => void;
+  // The field's glass under a finger on its clear button.
+  fieldPress: GlassPress;
   backDrag: PanGesture;
   keyboard: SharedValue<number>;
   spread: SharedValue<number>;
@@ -89,6 +91,7 @@ export const SearchMode = ({
   idle,
   onCancel,
   onWake,
+  fieldPress,
   backDrag,
   keyboard,
   spread,
@@ -187,6 +190,7 @@ export const SearchMode = ({
           wideShift * wide.get(),
       },
       { translateY: dip.get() },
+      { scale: 1 + fieldPress.press.get() * motion.fieldPressGrow * clamp01(mode.get()) },
     ],
     left: fieldLeft - wideShift * wide.get(),
     // Inactive, the field reaches over where the close button was.
@@ -309,7 +313,12 @@ export const SearchMode = ({
           </AnimatedNativeGlassBlur>
         </View>
         <Animated.View pointerEvents={query ? 'auto' : 'none'} style={clearStyle}>
-          <ClearButton color={color.clearButton} onPress={clearQuery} />
+          <ClearButton
+            color={color.clearButton}
+            onPress={clearQuery}
+            onPressIn={fieldPress.onPressIn}
+            onPressOut={fieldPress.onPressOut}
+          />
         </Animated.View>
       </Animated.View>
     </View>

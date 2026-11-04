@@ -47,6 +47,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     searchDip,
     searchMode,
     searchPop,
+    fieldPress,
     searchIdle,
     searchPress,
     searchRaise,
@@ -151,6 +152,11 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const tucked =
       settled > 0 ? Math.min(circleRadius, ((fieldBottom - fieldTop) / 2) * motion.searchPop.tuckScale) : circleRadius;
     const fieldRadius = lerp(tucked, circleRadius, popPlace);
+    // Held by its clear button, the field swells about its middle.
+    const held = fieldPress.press.get() * settled;
+    const fieldGrow = held * motion.fieldPressGrow;
+    const fieldGrowX = ((fieldRight - fieldLeft) * fieldGrow) / 2;
+    const fieldGrowY = ((fieldBottom - fieldTop) * fieldGrow) / 2;
 
     return {
       blend: Math.max(
@@ -185,19 +191,30 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       frostRight: frostX + frostHalfX + pad,
       frostTop: frostY - frostHalfY + pad,
       frostBottom: frostY + frostHalfY + pad,
-      ...(backSpread > 0
+      ...(held > 0
         ? {
-            glowX: backLeft + modeHeight / 2 + pad,
-            glowY: (backTop + backBottom) / 2 + pad,
-            glowSpread: (backRight - backLeft) * glass.backGlowSpread,
-            glowStrength: glass.backGlow[scheme] * backSpread,
+            glowX: (fieldLeft + fieldRight) / 2 + pad,
+            glowY: (fieldTop + fieldBottom) / 2 + dip + pad,
+            glowSpread: fieldRight - fieldLeft,
+            glowStrength: motion.fieldPressGlow * held,
+            // The field's shape: after the tabs' pill and the search circle.
+            glowShape: 2,
           }
-        : {
-            glowX: (leftEdge.get() + rightEdge.get()) / 2 + pad,
-            glowY: fullHeight / 2 + pad,
-            glowSpread: glass.pressGlowSpread,
-            glowStrength: glass.pressGlow * shine.get() * barPress.get() * (1 - tapSlide.get()) * (1 - settled),
-          }),
+        : backSpread > 0
+          ? {
+              glowX: backLeft + modeHeight / 2 + pad,
+              glowY: (backTop + backBottom) / 2 + pad,
+              glowSpread: (backRight - backLeft) * glass.backGlowSpread,
+              glowStrength: glass.backGlow[scheme] * backSpread,
+              glowShape: -1,
+            }
+          : {
+              glowX: (leftEdge.get() + rightEdge.get()) / 2 + pad,
+              glowY: fullHeight / 2 + pad,
+              glowSpread: glass.pressGlowSpread,
+              glowStrength: glass.pressGlow * shine.get() * barPress.get() * (1 - tapSlide.get()) * (1 - settled),
+              glowShape: -1,
+            }),
       wideMix: lerp(glass.wideMix[scheme], glass.pressWideMix[scheme], barPress.get() * (1 - settled)),
       shapes: [
         backLeft + pad,
@@ -214,10 +231,10 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
           : []),
         ...(mode > 0
           ? [
-              fieldLeft + bump * motion.searchBump.squish + pad,
-              fieldTop + dip + pad,
-              fieldRight + pad,
-              fieldBottom + dip + pad,
+              fieldLeft - fieldGrowX + bump * motion.searchBump.squish + pad,
+              fieldTop - fieldGrowY + dip + pad,
+              fieldRight + fieldGrowX + pad,
+              fieldBottom + fieldGrowY + dip + pad,
             ]
           : []),
       ],

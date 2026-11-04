@@ -7,6 +7,8 @@ import { clearButton } from '../tokens';
 interface Props {
   color: string;
   onPress: () => void;
+  onPressIn?: () => void;
+  onPressOut?: () => void;
 }
 
 const { size, span, stroke } = clearButton;
@@ -14,13 +16,16 @@ const center = size / 2;
 const near = center - span / 2;
 const far = center + span / 2;
 
-export const ClearButton = ({ color, onPress }: Props) => {
+export const ClearButton = ({ color, onPress, onPressIn, onPressOut }: Props) => {
   const maskId = `clear-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
   return (
     <Pressable
-      style={styles.target}
+      // Touched, it all but goes, as iOS's does, before it fades out with the text.
+      style={({ pressed }) => [styles.target, pressed && { opacity: clearButton.pressedOpacity }]}
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       hitSlop={clearButton.hitSlop}
       accessibilityRole="button"
       accessibilityLabel="Clear text">

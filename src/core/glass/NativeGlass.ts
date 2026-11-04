@@ -41,6 +41,8 @@ export interface NativeGlassViewProps extends ViewProps {
   glowY?: number;
   glowSpread?: number;
   glowStrength?: number;
+  // Which of `shapes` the glow stays inside; the first, without it.
+  glowShape?: number;
   shadowRadius?: number;
   shadowOffset?: number;
   shadowSpread?: number;

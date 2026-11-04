@@ -36,6 +36,8 @@ export const searchFieldText = {
 } as const;
 
 export const clearButton = {
+  // Under the finger (iOS 27 simulator: black to about 200 over a 246 field).
+  pressedOpacity: 0.2,
   size: 17,
   span: 5,
   stroke: 1.8,
@@ -235,6 +237,12 @@ export const motion = {
     iconHalf: 0.35,
   },
   pressGrow: 0.26,
+  // The search field held by its clear button (iOS 27 simulator): the field and everything in it grow about 5% about
+  // its middle on the press spring, necking into the close button's circle beside it, and its glass brightens, settling
+  // back after the finger lifts.
+  fieldPressGrow: 0.05,
+  // How much its glass brightens held: iOS's goes from about 245 to 253 over white content.
+  fieldPressGlow: 0.05,
   pressIconDim: { dark: 0.4, light: 0.9 },
   backTravel: { handoff: 0.001, settle: 0.995, textRate: 2, textDelay: 0.6 },
   searchClose: {

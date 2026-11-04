@@ -2,6 +2,8 @@ import { useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { motion } from '../tokens';
 
+export type GlassPress = ReturnType<typeof useGlassPress>;
+
 export const useGlassPress = () => {
   const press = useSharedValue(0);
 

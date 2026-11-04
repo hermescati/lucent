@@ -272,8 +272,9 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = tintDarken
     state[i++] = tintMix
     val glowShapeAt = i
-    if (shapePress) {
-      val k = pressedShape * 4
+    val glowAt = if (shapePress) pressedShape else glowShape
+    if (glowAt >= 0) {
+      val k = glowAt * 4
       state[i++] = shapeBuffer[k]
       state[i++] = shapeBuffer[k + 1]
       state[i++] = shapeBuffer[k + 2]
