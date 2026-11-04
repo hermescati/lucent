@@ -498,8 +498,10 @@ half4 main(float2 coord) {
   } else {
     float bevel = clamp(1.0 - depth / max(sharpWidth, 0.1), 0.0, 1.0);
     float edge = (edgeSharp * bevel + edgeSoft * exp(-depth / max(softWidth, 0.1))) * facingY * facingY;
-    float3 screened = col + edge / max(1.0 - tone.x, 0.1) * (1.0 - col);
-    col = mix(col + float3(edge), screened, tone.w);
+    // On toned (dark) glass the band fades with the fill as iOS 27's does, +0.248 - 0.137 of the fill's brightness
+    // (simulator, both modes), scaled to what it adds over the darkest fill, the tone's base.
+    float3 faded = col + edge * (0.248 - 0.137 * luma(col)) / (0.248 - 0.137 * tone.x);
+    col = mix(col + float3(edge), faded, tone.w);
   }
   col = clamp(col, float3(0.0), float3(1.0));
 
