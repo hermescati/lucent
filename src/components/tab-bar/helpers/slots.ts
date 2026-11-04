@@ -9,13 +9,15 @@ export interface SlotPlan {
   lefts: number[];
   widths: number[];
   centers: number[];
+  // The space between neighbouring tabs.
+  space: number;
 }
 
 export const planSlots = (width: number, contents: number[], end: number, gap: number): SlotPlan => {
   'worklet';
   const count = contents.length;
   if (count === 0) {
-    return { lefts: [], widths: [], centers: [] };
+    return { lefts: [], widths: [], centers: [], space: gap };
   }
   const share = Math.max((width - end * 2 - gap * (count - 1)) / count, 0);
   const widths = contents.map((content) => Math.max(content, share));
@@ -28,7 +30,7 @@ export const planSlots = (width: number, contents: number[], end: number, gap: n
     lefts.push(x);
     x += widths[index] + (fits ? gap : space);
   }
-  return { lefts, widths, centers: lefts.map((left, index) => left + widths[index] / 2) };
+  return { lefts, widths, centers: lefts.map((left, index) => left + widths[index] / 2), space: fits ? gap : space };
 };
 
 // A value along the tabs at a fractional index, between neighbours' and on past the ends at the last step.
@@ -58,6 +60,15 @@ export const slotWidthAt = (plan: SlotPlan, position: number) => {
   return count === 0 ? 0 : along(plan.widths, Math.min(Math.max(position, 0), count - 1));
 };
 
+/**
+ * The resting pill's width on the tab at a fractional index: iOS 27 (simulator) spans the tab's slot and the space to
+ * a neighbour, and `pad` more. Five entries, 82pt on a 40pt tab and 104 on Components' 62; four, 103 on every tab.
+ */
+export const pillWidthAt = (plan: SlotPlan, position: number, pad: number) => {
+  'worklet';
+  return slotWidthAt(plan, position) + plan.space + pad;
+};
+
 /** The fractional index at `x` from the bar's left edge: the inverse of `slotCenterAt`. */
 export const slotIndexAt = (plan: SlotPlan, x: number) => {
   'worklet';
@@ -83,5 +94,6 @@ export const mixSlots = (from: SlotPlan, to: SlotPlan, mix: number): SlotPlan =>
     lefts: lerpAll(from.lefts, to.lefts),
     widths: lerpAll(from.widths, to.widths),
     centers: lerpAll(from.centers, to.centers),
+    space: from.space + (to.space - from.space) * mix,
   };
 };

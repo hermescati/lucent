@@ -311,9 +311,8 @@ export const motion = {
   searchDrag: { start: 10 },
   searchKeyboard: { edge: 12, focusDelay: 180, dipAt: 0.05, dip: 4, minHeight: 120 },
   inkTone: { threshold: 0.04 },
-  // The resting pill on iOS 27 (simulator): 13pt wider than its slot with three tabs, 42pt wider than "Components"'s
-  // label with four.
-  pillFit: { slot: 13, label: 42 },
+  // The resting pill on iOS 27 (simulator): its tab's slot and the space between tabs, and this much more.
+  pillPad: 20,
   labelFadeRate: 1.8,
   collapseDistance: 24,
   compactPop: { delay: 110, depth: 0.06 },
