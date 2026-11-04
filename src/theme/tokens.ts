@@ -37,13 +37,13 @@ export const glass = {
   wideRadius: { dark: 16, light: 9 },
   wideMix: { dark: 0.35, light: 0.22 },
   pressWideMix: { dark: 0.8, light: 0.85 },
-  chroma: { dark: 1.3, light: 1.9 },
+  chroma: { dark: 1.6, light: 1.9 },
   tone: {
     dark: {
       on: 1,
       base: 0.125,
-      gain: 0.64,
-      gamma: 0.74,
+      gain: 0.6,
+      gamma: 0.59,
       frostBase: 0.16,
       frostGain: 0.45,
       frostGamma: 1,

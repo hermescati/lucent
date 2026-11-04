@@ -94,7 +94,7 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     text: '#000000',
     placeholder: 'rgba(60, 60, 67, 0.6)',
     placeholderActive: '#808080',
-    barTint: 'rgba(245, 245, 245, 0.54)',
+    barTint: 'rgba(251, 251, 251, 0.53)',
     barFallback: '#F4F5F9',
     barShadow: 'rgba(0, 0, 0, 0.012)',
     barRim: 'rgba(0, 0, 0, 0.12)',
