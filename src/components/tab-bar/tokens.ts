@@ -174,8 +174,9 @@ export const motion = {
   },
   // Held, iOS 27's tab bar (simulator, over flat grey) reaches about 11.7pt out at its end, most of it the lens
   // bulging past it, while the bar itself grows about 1.7pt above and below; it's 90% there by about 110ms and back
-  // about 130ms after letting go.
-  barGrow: { x: 2.5, y: 1.25, towardSearch: 1, held: 1.25 },
+  // about 130ms after letting go. Its end toward search grows three times as far, necking into the search circle 31pt
+  // thick at the middle of the gap.
+  barGrow: { x: 2.5, y: 1.25, towardSearch: 2, held: 1.25 },
   dragSettle: { near: 0.15 },
   disabledBounce: { delay: 120 },
   poke: { tap: 0.5, holdDelay: 120, flat: 0.12, bulge: 0.04, lean: 8 },
