@@ -7,6 +7,7 @@ import {
   useSharedValue,
 } from 'react-native-reanimated';
 
+import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
 import { clamp01, fullHeight, inlinePad, lensCompactScaleY, lensFullHeight, lerp } from '../helpers/bar';
 import { layout, motion } from '../tokens';
@@ -426,8 +427,11 @@ export const useLensStyles = (bar: BarState) => {
     };
   });
 
-  // The resting pill's fill, drawn with Apple's continuous ends, as iOS 27's pill is (simulator).
+  // The resting pill's fill, drawn with Apple's continuous ends, as iOS 27's pill is (simulator). Its outline follows
+  // the pill's width on the UI thread, rebuilt only when that changes: a re-layout changes it every frame.
+  const fillPath = useDerivedValue(() => continuousCapsule(lensBase.get(), lensFullHeight));
   const lensFillProps = useAnimatedProps(() => ({
+    d: fillPath.get(),
     fill: interpolateColor(1 - grey.get(), [0, 1], [color.lens, color.lensActive]),
     opacity: wallFlat.get().side !== 0 ? 0 : 1,
   }));

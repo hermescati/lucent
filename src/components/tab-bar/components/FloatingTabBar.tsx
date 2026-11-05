@@ -16,7 +16,6 @@ import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
-import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
 import {
   clamp01,
@@ -185,15 +184,6 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   useLensPhysics({ ...state, ...press });
   const lens = useLensStyles(state);
   const lensWidthStyle = useAnimatedStyle(() => ({ width: state.lensBase.get() }));
-  // The pill's outline at its unscaled size, which changes only with the bar's layout.
-  const [fillWidth, setFillWidth] = useState<number>(layout.bubbleRestWidth);
-  useAnimatedReaction(
-    () => Math.round(state.lensBase.get() * 10) / 10,
-    (width, previous) => {
-      if (width !== previous && width > 0) scheduleOnRN(setFillWidth, width);
-    },
-  );
-  const fillPath = useMemo(() => continuousCapsule(fillWidth, lensFullHeight), [fillWidth]);
   const barGlass = useBarGlass({ ...state, ...search, ...lens });
   // Search's circle stays while it melts back into the bar, and its icon travels with the glass (useBarGlass).
   const [meltingTab, setMeltingTab] = useState(props.searchTab);
@@ -335,8 +325,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
             />
             <Animated.View pointerEvents="none" style={[styles.lens, lensStyle, lensWidthStyle]}>
-              <Svg style={StyleSheet.absoluteFill} viewBox={`0 0 ${fillWidth} ${lensFullHeight}`}>
-                <AnimatedPath d={fillPath} animatedProps={lensFillProps} />
+              <Svg style={StyleSheet.absoluteFill}>
+                <AnimatedPath animatedProps={lensFillProps} />
               </Svg>
               <Animated.View style={[styles.lensLayer, lensFillStyle]} />
             </Animated.View>

@@ -6,13 +6,18 @@ const mid = Math.PI / 4;
 const spread = 1.2717138;
 const fit = [1.0017855, -0.0287977, -0.6672829, 3.217769, -5.2756717, 4.1355015, -1.2528373];
 
-const radiusAt = (s: number) => fit.reduceRight((sum, c) => sum * s + c, 0);
+const radiusAt = (s: number) => {
+  'worklet';
+  return fit.reduceRight((sum, c) => sum * s + c, 0);
+};
 
 /**
  * The outline of a capsule (radius `radius`, or half its shorter side) with Apple's continuous corners, as an SVG
  * path. A capsule's ends are cut at mid-height and a square with a full radius stays a circle, as iOS 27's are.
+ * A worklet, so an animated outline can be rebuilt on the UI thread.
  */
 export const continuousCapsule = (width: number, height: number, radius?: number) => {
+  'worklet';
   const ex = width / 2;
   const ey = height / 2;
   const r = Math.min(ex, ey, radius ?? Infinity);
