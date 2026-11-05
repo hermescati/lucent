@@ -15,6 +15,7 @@ import { TabIcon } from './TabIcon';
 import { barItemMotion } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { clamp01, labelShift, lerp } from '../helpers/bar';
+import { unmirror } from '../helpers/mirror';
 import { tabExit, tabSlide } from '../helpers/presence';
 import type { TabSpec } from '../helpers/triggers';
 import { layout, motion } from '../tokens';
@@ -187,6 +188,7 @@ export const TabItem = ({
             style={[
               styles.label,
               styles.legible,
+              unmirror,
               {
                 color: color.text,
                 textShadowColor: color.legibilityShadow,
@@ -202,6 +204,7 @@ export const TabItem = ({
               styles.label,
               styles.labelOverlay,
               styles.legible,
+              unmirror,
               {
                 textShadowColor: color.legibilityShadow,
               },

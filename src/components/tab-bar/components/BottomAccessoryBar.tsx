@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { I18nManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -21,6 +21,7 @@ import { glass } from '../../../theme/tokens';
 import { AccessoryPlacementContext } from '../context/accessory';
 import type { TabBarCollapseState } from '../context/collapse';
 import { clamp01, fullHeight, lerp } from '../helpers/bar';
+import { mirrored, unmirror } from '../helpers/mirror';
 import { useGlassPress } from '../hooks/useGlassPress';
 import { layout, motion } from '../tokens';
 
@@ -203,7 +204,8 @@ export const BottomAccessoryBar = ({
         own === 'regular' ? regularStyle : inlineStyle,
       ]}>
       <View
-        style={[styles.fill, { direction: I18nManager.isRTL ? 'rtl' : 'ltr' }]}
+        // The app's content, in the app's direction, the right way round in the mirrored bar (helpers/mirror).
+        style={[styles.fill, { direction: mirrored ? 'rtl' : 'ltr' }, unmirror]}
         pointerEvents={placement === own ? 'auto' : 'none'}
         importantForAccessibility={placement === own ? 'auto' : 'no-hide-descendants'}>
         {/* A finger on it swells the capsule. Watched with plain touches, not a Pressable, so the capsule isn't a control:

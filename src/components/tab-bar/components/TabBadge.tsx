@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { typography } from '../../../theme/tokens';
+import { unmirror } from '../helpers/mirror';
 import { layout } from '../tokens';
 
 interface Props {
@@ -25,7 +26,7 @@ export const TabBadge = ({
     pointerEvents="none">
     <View style={[styles.badge, { backgroundColor: color }]}>
       {text ? (
-        <Text style={[styles.text, { color: textColor }]} numberOfLines={1} allowFontScaling={false}>
+        <Text style={[styles.text, { color: textColor }, unmirror]} numberOfLines={1} allowFontScaling={false}>
           {text}
         </Text>
       ) : null}

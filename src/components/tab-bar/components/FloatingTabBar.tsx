@@ -30,6 +30,7 @@ import {
   tabBarGroup,
   tick,
 } from '../helpers/bar';
+import { mirror, mirrored } from '../helpers/mirror';
 import { moreName, useMore } from '../helpers/more';
 import { tabEnterAfter } from '../helpers/presence';
 import { reselectTab } from '../helpers/reselect';
@@ -291,7 +292,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   }, [ready]);
   const tabEnter = useMemo(() => tabEnterAfter(ready), [ready]);
 
-  return (
+  const content = (
     <>
       <BottomAccessoryBar
         span={barSpan}
@@ -583,6 +584,14 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
         ) : null}
       </Animated.View>
     </>
+  );
+  // Mirrored in a right-to-left language, as iOS mirrors its bar (helpers/mirror).
+  return mirrored ? (
+    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, mirror]}>
+      {content}
+    </View>
+  ) : (
+    content
   );
 };
 

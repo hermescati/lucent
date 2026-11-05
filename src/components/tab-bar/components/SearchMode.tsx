@@ -17,6 +17,7 @@ import { useClearButton } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
+import { mirrored } from '../helpers/mirror';
 import type { SlotPlan } from '../helpers/slots';
 import type { TabSpec } from '../helpers/triggers';
 import type { GlassPress, useGlassPress } from '../hooks/useGlassPress';
@@ -232,7 +233,8 @@ export const SearchMode = ({
     opacity: target.get() === 1 ? 1 - clamp01(mode.get() * motion.searchTabs.pressFade) : 0,
   }));
   const textStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: textFrom * (1 - clamp01(mode.get())) }],
+    // Flipped back with the text (textMirrored), so reversed to slide the bar's way.
+    transform: [{ translateX: (mirrored ? -textFrom : textFrom) * (1 - clamp01(mode.get())) }],
     opacity:
       mode.get() >= motion.backTravel.settle
         ? 0
@@ -301,11 +303,11 @@ export const SearchMode = ({
           </Animated.View>
         </Animated.View>
         <GestureDetector gesture={fieldTouch}>
-          <View style={styles.text}>
+          <View style={[styles.text, mirrored && styles.textMirrored]}>
             <Animated.View style={[styles.layer, inputStyle]}>
               <TextInput
                 ref={input}
-                style={[styles.input, searchFieldText[scheme], { color: color.text }]}
+                style={[styles.input, searchFieldText[scheme], mirrored && styles.inputMirrored, { color: color.text }]}
                 value={query}
                 onChangeText={setQuery}
                 placeholder={placeholder}
@@ -327,7 +329,12 @@ export const SearchMode = ({
               {query ? null : (
                 <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
                   <Text
-                    style={[styles.input, searchFieldText[scheme], { color: color.placeholderActive }]}
+                    style={[
+                      styles.input,
+                      searchFieldText[scheme],
+                      mirrored && styles.inputMirrored,
+                      { color: color.placeholderActive },
+                    ]}
                     numberOfLines={1}
                     maxFontSizeMultiplier={layout.searchFieldTextScaleMax}>
                     {placeholder}
@@ -340,7 +347,12 @@ export const SearchMode = ({
               animatedProps={textBlurProps}
               pointerEvents="none">
               <Text
-                style={[styles.input, searchFieldText[scheme], { color: query ? color.text : color.placeholder }]}
+                style={[
+                  styles.input,
+                  searchFieldText[scheme],
+                  mirrored && styles.inputMirrored,
+                  { color: query ? color.text : color.placeholder },
+                ]}
                 numberOfLines={1}
                 maxFontSizeMultiplier={layout.searchFieldTextScaleMax}>
                 {query || placeholder}
@@ -396,6 +408,15 @@ const styles = StyleSheet.create({
   text: {
     flex: 1,
     alignSelf: 'stretch',
+  },
+  // In the mirrored bar (helpers/mirror), the text flipped back, and set right to left.
+  textMirrored: {
+    transform: [{ scaleX: -1 }],
+    direction: 'rtl',
+  },
+  // From the reading side, whatever the text, as iOS's field aligns in a right-to-left language.
+  inputMirrored: {
+    textAlign: 'right',
   },
   layer: {
     ...StyleSheet.absoluteFill,
