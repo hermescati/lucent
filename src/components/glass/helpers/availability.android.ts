@@ -1,7 +1,21 @@
+import { requireNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
-const refractionApi = 33;
+import type { GlassFallback } from './fallback';
 
-export const isLiquidGlassAvailable = () => typeof Platform.Version === 'number' && Platform.Version >= refractionApi;
+const native = requireNativeModule<{ setGlassFallback(level: number): void }>('Lucent');
+
+const refractionApi = 33;
+const levels: Record<GlassFallback, number> = { auto: 0, android12: 1, android11: 2 };
+let fallback: GlassFallback = 'auto';
+
+export const isLiquidGlassAvailable = () =>
+  fallback === 'auto' && typeof Platform.Version === 'number' && Platform.Version >= refractionApi;
 
 export const isGlassEffectAPIAvailable = () => true;
+
+/** Draws an older Android's glass on this device, every glass view redrawing at once (see GlassFallback). */
+export const setGlassFallback = (next: GlassFallback) => {
+  fallback = next;
+  native.setGlassFallback(levels[next]);
+};

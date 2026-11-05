@@ -8,13 +8,19 @@ import android.os.Build
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 
-class GlassBlurView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+class GlassBlurView(context: Context, appContext: AppContext) :
+  ExpoView(context, appContext), GlassSupport.Listener {
   private val density = resources.displayMetrics.density
   private var effect: RenderEffect? = null
 
   init {
     clipChildren = false
     clipToPadding = false
+    GlassSupport.track(this)
+  }
+
+  override fun glassSupportChanged() {
+    apply()
   }
 
   var radius = 0f
@@ -27,7 +33,7 @@ class GlassBlurView(context: Context, appContext: AppContext) : ExpoView(context
   @SuppressLint("NewApi")
   private fun apply() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    val px = radius * density
+    val px = if (GlassSupport.blurs) radius * density else 0f
     effect = if (px > 0.5f) RenderEffect.createBlurEffect(px, px, Shader.TileMode.DECAL) else null
     super.setRenderEffect(effect)
   }

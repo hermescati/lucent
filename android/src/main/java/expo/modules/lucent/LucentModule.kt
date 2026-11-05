@@ -32,6 +32,12 @@ class LucentModule : Module() {
       bottom / activity.resources.displayMetrics.density.toDouble()
     }
 
+    // Draws an older Android's glass on this device (0: its own; 1: Android 12's, blur without refraction; 2: Android
+    // 11's and below, no blur), so the fallbacks can be seen on a newer phone.
+    Function("setGlassFallback") { level: Int ->
+      android.os.Handler(android.os.Looper.getMainLooper()).post { GlassSupport.setFallback(level) }
+    }
+
     Function("renderVectorIcon") { key: String, viewBox: List<Double>, layers: List<VectorLayer>, size: Double, scale: Double ->
       val cacheDirectory = appContext.cacheDirectory
       VectorIconRenderer.render(cacheDirectory, key, viewBox, layers, size, scale)

@@ -1,4 +1,4 @@
-import { Slider, isLiquidGlassAvailable } from 'expo-lucent';
+import { Slider, isLiquidGlassAvailable, setGlassFallback, type GlassFallback } from 'expo-lucent';
 import { Stack } from 'expo-lucent/navigation';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
@@ -7,7 +7,7 @@ import { Code, Options, Page, Row, Section, Swatches, prop, usePalette } from '@
 
 export default function SettingsScreen() {
   const palette = usePalette();
-  const { scheme, tint, glassOpacity, set, reset } = useSettings();
+  const { scheme, tint, glassOpacity, glassFallback, set, reset } = useSettings();
 
   return (
     <Page>
@@ -44,6 +44,26 @@ export default function SettingsScreen() {
 
       <Section title="Device">
         <Row label="Platform" detail={`${Platform.OS} ${Platform.Version}`} />
+        {Platform.OS === 'android' ? (
+          <Row
+            label="setGlassFallback"
+            detail="Draw an older Android's glass here: refraction needs Android 13, blur Android 12"
+            stacked>
+            <Options<GlassFallback>
+              options={[
+                { label: 'Liquid glass', value: 'auto' },
+                { label: 'Android 12', value: 'android12' },
+                { label: '11 and below', value: 'android11' },
+              ]}
+              value={glassFallback}
+              onChange={(next) => {
+                // Before the re-render, so isLiquidGlassAvailable() below already answers for it.
+                setGlassFallback(next);
+                set({ glassFallback: next });
+              }}
+            />
+          </Row>
+        ) : null}
         <Row label="isLiquidGlassAvailable()" detail={String(isLiquidGlassAvailable())} last />
       </Section>
 

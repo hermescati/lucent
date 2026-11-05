@@ -325,7 +325,7 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     node.setClipToBounds(false)
     node.setAlpha(alpha)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      val px = blur * density
+      val px = if (GlassSupport.blurs) blur * density else 0f
       node.setRenderEffect(if (px > 0.5f) RenderEffect.createBlurEffect(px, px, Shader.TileMode.DECAL) else null)
     }
     val recording = node.beginRecording(width, height)
@@ -354,7 +354,7 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     val node = wideNode ?: return
     val sigma = wideRadius * density * WIDE_SIGMA_RATIO
     val opaque = reducedTransparency && fallback.alpha() > 0f
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || opaque || wideMix <= 0f || sigma <= 0f) return
+    if (!GlassSupport.blurs || opaque || wideMix <= 0f || sigma <= 0f) return
     val pad = outPx.roundToInt()
     node.setPosition(-pad, -pad, width + pad, height + pad)
     node.setClipToBounds(true)

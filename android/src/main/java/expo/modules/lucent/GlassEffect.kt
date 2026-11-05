@@ -20,7 +20,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** Packs the shapes and shader values and builds the glass RenderEffect. */
-abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBackdrops(context, appContext) {
+abstract class GlassEffect(context: Context, appContext: AppContext) :
+  GlassBackdrops(context, appContext), GlassSupport.Listener {
   protected val glassNode: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassLayer") else null
 
@@ -49,7 +50,15 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice ?: false
 
   protected val usesShader: Boolean
-    get() = shader != null && !lowRam && !plain
+    get() = shader != null && !lowRam && !plain && GlassSupport.refracts
+
+  init {
+    GlassSupport.track(this)
+  }
+
+  override fun glassSupportChanged() {
+    invalidate()
+  }
 
   private val clipMatrix = Matrix()
   private val clipInverse = Matrix()

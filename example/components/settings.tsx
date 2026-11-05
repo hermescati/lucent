@@ -1,4 +1,4 @@
-import { LucentProvider } from 'expo-lucent';
+import { LucentProvider, setGlassFallback, type GlassFallback } from 'expo-lucent';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Appearance, useColorScheme } from 'react-native';
@@ -28,6 +28,8 @@ export interface Settings {
   search: SearchPlacement;
   // Profile set apart in the circle as iOS 27's prominent tab, as an action would be.
   prominent: boolean;
+  // Android: draw an older Android's glass (Android 12's blur, or 11's flat fill) to see the fallbacks.
+  glassFallback: GlassFallback;
 }
 
 const defaults: Settings = {
@@ -39,6 +41,7 @@ const defaults: Settings = {
   tabs: 3,
   search: 'circle',
   prominent: false,
+  glassFallback: 'auto',
 };
 
 interface SettingsContext extends Settings {
@@ -56,6 +59,10 @@ export const PlaygroundProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     Appearance.setColorScheme(settings.scheme === 'auto' ? 'unspecified' : settings.scheme);
   }, [settings.scheme]);
+
+  useEffect(() => {
+    setGlassFallback(settings.glassFallback);
+  }, [settings.glassFallback]);
 
   const value = useMemo(
     () => ({
