@@ -232,8 +232,8 @@ export const motion = {
   lensEdgeReach: -1.6,
   // A tapped tab: iOS 27's lens (simulator) sets off at once and closes in on the tab exponentially, about 85ms to
   // go a third of the way that's left for a neighbour and 20ms more for each tab further (half a neighbour's way in
-  // 50ms, 90% in about 200ms), lifting as it goes and darkening into the pill from about 140ms (two tabs over), as one piece, not
-  // stretched, about 120pt wide mid-way against a 100pt pill. Its glass clears as it lifts and fills again as it lowers.
+  // 50ms, 90% in about 200ms), lifting as it goes, as one piece, not stretched, about 120pt wide mid-way against a 100pt
+  // pill. Its glass clears as it lifts and fills again as it lowers (liftFor, fillDelay).
   switchTravel: {
     tau: 85,
     tauPerSlot: 20,
@@ -243,15 +243,14 @@ export const motion = {
     height: 0.87,
     optics: 1,
     wide: 0.97,
-    hold: 0,
-    fillDelay: 130,
+    // However long the finger stays (a quick tap or a 100ms click alike), iOS 27's lens (iPhone 18 Pro Max) stays lifted
+    // and clear about 220ms from the touch, then lowers in place, darkening into the pill from about 230ms to 400.
+    liftFor: 220,
+    fillDelay: 230,
     // Gliding, its glass bends the tabs under it cleanly, with little of a held lens's colour fringe.
     dispersion: 0.3,
     lingerPerSlot: 25,
     holdArrive: 0.1,
-    // A firmer tap lowers its lens this close to the tab (in tabs): the approach is exponential, so waiting for it to
-    // all but arrive kept the lens up long after iOS's lowers.
-    dripArrive: 0.3,
     // iOS 27 shows the tapped tab's page as the finger lifts (simulator), not once the lens lands.
     navigateDelay: 0,
     squishPeriod: 0.75,

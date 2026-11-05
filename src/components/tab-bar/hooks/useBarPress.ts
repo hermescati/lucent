@@ -33,7 +33,6 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     dragIndex,
     dragOrigin,
     dragRelease,
-    dripOnArrival,
     dripShape,
     edgesReady,
     expandOnly,
@@ -104,7 +103,6 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     tapStay.set(switching ? 0 : 1);
     pressedAt.set(Date.now());
     pressing.set(true);
-    dripOnArrival.set(false);
     settleFill.set(withSpring(0, motion.springs.lift));
     settleOnArrival.set(false);
     tapSlide.set(1);
@@ -239,9 +237,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
         quick && !dipping
           ? clamp01((pressTime - motion.tapLens.dentFrom) / (motion.tapLens.dentFull - motion.tapLens.dentFrom))
           : 0;
-      const dripLater = strength > 0 && gliding.get();
       dent.set(strength);
-      dripOnArrival.set(dripLater);
       const dripNow = strength > 0 && !gliding.get();
       const fall = withSpring(0, {
         duration: lerp(motion.springs.release.duration, motion.springs.landFall.duration, strength),
@@ -264,16 +260,17 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
       lift.set(
         pressSwitch
           ? settle
-          : dripLater
-            ? rise
-            : quick || pressed
+          : quick || pressed
               ? dipping
                 ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise, settle)
                 : gliding.get()
                   ? withSequence(
                       // Timed, not sprung: a spring's tail toward 1 held the fall back a few hundred ms.
                       withTiming(1, { duration: motion.switchTravel.rise, easing: Easing.out(Easing.quad) }),
-                      withDelay(motion.switchTravel.hold + linger, withSpring(0, motion.switchTravel.fall)),
+                      withDelay(
+                        Math.max(0, motion.switchTravel.liftFor - pressTime - motion.switchTravel.rise) + linger,
+                        withSpring(0, motion.switchTravel.fall),
+                      ),
                     )
                   : withSequence(rise, fall)
               : settle,

@@ -17,8 +17,6 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     barWidth,
     bounceAt,
     collapsed,
-    dent,
-    dripOnArrival,
     edgesReady,
     glideSpan,
     glideTo,
@@ -61,7 +59,6 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     smoothSpeed,
     squish,
     squishVelocity,
-    startDrip,
     tapSlide,
     tapStay,
     wallSide,
@@ -237,13 +234,6 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
       gliding.set(false);
       tapStay.set(withSpring(1, motion.springs.lift));
       landing.set(withSpring(1, motion.springs.landIn));
-    }
-    if (dripOnArrival.get() && gliding.get() && Math.abs(position - glideTo.get()) < motion.switchTravel.dripArrive) {
-      dripOnArrival.set(false);
-      gliding.set(false);
-      tapStay.set(withSpring(1, motion.springs.snappy));
-      startDrip(dent.get());
-      lift.set(withSpring(0, motion.springs.landFall));
     }
     if (gliding.get() && lift.get() < 0.001 && Math.abs(position - glideTo.get()) < 0.002) {
       gliding.set(false);

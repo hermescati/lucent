@@ -237,7 +237,6 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   const settleFill = useSharedValue(1);
   const pressedAt = useSharedValue(0);
   const pressing = useSharedValue(false);
-  const dripOnArrival = useSharedValue(false);
   const dent = useSharedValue(1);
   const inkTone = useSharedValue(1);
   const inkRange = glass.inkLuma[scheme];
@@ -393,7 +392,6 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     dragIndex,
     dragOrigin,
     dragRelease,
-    dripOnArrival,
     dripShape,
     edgesReady,
     emit,
