@@ -58,3 +58,6 @@ yarn-error.log
 
 # Comparison captures (npm run compare)
 .compare/
+
+# Local parity tools (iOS vs Android measuring scripts, recordings, idb venv)
+scripts/parity/
