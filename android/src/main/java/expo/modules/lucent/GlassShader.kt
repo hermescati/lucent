@@ -75,6 +75,7 @@ uniform float2 toneBow;
 uniform float tonePre;
 uniform float4 tone;
 uniform float4 frostTone;
+uniform float3 level;
 uniform float chroma;
 uniform float4 clipRect;
 uniform float2 clipScale;
@@ -453,7 +454,12 @@ half4 main(float2 coord) {
     // stands for, to tint and tone as any glass.
     col = backdropOf(col, tintColor);
   }
-  col = mix(col, tintColor.rgb, tintColor.a * (1.0 - frosted * frostClear));
+  float3 under = col;
+  float tintAmount = tintColor.a * (1.0 - frosted * frostClear);
+  col = mix(col, tintColor.rgb, tintAmount);
+  // Tinted (level.z) leans toward what this glass makes of plain white or black, through the same tint and tone.
+  float lean = level.z;
+  float3 far = mix(float3(lean > 0.0 ? 1.0 : 0.0), tintColor.rgb, tintAmount);
   if (tone.w > 0.0) {
     float base = mix(tone.x, frostTone.x, frosted);
     float gain = mix(tone.y, frostTone.y, frosted);
@@ -464,6 +470,16 @@ half4 main(float2 coord) {
     float lit = clamp(luma(col), 0.0, 1.0);
     float3 mapped = col - lit + base + gain * pow(lit, curve) + bow * lit * (1.0 - lit);
     col = mix(col, mapped, tone.w);
+    float farLit = clamp(luma(far), 0.0, 1.0);
+    far = mix(far, far - farLit + base + gain * pow(farLit, curve) + bow * farLit * (1.0 - farLit), tone.w);
+  }
+  if (lean != 0.0) {
+    col = mix(col, clamp(far, float3(0.0), float3(1.0)), abs(lean));
+  }
+  // Clear (level.xy) lets the backdrop back through, more of it under the frost.
+  float seeThrough = mix(level.x, level.y, frosted);
+  if (seeThrough > 0.0) {
+    col = mix(col, under, seeThrough);
   }
   float saturate = tone.w > 0.0 ? mix(chroma, frostTone.w, frosted) : chroma;
   if (saturate != 1.0) {

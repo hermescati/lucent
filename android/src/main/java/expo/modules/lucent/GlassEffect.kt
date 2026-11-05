@@ -313,6 +313,9 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = frostGain
     state[i++] = frostGamma
     state[i++] = frostChroma
+    state[i++] = if (opaque) 0f else levelClear
+    state[i++] = if (opaque) 0f else levelFrostClear
+    state[i++] = if (opaque) 0f else levelLean
     i = putColor(i, if (opaque) fallback else tint)
     i = putColor(i, rim)
     i = putColor(i, shadow)
@@ -440,6 +443,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     glassShader.setFloatUniform("tone", state[u], state[u + 1], state[u + 2], state[u + 3])
     u += 4
     glassShader.setFloatUniform("frostTone", state[u], state[u + 1], state[u + 2], state[u + 3])
+    u += 4
+    glassShader.setFloatUniform("level", state[u], state[u + 1], state[u + 2])
     glassShader.setColorUniform("tint", if (opaque) fallback else tint)
     glassShader.setColorUniform("rim", rim)
     glassShader.setColorUniform("shadow", shadow)

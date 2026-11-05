@@ -12,7 +12,17 @@ export const typography = {
   badge: { fontSize: 13, lineHeight: 19, fontWeight: '400' },
 } as const;
 
-export const glassOpacity = { default: 0.5, clearFloor: 0.4, opaque: 0.85 } as const;
+// iOS 27's Liquid Glass setting (Settings → Appearance), Clear to Tinted, which `glassOpacity` stands in for: 0.5 is
+// iOS's default. Measured over a grey ramp at both ends of iOS's slider:
+// - Clear lets this much of the backdrop back through the default glass, on the bar and under the selected pill (light
+//   Clear is the default mixed 22% toward the backdrop, its pill 38%; dark Clear is the default).
+// - Tinted leans the default glass toward what it makes of white (+) or black (−): light Tinted is 37% of the way to
+//   its result over white, dark Tinted halfway to its result over black, on the bar and pill alike.
+export const glassOpacity = {
+  default: 0.5,
+  clear: { light: [0.225, 0.38], dark: [0, 0] },
+  tinted: { light: 0.374, dark: -0.5 },
+} as const;
 
 export const colorTint = {
   dark: { darken: 0, mix: 0.2 },
@@ -55,17 +65,20 @@ export const glass = {
       frostBow: 0.33,
       frostChroma: 1.4,
     },
+    // Light glass is untoned (iOS 27's bar matches within 2 levels as it is); the selected pill, over the same grey
+    // ramp, darkens more over dark content than the frost alone does: this curve, on the frost's own result, puts it
+    // within 4 levels of iOS's (97 over black to 233 over white). Colour keeps light's chroma.
     light: {
-      on: 0,
+      on: 1,
       base: 0,
       gain: 1,
       gamma: 1,
       bow: 0,
-      frostBase: 0,
-      frostGain: 1,
+      frostBase: -0.368,
+      frostGain: 1.349,
       frostGamma: 1,
-      frostBow: 0,
-      frostChroma: 1,
+      frostBow: 0.305,
+      frostChroma: 1.9,
     },
   },
   dispersion: 0,

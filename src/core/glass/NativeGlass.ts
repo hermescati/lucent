@@ -108,6 +108,11 @@ export interface NativeGlassViewProps extends ViewProps {
   frostGain?: number;
   frostGamma?: number;
   frostChroma?: number;
+  // iOS 27's Liquid Glass setting, past the tone: how much backdrop Clear lets back through (on the glass, under the
+  // frost), and how far Tinted leans toward the glass's own result over white (+) or black (−).
+  levelClear?: number;
+  levelFrostClear?: number;
+  levelLean?: number;
   toneBow?: number;
   frostBow?: number;
   tonePre?: boolean;

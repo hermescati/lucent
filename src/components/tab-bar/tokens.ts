@@ -4,7 +4,8 @@ export const layout = {
   tabLabelHeight: 14,
   tabLabelSize: 10,
   tabBarSideInset: 21,
-  tabBarBottomOffsetAndroid: 28,
+  // Above gesture navigation: 21, as iOS 27 sits it above the home indicator (iPhone 18 Pro Max), as far as its sides.
+  tabBarBottomOffsetAndroid: 21,
   // iOS 27's tab bar outline is a crisp hairline, a pixel at its ends, thinner than the other glass's rim.
   tabBarInlinePadding: 7,
   // The tabs (helpers/slots), as Apple's iOS 27 Figma kit builds the bar: 4pt of glass and 2pt of padding at each end,

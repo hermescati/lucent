@@ -31,7 +31,7 @@ export default function RootLayout() {
 
 ### Glass opacity
 
-iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings → Display & Brightness), and native glass follows that choice. Android has no such setting, so `glassOpacity` makes the choice for the whole app: `0` is clearest, `1` most tinted. The default, `0.5`, matches iOS's default. On iOS the system setting applies and this prop is ignored.
+iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings → Appearance → Liquid Glass), and native glass follows that choice. Android has no such setting, so `glassOpacity` makes the choice for the whole app: `0` is clearest, `1` most tinted. The default, `0.5`, matches iOS's default. On iOS the system setting applies and this prop is ignored.
 
 ```tsx
 <LucentProvider glassOpacity={0.7}>{children}</LucentProvider>
