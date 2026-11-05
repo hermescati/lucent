@@ -14,15 +14,18 @@ export const accents = [
   { name: 'Purple', color: '#BF5AF2' },
 ] as const;
 
+export type TabCount = 1 | 2 | 3 | 4 | 5;
+export type SearchPlacement = 'off' | 'circle' | 'tab';
+
 export interface Settings {
   scheme: Scheme;
   tint: string;
   glassOpacity: number;
   minimize: Minimize;
   accessory: boolean;
-  // How many tabs the bar has besides search, and whether search is a circle of its own or a tab among them.
-  tabs: 2 | 3 | 4 | 5;
-  searchApart: boolean;
+  // How many tabs the bar has besides search, and search: none, a circle of its own, or a tab among them.
+  tabs: TabCount;
+  search: SearchPlacement;
 }
 
 const defaults: Settings = {
@@ -32,7 +35,7 @@ const defaults: Settings = {
   minimize: 'onScrollDown',
   accessory: false,
   tabs: 3,
-  searchApart: true,
+  search: 'circle',
 };
 
 interface SettingsContext extends Settings {

@@ -5,12 +5,11 @@ export const layout = {
   tabLabelSize: 10,
   tabBarSideInset: 21,
   tabBarBottomOffsetAndroid: 28,
-  tabBarMaxWidth: 360,
   // iOS 27's tab bar outline is a crisp hairline, a pixel at its ends, thinner than the other glass's rim.
   tabBarInlinePadding: 7,
-  // Around and between the tabs, as iOS 27 spaces them (helpers/slots; simulator): 24pt at each end, 28pt between,
-  // shrinking evenly once a tab's content is wider than its share.
-  tabSpacing: { end: 24, gap: 28 },
+  // The tabs (helpers/slots), as Apple's iOS 27 Figma kit builds the bar: 4pt of glass and 2pt of padding at each end,
+  // tabs overlapping 8pt, the bubble 2pt past its tab; the tabs' widths as the simulator (iPhone 18 Pro) lays them out.
+  tabSpacing: { edge: 6, overlap: 8, crowdedOverlap: 16, ideal: 100.5, min: 72, contentPad: 19, outset: 2 },
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,
   tabBarGap: 8,
@@ -43,9 +42,6 @@ export const layout = {
       },
     },
   },
-  // Two tabs beside search's circle: iOS 27 fits the bar to them and keeps it at the left, the circle staying at the
-  // right (simulator, iPhone 18 Pro: 205.3 wide, against 290 for three).
-  tabBarTwoTabWidth: 205.3,
   searchModeHeight: 48,
   searchModeGap: 12,
   gestureNavInsetMax: 32,
@@ -121,7 +117,7 @@ export const motion = {
     pokeHold: { duration: 320, dampingRatio: 1 },
     pokeOut: { duration: 560, dampingRatio: 0.85 },
     release: { duration: 360, dampingRatio: 1 },
-    settleFill: { duration: 360, dampingRatio: 1 },
+    settleFill: { duration: 260, dampingRatio: 1 },
     inkTone: { duration: 80, dampingRatio: 1 },
     tapSettle: { duration: 260, dampingRatio: 1 },
     edgeLead: { duration: 200, dampingRatio: 1 },
@@ -148,7 +144,7 @@ export const motion = {
     jellyTrail: { duration: 340, dampingRatio: 0.6 },
     jellySettle: { duration: 420, dampingRatio: 0.55 },
   },
-  lensLift: { x: 1.36, y: 1.38 },
+  lensLift: { grow: 10, y: 1.38 },
   deflateTravel: 1.2,
   deflateRamp: 0.8,
   deflateSpeed: 0.6,
@@ -204,7 +200,7 @@ export const motion = {
     jellyX: 0,
     wallSpread: 0.2,
     impact: 0,
-    glassRamp: 5,
+    glassRamp: 2.5,
     pinch: 0.2,
     bend: 0.6,
   },
@@ -217,20 +213,28 @@ export const motion = {
   disabledBounce: { delay: 120 },
   poke: { tap: 0.5, holdDelay: 120, flat: 0.12, bulge: 0.04, lean: 8 },
   lensEdgeReach: -1.6,
+  // A tapped tab: iOS 27's lens (simulator) sets off at once and closes in on the tab exponentially, about 85ms to
+  // go a third of the way that's left for a neighbour and 20ms more for each tab further (half a neighbour's way in
+  // 50ms, 90% in about 200ms), lifting as it goes and darkening into the pill from about 140ms (two tabs over), as one piece, not
+  // stretched, about 120pt wide mid-way against a 100pt pill. Its glass clears as it lifts and fills again as it lowers.
   switchTravel: {
-    duration: 450,
-    perSlot: 35,
-    dampingRatio: 0.9,
-    kick: 2,
-    kickPerSlot: 6.5,
+    tau: 85,
+    tauPerSlot: 20,
+    rise: 40,
+    fall: { duration: 450, dampingRatio: 1 },
     delay: 0,
     height: 0.87,
     optics: 1,
-    wide: 0.93,
-    hold: 50,
-    fillDelay: 160,
-    lingerPerSlot: 50,
+    wide: 0.97,
+    hold: 0,
+    fillDelay: 130,
+    // Gliding, its glass bends the tabs under it cleanly, with little of a held lens's colour fringe.
+    dispersion: 0.3,
+    lingerPerSlot: 25,
     holdArrive: 0.1,
+    // A firmer tap lowers its lens this close to the tab (in tabs): the approach is exponential, so waiting for it to
+    // all but arrive kept the lens up long after iOS's lowers.
+    dripArrive: 0.3,
     // iOS 27 shows the tapped tab's page as the finger lifts (simulator), not once the lens lands.
     navigateDelay: 0,
     squishPeriod: 0.75,
@@ -244,9 +248,11 @@ export const motion = {
     squishBulge: 2.6,
     clearFrom: 0.35,
   },
+  // A tap on the selected tab lifts its lens briefly, as far and as wide as a hold does (iOS 27 simulator: 118 by 70pt
+  // at its peak, about 170ms in, against a hold's 120 by 74), rather than spreading it flat.
   tapLanding: {
-    wide: 0.14,
-    flat: 0.12,
+    wide: 0,
+    flat: 0,
     drop: 6,
     tint: 0.5,
     hold: 1.5,
@@ -270,7 +276,7 @@ export const motion = {
     dentFull: 120,
     glowHold: 40,
     glassRamp: 1.4,
-    liftY: 1,
+    liftY: 1.31,
     holdLiftY: 1.31,
     fallGrey: { from: 0.15, to: 0.6 },
     iconHalf: 0.35,
@@ -301,6 +307,15 @@ export const motion = {
   searchMorph: { heightLag: 2.2, openVelocity: 3, delay: 100 },
   searchBump: { at: 0.55, overshoot: 3, squish: 4 },
   searchTabs: { fade: 1, closeFade: 1, blur: 10, pressFade: 1.5, textBlur: 8 },
+  // Search moving between its circle and the tabs: the circle starts (or ends) this much of its size inside the bar's
+  // end, and the two melt together this much at the midpoint.
+  searchSplit: {
+    spring: { duration: 780, dampingRatio: 0.74 },
+    from: 0.55,
+    blend: 26,
+    iconFrom: 0.04,
+    iconMeltFrom: 0.5,
+  },
   searchPop: { delay: 80, shift: 28, hiddenScale: 0.96, tuckScale: 0.78, glyphScale: 1 },
   pressSquashX: 0,
   pressSquashY: 0,
@@ -311,8 +326,6 @@ export const motion = {
   searchDrag: { start: 10 },
   searchKeyboard: { edge: 12, focusDelay: 180, dipAt: 0.05, dip: 4, minHeight: 120 },
   inkTone: { threshold: 0.04 },
-  // The resting pill on iOS 27 (simulator): its tab's slot and the space between tabs, and this much more.
-  pillPad: 20,
   labelFadeRate: 1.8,
   collapseDistance: 24,
   compactPop: { delay: 110, depth: 0.06 },

@@ -10,15 +10,12 @@ const hasToolbar = (pathname: string) =>
   pathname.startsWith('/components/toolbar/') || pathname === '/components/navigation-bar/search-placements';
 
 export default function TabsLayout() {
-  const { tint, minimize, accessory, tabs, searchApart } = useSettings();
+  const { tint, minimize, accessory, tabs, search } = useSettings();
   const pathname = usePathname();
-  // Search's role can't change on a mounted tab on iOS (react-native-screens throws), so the tabs remount when it does.
+  // Search keeps its role: on iOS 27 it sits in its own circle while it activates its field, and among the tabs when it
+  // doesn't, so the bar moves it live instead of remounting.
   return (
-    <NativeTabs
-      key={searchApart ? 'search-apart' : 'search-tab'}
-      tintColor={tint}
-      minimizeBehavior={minimize}
-      hidden={hasToolbar(pathname)}>
+    <NativeTabs tintColor={tint} minimizeBehavior={minimize} hidden={hasToolbar(pathname)}>
       {accessory ? (
         <NativeTabs.BottomAccessory>
           <NowPlaying />
@@ -28,7 +25,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="square.grid.2x2" md="widgets" />
         <NativeTabs.Trigger.Label>Components</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="gallery">
+      <NativeTabs.Trigger name="gallery" hidden={tabs < 2}>
         <NativeTabs.Trigger.Icon sf="photo.on.rectangle" md="photo_library" />
         <NativeTabs.Trigger.Label>Gallery</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
@@ -44,7 +41,11 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search" role={searchApart ? 'search' : undefined}>
+      <NativeTabs.Trigger
+        name="search"
+        role="search"
+        automaticallyActivatesSearch={search === 'circle'}
+        hidden={search === 'off'}>
         <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

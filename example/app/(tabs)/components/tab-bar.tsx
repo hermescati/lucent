@@ -1,10 +1,10 @@
 import { Stack } from 'expo-lucent/navigation';
 
-import { useSettings, type Minimize } from '@/components/settings';
+import { useSettings, type Minimize, type SearchPlacement, type TabCount } from '@/components/settings';
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
 export default function TabBarScreen() {
-  const { tint, minimize, accessory, tabs, searchApart, set } = useSettings();
+  const { tint, minimize, accessory, tabs, search, set } = useSettings();
 
   return (
     <Page>
@@ -18,34 +18,28 @@ export default function TabBarScreen() {
           label="Tabs"
           detail="Besides search. iPhone fits five entries, search's circle included: with five tabs, search becomes one of them"
           stacked>
-          <Options<'2' | '3' | '4' | '5'>
-            options={[
-              { label: '2', value: '2' },
-              { label: '3', value: '3' },
-              { label: '4', value: '4' },
-              { label: '5', value: '5' },
-            ]}
-            value={String(tabs) as '2' | '3' | '4' | '5'}
+          <Options<`${TabCount}`>
+            options={(['1', '2', '3', '4', '5'] as const).map((value) => ({ label: value, value }))}
+            value={`${tabs}`}
             onChange={(next) => {
-              const count = Number(next) as 2 | 3 | 4 | 5;
-              set(count === 5 ? { tabs: count, searchApart: false } : { tabs: count });
+              const count = Number(next) as TabCount;
+              set(count === 5 && search === 'circle' ? { tabs: count, search: 'tab' } : { tabs: count });
             }}
           />
         </Row>
         <Row
           label="Search"
-          detail='role="search" puts it in a circle of its own; without it, it is a tab like the others'
+          detail='role="search": in a circle of its own while it activates its field (automaticallyActivatesSearch), a tab like the others when it does not'
           stacked>
-          <Options<'apart' | 'tab'>
+          <Options<SearchPlacement>
             options={[
-              { label: 'Own circle', value: 'apart' },
-              { label: 'A tab', value: 'tab' },
+              { label: 'Off', value: 'off' },
+              { label: 'Circle', value: 'circle' },
+              { label: 'Tab', value: 'tab' },
             ]}
-            value={searchApart ? 'apart' : 'tab'}
+            value={search}
             onChange={(next) =>
-              set(
-                next === 'apart' ? { searchApart: true, tabs: Math.min(tabs, 4) as 2 | 3 | 4 } : { searchApart: false },
-              )
+              set(next === 'circle' ? { search: next, tabs: Math.min(tabs, 4) as TabCount } : { search: next })
             }
           />
         </Row>

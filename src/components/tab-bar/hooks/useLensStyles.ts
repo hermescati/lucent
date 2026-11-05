@@ -29,6 +29,7 @@ export const useLensStyles = (bar: BarState) => {
     heading,
     held,
     holding,
+    itemWidth,
     scaleX,
     slotPlan,
     jelly,
@@ -243,11 +244,11 @@ export const useLensStyles = (bar: BarState) => {
   const coveredIcons = useDerivedValue(() => {
     const plan = slotPlan.get();
     const scale = scaleX.get();
+    const half = itemWidth.get() * motion.tapLens.iconHalf;
     const left = leftEdge.get();
     const right = rightEdge.get();
     const strength = iconCover.get();
     return tabs.map((_, index) => {
-      const half = (plan.widths[index] ?? 0) * scale * motion.tapLens.iconHalf;
       const center = barWidth.get() / 2 + pillShiftX.get() + ((plan.centers[index] ?? 0) - barWidth.get() / 2) * scale;
       const overlap = Math.min(right, center + half) - Math.max(left, center - half);
       return half > 0
@@ -308,7 +309,7 @@ export const useLensStyles = (bar: BarState) => {
           1,
           clamp01(Math.min(lensPosition.get(), lastIndex - lensPosition.get()) / glass.lensRimOut.endReach),
         ),
-      dispersion: glass.lensDispersion * bendScale * reveal,
+      dispersion: glass.lensDispersion * bendScale * reveal * lerp(1, motion.switchTravel.dispersion, glide.get()),
       ellipse: Math.max(
         canal,
         motion.tapLens.ellipse * lift.get() * (1 - held.get()),

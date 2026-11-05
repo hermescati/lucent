@@ -4,7 +4,7 @@ import type {
   NativeTabsTriggerBadgeProps,
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
-import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
+import { TabList, TabSlot, TabTrigger, Tabs, type TabSlotProps } from 'expo-router/ui';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -87,6 +87,30 @@ const TabBarReachProvider = ({ shown, children }: { shown: boolean; children: Re
   );
 };
 
+// Each tab's screen stays laid out, hidden by opacity rather than expo-router's display: none: a screen shown from
+// display: none lays its whole tree out in the commit that switches tabs, and Reanimated holds its frames while React
+// commits, so the lens stalled mid-flight. Unseen, a screen isn't drawn, touched or read out.
+// A screen's content, rendered again only when its own route changes: switching tabs changes only which is shown, and
+// rendering every tab's tree in the switch's commit held the lens a frame or two mid-glide.
+type TabDescriptor = Parameters<NonNullable<TabSlotProps['renderFn']>>[0];
+const ScreenContent = memo(({ descriptor }: { descriptor: TabDescriptor }) => descriptor.render());
+
+const renderScreen: NonNullable<TabSlotProps['renderFn']> = (descriptor, { isFocused, loaded }) => {
+  const { lazy = true, unmountOnBlur } = descriptor.options;
+  if ((unmountOnBlur && !isFocused) || (lazy && !loaded && !isFocused)) {
+    return null;
+  }
+  return (
+    <View
+      key={descriptor.route.key}
+      pointerEvents={isFocused ? 'auto' : 'none'}
+      importantForAccessibility={isFocused ? 'auto' : 'no-hide-descendants'}
+      style={[StyleSheet.absoluteFill, isFocused ? styles.screenShown : styles.screenHidden]}>
+      <ScreenContent descriptor={descriptor} />
+    </View>
+  );
+};
+
 // The tabs' screens, over More's list: a listed tab's screen slides over it and off it again as iOS's More pushes and
 // pops it, its corners rounded to the display's as it moves, with the shadow it casts on the list. Under the list at
 // rest, they stay in place, unseen and untouchable: moved off-screen, a screen first shown there lays its title out
@@ -135,7 +159,7 @@ const Screens = memo(({ background }: { background: ColorValue }) => (
         iOS does, for screens without their own colour. */}
         <View style={[StyleSheet.absoluteFill, { backgroundColor: background }]} />
         <TabSearchActive>
-          <TabSlot detachInactiveScreens={false} />
+          <TabSlot detachInactiveScreens={false} renderFn={renderScreen} />
         </TabSearchActive>
       </MoreCover>
     </NativeGlassBackdrop>
@@ -298,6 +322,13 @@ const styles = StyleSheet.create({
   },
   cover: {
     overflow: 'hidden',
+  },
+  screenShown: {
+    zIndex: 1,
+  },
+  screenHidden: {
+    zIndex: 0,
+    opacity: 0,
   },
   shadow: {
     position: 'absolute',

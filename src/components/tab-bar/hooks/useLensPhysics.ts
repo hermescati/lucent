@@ -1,7 +1,7 @@
 import { useFrameCallback, withSpring } from 'react-native-reanimated';
 
 import { clamp01, fullHeight, lerp } from '../helpers/bar';
-import { pillWidthAt, slotCenterAt, slotWidthAt } from '../helpers/slots';
+import { pillWidthAt, slotCenterAt } from '../helpers/slots';
 import { layout, motion } from '../tokens';
 import type { BarPress } from './useBarPress';
 import type { BarState } from './useBarState';
@@ -37,6 +37,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     moving,
     movingTarget,
     pillShiftX,
+    planMix,
     pressedAt,
     pressing,
     previousCollapsed,
@@ -91,7 +92,10 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     smoothSpeed.set(filteredSpeed);
     const acceleration = (filteredSpeed - previousSpeed) / dt;
     const free = 1 - slideShape.get();
-    const stretchTarget = Math.min(1, filteredSpeed / motion.lensMoveSpeed) * motion.jelly.stretch * lift.get();
+    // Dragged, the lens stretches with its speed, about 10% at a quick swipe; gliding to a tapped tab, it doesn't (iOS 27).
+    const stretchTarget = gliding.get()
+      ? 0
+      : Math.min(1, filteredSpeed / motion.lensMoveSpeed) * motion.jelly.stretch * lift.get();
     const omega = (2 * Math.PI) / motion.jelly.period;
     const force =
       omega * omega * (stretchTarget - jelly.get()) -
@@ -155,22 +159,24 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
       (slotCenterAt(plan, position) - barWidth.get() / 2) * scale +
       reach +
       push.get() * motion.lensPushTravel;
-    const slot = slotWidthAt(plan, position) * scale;
     // iOS 27 fits the resting pill to its tab: its slot and the space beside it, and a margin.
-    const restHalf = (pillWidthAt(plan, position, motion.pillPad) * scale) / 2;
+    const restHalf = (pillWidthAt(plan, position, layout.tabSpacing.outset) * scale) / 2;
     const spread = Math.max(
       lift.get(),
       Math.min(1, landing.get() * tapStay.get() * tapSlide.get() * motion.tapLanding.hold),
     );
+    // Lifted, it grows past its pill by a fixed margin at each side (iOS 27: 82 to 102pt, 105 to 125).
+    const liftHalf = restHalf + motion.lensLift.grow * scale;
     const halfWidth =
-      lerp(restHalf, (slot / 2) * motion.lensLift.x, spread * free) *
-      lerp(1, motion.switchTravel.wide, gliding.get() ? lift.get() : 0);
+      lerp(restHalf, liftHalf, spread * free) * lerp(1, motion.switchTravel.wide, gliding.get() ? lift.get() : 0);
     const edgeInset = (fullHeight - layout.bubbleRestHeight) / 2;
     const barLeft = pillShiftX.get() + (barWidth.get() * (1 - scaleX.get())) / 2 + edgeInset;
     const barRight = pillShiftX.get() + (barWidth.get() * (1 + scaleX.get())) / 2 - edgeInset;
     const resting = (1 - lift.get()) * (moved.get() ? 0 : 1);
     const hugLeft = Math.min(0, barLeft - (center - halfWidth)) * clamp01(1 - position) * resting;
-    const hugRight = Math.max(0, barRight - (center + halfWidth)) * clamp01(position - (lastIndex - 1)) * resting;
+    // A lone tab is the first and the last: it hugs the left end only, or a bar still shrinking to it would drag it right.
+    const hugRight =
+      lastIndex > 0 ? Math.max(0, barRight - (center + halfWidth)) * clamp01(position - (lastIndex - 1)) * resting : 0;
     const hugged = center + hugLeft + hugRight;
     const contain = !gliding.get() && resting > 0.5;
     const left = contain ? Math.max(hugged - halfWidth, barLeft) : hugged - halfWidth;
@@ -180,7 +186,10 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     const collapsing = collapsed.get() !== previousCollapsed.get();
     previousCollapsed.set(collapsed.get());
 
-    if (!edgesReady.get() || (collapsing && lift.get() === 0)) {
+    // While the tabs move to a new layout (one added or removed, search splitting off or melting in), the resting pill
+    // rides with its tab rather than chasing it on its springs.
+    const relayout = planMix.get() < 0.999 && lift.get() === 0 && !sliding.get() && !gliding.get();
+    if (!edgesReady.get() || (collapsing && lift.get() === 0) || relayout) {
       edgesReady.set(true);
       leftEdge.set(left);
       rightEdge.set(right);
@@ -219,7 +228,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
       tapStay.set(withSpring(1, motion.springs.lift));
       landing.set(withSpring(1, motion.springs.landIn));
     }
-    if (dripOnArrival.get() && gliding.get() && Math.abs(position - glideTo.get()) < motion.switchTravel.holdArrive) {
+    if (dripOnArrival.get() && gliding.get() && Math.abs(position - glideTo.get()) < motion.switchTravel.dripArrive) {
       dripOnArrival.set(false);
       gliding.set(false);
       tapStay.set(withSpring(1, motion.springs.snappy));

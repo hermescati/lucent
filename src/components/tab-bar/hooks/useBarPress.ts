@@ -1,6 +1,6 @@
 import { Keyboard } from 'react-native';
 import { usePanGesture } from 'react-native-gesture-handler';
-import { withDelay, withSequence, withSpring } from 'react-native-reanimated';
+import { Easing, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import type { BarState } from './useBarState';
@@ -43,6 +43,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     glideTo,
     gliding,
     hasSearch,
+    itemWidth,
     scaleX,
     slotPlan,
     jellyVelocity,
@@ -132,10 +133,13 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     if (switching) {
       const distance = index - lensPosition.get();
       const extra = Math.max(0, Math.abs(distance) - 1);
+      // Critically damped, setting off at its rate of closing in: an exponential approach from the first frame.
+      const omega = 1000 / (motion.switchTravel.tau + motion.switchTravel.tauPerSlot * extra);
       const travel = withSpring(index, {
-        duration: motion.switchTravel.duration + motion.switchTravel.perSlot * extra,
-        dampingRatio: motion.switchTravel.dampingRatio,
-        velocity: Math.sign(distance) * (motion.switchTravel.kick + motion.switchTravel.kickPerSlot * extra),
+        mass: 1,
+        stiffness: omega * omega,
+        damping: 2 * omega,
+        velocity: distance * omega,
       });
       lensPosition.set(motion.switchTravel.delay > 0 ? withDelay(motion.switchTravel.delay, travel) : travel);
     } else {
@@ -146,8 +150,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
       const plan = slotPlan.get();
       const tabCenter =
         barWidth.get() / 2 + pillShiftX.get() + ((plan.centers[index] ?? 0) - barWidth.get() / 2) * scaleX.get();
-      const tabWidth = (plan.widths[index] ?? 0) * scaleX.get();
-      pokeSide.set(clamp01((x - tabCenter) / Math.max(tabWidth, 1) + 0.5) * 2 - 1);
+      pokeSide.set(clamp01((x - tabCenter) / Math.max(itemWidth.get(), 1) + 0.5) * 2 - 1);
       poke.set(
         withSequence(
           withSpring(motion.poke.tap, motion.springs.pokeIn),
@@ -266,7 +269,13 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
             : quick || pressed
               ? dipping
                 ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise, settle)
-                : withSequence(rise, gliding.get() ? withDelay(motion.switchTravel.hold + linger, settle) : fall)
+                : gliding.get()
+                  ? withSequence(
+                      // Timed, not sprung: a spring's tail toward 1 held the fall back a few hundred ms.
+                      withTiming(1, { duration: motion.switchTravel.rise, easing: Easing.out(Easing.quad) }),
+                      withDelay(motion.switchTravel.hold + linger, withSpring(0, motion.switchTravel.fall)),
+                    )
+                  : withSequence(rise, fall)
               : settle,
       );
       tapDipping.set(false);

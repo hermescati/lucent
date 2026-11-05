@@ -63,6 +63,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     tapStay,
     tileSink,
     towardSearch,
+    searchApart,
     wallSide,
   } = bar;
 
@@ -161,6 +162,10 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const tucked =
       settled > 0 ? Math.min(circleRadius, ((fieldBottom - fieldTop) / 2) * motion.searchPop.tuckScale) : circleRadius;
     const fieldRadius = lerp(tucked, circleRadius, popPlace);
+    // Set apart or melting back: the circle travels between the bar's end and its own place, growing as it leaves.
+    const apart = searchApart.get();
+    const splitX = lerp(width - fullHeight / 2, circleX, apart);
+    const splitRadius = fieldRadius * lerp(motion.searchSplit.from, 1, clamp01(apart));
     // Held by its clear button, the field swells about its middle.
     const held = fieldPress.press.get() * settled;
     const fieldGrow = held * motion.fieldPressGrow;
@@ -178,6 +183,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
             clamp01(1 - (lastIndex - lensPosition.get()) / glass.lensPinchSideReach) *
               (1 - lerp(motion.endMelt, 1, push.get()))),
         glass.pressBlend * searchPress.press.get(),
+        motion.searchSplit.blend * Math.sin(Math.PI * clamp01(apart)),
         (hasSearch ? glass.meltBlend : 0) *
           shine.get() *
           (1 - settled) *
@@ -230,12 +236,12 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
         backTop + sink + pad,
         backRight + pad,
         backBottom + sink + pad,
-        ...(hasSearch
+        ...(apart > 0.002
           ? [
-              circleX - fieldRadius + bump * motion.searchBump.squish + pad,
-              circleY - fieldRadius + dip + pad,
-              circleX + fieldRadius + pad,
-              circleY + fieldRadius + dip + pad,
+              splitX - splitRadius + bump * motion.searchBump.squish + pad,
+              circleY - splitRadius + dip + pad,
+              splitX + splitRadius + pad,
+              circleY + splitRadius + dip + pad,
             ]
           : []),
         ...(mode > 0

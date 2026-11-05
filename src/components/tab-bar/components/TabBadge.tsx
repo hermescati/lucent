@@ -36,7 +36,8 @@ export const TabBadge = ({
 const styles = StyleSheet.create({
   anchor: {
     position: 'absolute',
-    width: layout.tabBarMaxWidth,
+    // Room for any badge; it lays out from its left end.
+    width: 1000,
     flexDirection: 'row',
   },
   badge: {

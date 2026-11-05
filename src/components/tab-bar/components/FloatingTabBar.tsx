@@ -19,8 +19,10 @@ import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop }
 import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
 import {
+  clamp01,
   fullHeight,
   inlinePad,
+  lerp,
   lensFullHeight,
   revealGroup,
   rowInset,
@@ -74,16 +76,19 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     // went on to one of its tabs, that tab again, as iOS's More keeps its place.
     const opening = tabs[index].name === moreName;
     const top = opening ? more?.top : null;
-    setTimeout(
-      () =>
-        requestAnimationFrame(() => {
-          more?.setOpen(opening && !top);
-          if (!opening || top) {
-            switchTab(top ?? tabs[index].name, {});
-          }
-        }),
-      wait,
-    );
+    const go = () => {
+      more?.setOpen(opening && !top);
+      if (!opening || top) {
+        switchTab(top ?? tabs[index].name, {});
+      }
+    };
+    // At once as the finger lifts, as iOS 27 shows the page: deferring it a frame or two left the page late and moved
+    // the switch's commit, which holds the lens a frame, into the middle of its glide.
+    if (wait > 0) {
+      setTimeout(go, wait);
+    } else {
+      go();
+    }
   };
 
   const reselect = (index: number) => {
@@ -181,6 +186,31 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   );
   const fillPath = useMemo(() => continuousCapsule(fillWidth, lensFullHeight), [fillWidth]);
   const barGlass = useBarGlass({ ...state, ...search, ...lens });
+  // Search's circle stays while it melts back into the bar, and its icon travels with the glass (useBarGlass).
+  const [meltingTab, setMeltingTab] = useState(props.searchTab);
+  if (props.searchTab && props.searchTab !== meltingTab) {
+    setMeltingTab(props.searchTab);
+  }
+  const apartNow = state.hasSearch;
+  useAnimatedReaction(
+    () => state.searchApart.get() < 0.002,
+    (gone, wasGone) => {
+      if (gone && !wasGone && !apartNow) scheduleOnRN(setMeltingTab, undefined);
+    },
+  );
+  const circleTab = props.searchTab ?? meltingTab;
+  const searchSplitStyle = useAnimatedStyle(() => {
+    const apart = state.searchApart.get();
+    // Splitting off, the magnifier shows at once; melting back, it's gone by halfway, as the tab's own grows in.
+    const from = apartNow ? motion.searchSplit.iconFrom : motion.searchSplit.iconMeltFrom;
+    return {
+      opacity: clamp01((apart - from) / (1 - from)),
+      transform: [
+        { translateX: (state.frameWidth.get() - fullHeight / 2 - state.circleCenter) * (1 - apart) },
+        { scale: lerp(motion.searchSplit.from, 1, clamp01(apart)) },
+      ],
+    };
+  });
   const {
     backDrag,
     backPress,
@@ -303,30 +333,32 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           </Animated.View>
         </GestureDetector>
         <View style={styles.grow} pointerEvents="none" />
-        {searchTab ? (
-          <Animated.View style={[styles.search, searchSpreadStyle]}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={searchFocused ? (searchIdle ? () => command('focus') : closeSearch) : openSearch}
-              onPressIn={() => searchPress.onPressIn()}
-              onPressOut={searchPress.onPressOut}
-              accessibilityRole="tab"
-              accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : searchTab.label}
-              accessibilityState={{ selected: searchFocused }}>
-              <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
-                <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
-                <Animated.View style={[styles.searchIcon, searchInkStyle]}>
-                  <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
-                    <TabIcon icon={searchTab.icon} selected={false} size={layout.searchIconSize} color={color.text} />
-                  </Animated.View>
-                  <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
-                    <Animated.View style={idleGlyphStyle}>
-                      <CloseGlyph size={layout.closeIconSize} color={color.text} />
+        {circleTab ? (
+          <Animated.View style={[styles.search, searchSpreadStyle]} pointerEvents={searchTab ? 'auto' : 'none'}>
+            <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={searchFocused ? (searchIdle ? () => command('focus') : closeSearch) : openSearch}
+                onPressIn={() => searchPress.onPressIn()}
+                onPressOut={searchPress.onPressOut}
+                accessibilityRole="tab"
+                accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : circleTab.label}
+                accessibilityState={{ selected: searchFocused }}>
+                <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
+                  <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
+                  <Animated.View style={[styles.searchIcon, searchInkStyle]}>
+                    <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
+                      <TabIcon icon={circleTab.icon} selected={false} size={layout.searchIconSize} color={color.text} />
+                    </Animated.View>
+                    <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
+                      <Animated.View style={idleGlyphStyle}>
+                        <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                      </Animated.View>
                     </Animated.View>
                   </Animated.View>
                 </Animated.View>
-              </Animated.View>
-            </Pressable>
+              </Pressable>
+            </Animated.View>
           </Animated.View>
         ) : null}
       </NativeGlassBackdrop>

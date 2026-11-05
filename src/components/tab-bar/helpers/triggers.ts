@@ -50,7 +50,8 @@ export const parseTriggers = (children: ReactNode): TabSpec[] =>
       name,
       label: titleCase(name),
       hidden: hidden ?? false,
-      search: role === 'search',
+      // iOS 27 sets search apart in its own circle only while it activates its field; otherwise it is one of the tabs.
+      search: role === 'search' && (automaticallyActivatesSearch ?? true),
       disabled: disabled ?? false,
       disablePopToTop: disablePopToTop ?? false,
       disableScrollToTop: disableScrollToTop ?? false,
