@@ -129,6 +129,7 @@ The `svg` icon supports `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`,
 - **Glass level:** `LucentProvider`'s `glassOpacity` stands in for iOS 27's Liquid Glass setting, `0` its Clear and `1` its Tinted. See [Theming](../theming.md).
 - **Icons** use `md` (Material Symbol), an image `src` or Lucent's `svg`. `VectorIcon` isn't drawn yet.
 - **`NativeTabs.BottomAccessory`** is drawn as on iOS 26 and 27. See [Bottom accessory](#bottom-accessory).
+- **Older Android:** without refraction (Android 12) the bar, its circle and the accessory are blurred glass; on Android 11 and older, a flat fill. The selected pill, the lens under a finger and search's field keep every state either way, the lens showing the tab under it.
 - **Ignored props:** the Material-only props (`indicatorColor`, `rippleColor`, `labelVisibilityMode`, `disableIndicator`) are accepted and ignored, since the bar is iOS-styled. Props that only affected iOS before 26 (`blurEffect`, `shadowColor`, `backgroundColor`) are ignored on both platforms, matching iOS 26.
 
 ## Accessibility
@@ -140,3 +141,4 @@ On Android, as on iOS:
 - **Right-to-left languages** mirror the bar as iOS does: the first tab at the right, search's circle at the left, and the bar minimizing to the right. Icons and labels read the right way round, and the field's text sits on the reading side.
 - **Reduce Motion:** with Android's "Remove animations" on, the bar jumps to each state rather than animating, as Reanimated does by default. iOS cross-fades instead.
 - **Touch targets** are at least 48dp, the search field's clear button included.
+- **High contrast text** (Android) draws the glass as an opaque fill, as iOS's Reduce Transparency does.

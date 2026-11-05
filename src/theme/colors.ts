@@ -146,7 +146,8 @@ const toHex = (channels: number[]) =>
 // - Resting, over a light backdrop (a photo, white): dark mode (255, 212, 135), light mode a shade darker (243, 123, 43).
 // - Resting, over a dark one (a dark list, black): dark mode (255, 140, 59); light mode over black much darker (187,
 //   76, 4).
-// - Held under a finger (the lens), over a light backdrop: dark mode (255, 251, 171), light mode the tint itself.
+// - Held under a finger (the lens), over a light backdrop: dark mode (255, 255, 176), light mode the tint itself. The
+//   lens dims what it shows by about 5%, so dark mode lifts a little more.
 // - Held, over a dark backdrop: dark mode (255, 167, 92); light mode over black (212, 97, 21).
 // The bar blends each pair by how light its backdrop reads (`inkTone`, glass.inkLuma).
 type Ink = { scale: number; lift: number };
@@ -154,7 +155,7 @@ const tintRamp: Record<LucentScheme, { active: Ink; over: Ink; held: Ink; heldOv
   dark: {
     active: { scale: 1, lift: 0.337 },
     over: { scale: 1, lift: 0.025 },
-    held: { scale: 1, lift: 0.47 },
+    held: { scale: 1, lift: 0.52 },
     heldOver: { scale: 0.914, lift: 0.17 },
   },
   light: {

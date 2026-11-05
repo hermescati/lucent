@@ -200,6 +200,18 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
 
   protected fun drawPlain(canvas: Canvas) {
     if (width <= 0 || height <= 0 || !buildPlainPath()) return
+    // A pass of what's behind it only (the tab bar's lens over its icons): drawn sharp within the shape, without the
+    // material's fill, which would cover what it's there to show.
+    if (alphaPass) {
+      if (prepareBackdrop()) {
+        canvas.save()
+        canvas.clipPath(plainPath)
+        canvas.translate(outPx, outPx)
+        drawBackdrops(canvas)
+        canvas.restore()
+      }
+      return
+    }
     val tint = activeTint
     val opaque = reducedTransparency && fallback.alpha() > 0f
     // Without the shader there's no haze to mix over a near-sharp image (iOS 27's glass is mostly haze), so the blur

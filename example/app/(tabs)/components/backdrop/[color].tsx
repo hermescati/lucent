@@ -1,3 +1,4 @@
+import type { GlassFallback } from 'expo-lucent';
 import { Stack, TabScrollView } from 'expo-lucent/navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
@@ -8,10 +9,11 @@ import { useSettings, type SearchPlacement, type TabCount } from '@/components/s
 
 // A flat colour under the bars, for measuring how much of what's behind them the glass lets through:
 // lucent-example://components/backdrop/000000. The tab bar story's settings can ride along, to measure each layout:
-// ?tabs=4&search=tab&prominent=1&accessory=playing. With &scroll=1 it scrolls, to minimize and expand the bar over it.
+// ?tabs=4&search=tab&prominent=1&accessory=playing&fallback=android12. With &scroll=1 it scrolls, to minimize and expand the bar over it.
 export default function BackdropScreen() {
-  const { color, tabs, search, prominent, accessory, scroll } = useLocalSearchParams<{
+  const { color, tabs, search, prominent, accessory, scroll, fallback } = useLocalSearchParams<{
     color: string;
+    fallback?: GlassFallback;
     scroll?: string;
     tabs?: string;
     search?: SearchPlacement;
@@ -24,6 +26,7 @@ export default function BackdropScreen() {
     ...(search ? { search } : {}),
     ...(prominent ? { prominent: prominent === '1' } : {}),
     ...(accessory ? { accessory } : {}),
+    ...(fallback ? { glassFallback: fallback } : {}),
   };
   // Only what differs: a new layout can remount this screen, which would set it again.
   const changed = Object.entries(patch).some(([key, value]) => settings[key as keyof typeof patch] !== value);
