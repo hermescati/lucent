@@ -277,6 +277,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     plan,
     setLabelSize,
   } = { ...state, ...search, ...press, ...lens, ...barGlass };
+  // Dark, the lens's edge has the bar's soft light band inside it, as iOS 27's does.
+  const lensEdge = scheme === 'dark' ? { edgeSoft: glass.edgeSoft.dark, softWidth: glass.softWidth } : {};
 
   // Each tab at its place, as iOS 27 spaces them.
   const slotStyles = plan.lefts.map((left, index) => ({
@@ -473,6 +475,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               style={styles.lensGlass}
               animatedProps={lensSideProps}
               rimOutBand={glass.lensRimOut.band}
+              {...lensEdge}
               group={tabBarGroup}
               underlay={screenGroup}
               inset={glass.lensPad}

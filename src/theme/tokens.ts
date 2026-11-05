@@ -136,7 +136,8 @@ export const glass = {
   lensMagnify: 0.17,
   lensSpecular: 0.22,
   lensEdgeShade: { dark: -0.08, light: -0.04 },
-  lensHeldEdge: { dark: -0.08, light: -0.04 },
+  // Held or gliding in dark, iOS 27's lens has the bar's bright inner band (edgeSharp), not a shaded edge.
+  lensHeldEdge: { dark: 0.18, light: -0.04 },
   lensHeldDispersion: { dark: 0.2, light: 1 },
   lensHeldPrismShift: { dark: 3, light: 0 },
   lensHeldPinchSpread: { dark: 0, light: 0.26 },

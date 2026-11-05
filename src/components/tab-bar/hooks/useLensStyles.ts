@@ -1,3 +1,4 @@
+import { PixelRatio } from 'react-native';
 import {
   interpolateColor,
   useAnimatedProps,
@@ -70,6 +71,9 @@ export const useLensStyles = (bar: BarState) => {
     tapStay,
     wallSide,
   } = bar;
+
+  // iOS 27's hairline outline, in pixels (read here: PixelRatio isn't there in a worklet).
+  const edgeWidth = glass.edge.width * PixelRatio.get();
 
   const deflate = useDerivedValue(() => {
     const travel = clamp01(
@@ -422,7 +426,7 @@ export const useLensStyles = (bar: BarState) => {
     return {
       ...optics,
       dispersion: optics.dispersion * lerp(1, glass.lensHeldDispersion[scheme], holding.get()),
-      edgeSharp: lerp(glass.lensEdgeShade[scheme], glass.lensHeldEdge[scheme], holding.get()),
+      edgeSharp: lerp(glass.lensEdgeShade[scheme], glass.lensHeldEdge[scheme], Math.max(holding.get(), glide.get())),
       sampleMaxX: Math.max(sampleMaxX, 1),
       pinch: glass.lensPinch * (1 - deflate.get()) * pinchScale * reveal,
       pinchLeft: glass.lensPinch * clamp01(1 - position / glass.lensPinchEndReach) * pinchScale * reveal,
@@ -441,7 +445,10 @@ export const useLensStyles = (bar: BarState) => {
       topBend: lerp(1, motion.tapLanding.iconBend, glideBend.get() * motion.switchTravel.topBend),
       topDepth: lerp(1, motion.tapLanding.iconDepth, glideBend.get() * motion.switchTravel.topBend),
       edgeAxis: holding.get(),
-      rimWidth: lerp(glass.lensRimWidth[scheme], glass.lensHeldRimWidth[scheme], holding.get()),
+      rimWidth:
+        scheme === 'dark'
+          ? edgeWidth
+          : lerp(glass.lensRimWidth[scheme], glass.lensHeldRimWidth[scheme], holding.get()),
       prismAxis: holding.get(),
       prismShift: glass.lensHeldPrismShift[scheme] * holding.get(),
       pinchSpread: lerp(glass.lensPinchSpread, glass.lensHeldPinchSpread[scheme], holding.get()),

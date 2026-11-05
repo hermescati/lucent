@@ -65,7 +65,8 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     lensTint: 'rgba(0, 0, 0, 0)',
     lensTintEarly: 'rgba(255, 255, 255, 0)',
     lensHeldTint: 'rgba(0, 0, 0, 0)',
-    lensHeldRim: 'rgba(26, 27, 27, 0.9)',
+    // A hairline that dims what's under it, as iOS 27's outline does (about 0.69 of white, nothing over black).
+    lensHeldRim: 'rgba(0, 0, 0, 0.3)',
     lensShadow: 'rgba(0, 0, 0, 0)',
     pressFill: 'rgba(255, 255, 255, 0.38)',
     pressLift: 'rgba(255, 255, 255, 0.038)',
