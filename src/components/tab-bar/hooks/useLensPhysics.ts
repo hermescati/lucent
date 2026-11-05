@@ -6,6 +6,9 @@ import { layout, motion } from '../tokens';
 import type { BarPress } from './useBarPress';
 import type { BarState } from './useBarState';
 
+// Below this, a hand-integrated value (the jelly, the squish, the smoothed speeds) is at rest.
+const restBelow = 1e-4;
+
 /** Per-frame lens physics: the jelly stretch, the squish against the ends and the edge springs. */
 export const useLensPhysics = (bar: BarState & BarPress) => {
   const {
@@ -89,7 +92,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     }
     const previousSpeed = smoothSpeed.get();
     const filteredSpeed = lerp(previousSpeed, speed, 1 - Math.exp(-dt * motion.jelly.smoothing));
-    smoothSpeed.set(filteredSpeed);
+    smoothSpeed.set(filteredSpeed < restBelow ? 0 : filteredSpeed);
     const acceleration = (filteredSpeed - previousSpeed) / dt;
     const free = 1 - slideShape.get();
     // Dragged, the lens stretches with its speed, about 10% at a quick swipe; gliding to a tapped tab, it doesn't (iOS 27).
@@ -101,7 +104,8 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
       omega * omega * (stretchTarget - jelly.get()) -
       2 * motion.jelly.damping * omega * jellyVelocity.get() +
       motion.jelly.kick * acceleration;
-    approachSpeed.set(Math.max(approachSpeed.get() * Math.exp(-dt * motion.squish.memory), filteredSpeed));
+    const approach = Math.max(approachSpeed.get() * Math.exp(-dt * motion.squish.memory), filteredSpeed);
+    approachSpeed.set(approach < restBelow ? 0 : approach);
     const endZone = gliding.get() ? motion.switchTravel.contactZone : motion.jelly.endZone;
     const nearLeft = position <= endZone && Math.abs(leftEdge.get() - leftTarget.get()) < motion.squish.contact;
     const nearRight =
@@ -136,12 +140,18 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
             : motion.squish.dragDamping) *
         squishOmega *
         squishVelocity.get();
+    // Each comes to rest at exactly 0 once it's too small to see: decaying forever, it changed the lens's transforms by
+    // float noise every frame and kept the window drawing with nothing moving.
     const nextSquishVelocity = squishVelocity.get() + squishForce * dt;
-    squishVelocity.set(nextSquishVelocity);
-    squish.set(Math.min(motion.squish.max, Math.max(-motion.squish.max, squish.get() + nextSquishVelocity * dt)));
+    const nextSquish = Math.min(motion.squish.max, Math.max(-motion.squish.max, squish.get() + nextSquishVelocity * dt));
+    const squishRests = Math.abs(nextSquish) < restBelow && Math.abs(nextSquishVelocity) < restBelow;
+    squishVelocity.set(squishRests ? 0 : nextSquishVelocity);
+    squish.set(squishRests ? 0 : nextSquish);
     const nextVelocity = jellyVelocity.get() + force * dt;
-    jellyVelocity.set(nextVelocity);
-    jelly.set(Math.min(motion.jelly.max, Math.max(-motion.jelly.max, jelly.get() + nextVelocity * dt)));
+    const nextJelly = Math.min(motion.jelly.max, Math.max(-motion.jelly.max, jelly.get() + nextVelocity * dt));
+    const jellyRests = Math.abs(nextJelly - stretchTarget) < restBelow && Math.abs(nextVelocity) < restBelow;
+    jellyVelocity.set(jellyRests ? 0 : nextVelocity);
+    jelly.set(jellyRests ? stretchTarget : nextJelly);
     const speedTarget = lift.get() > 0 ? Math.min(1, speed / motion.lensMoveSpeed) : 0;
     if (Math.abs(speedTarget - movingTarget.get()) > 0.05 || (speedTarget === 0 && movingTarget.get() !== 0)) {
       movingTarget.set(speedTarget);

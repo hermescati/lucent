@@ -81,6 +81,10 @@ abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps
     if (interactive || pressesShapes) updateEffect()
   }
 
+  /** Nothing pressing it and nothing left of a press to settle: the glass needn't draw again for it. */
+  protected val pressResting: Boolean
+    get() = pressTarget == 0f && press == 0f && pressVelocity == 0f && glowLevel == 0f
+
   protected val pressesShapes: Boolean
     get() = pressShapes?.any { it > 0f } == true && (shapes?.size ?: 0) >= 4
 

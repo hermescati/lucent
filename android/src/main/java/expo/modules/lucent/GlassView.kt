@@ -53,11 +53,85 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassWide") else null
   private var wideSigma = -1f
 
+  // Drawn again only when its pose has changed or a press is moving: invalidating here asks for another frame, so
+  // doing it every frame kept the window drawing at full rate with nothing on screen moving.
   private val preDraw = ViewTreeObserver.OnPreDrawListener {
     stepPress()
     if (lifted && !interactive && !pressesShapes) updateEffect()
-    invalidate()
+    val moved = poseChanged()
+    if (moved || !pressResting) invalidate()
     true
+  }
+
+  // What its recording depends on beyond the nodes it draws by reference, which update by themselves: where it and its
+  // backdrops sit, how much of it shows up the tree, and the screens that can cover it while lifted.
+  private var pose = FloatArray(64)
+  private var lastPose = FloatArray(0)
+  private var poseSize = 0
+  private val poseMatrix = Matrix()
+  private val poseValues = FloatArray(9)
+
+  private fun putPose(value: Float) {
+    if (poseSize == pose.size) pose = pose.copyOf(pose.size * 2)
+    pose[poseSize++] = value
+  }
+
+  private fun putPlace(view: View) {
+    poseMatrix.reset()
+    view.transformMatrixToGlobal(poseMatrix)
+    poseMatrix.getValues(poseValues)
+    for (value in poseValues) putPose(value)
+    putPose(view.alpha)
+    putPose(if (view.visibility == VISIBLE) 1f else 0f)
+    putPose(view.width.toFloat())
+    putPose(view.height.toFloat())
+  }
+
+  private fun poseChanged(): Boolean {
+    poseSize = 0
+    putPlace(this)
+    var view: View = this
+    while (true) {
+      putPose(view.alpha)
+      putPose(if (view.visibility == VISIBLE) 1f else 0f)
+      putPose(view.width.toFloat())
+      putPose(view.height.toFloat())
+      if (view is GlassBlurView) putPose(view.radius)
+      val parent = view.parent as? View ?: break
+      if (parent is ViewGroup && parent.javaClass.name in SCREEN_CONTAINERS) {
+        for (i in 0 until parent.childCount) putPlace(screenOf(parent.getChildAt(i)))
+      }
+      view = parent
+    }
+    val owner = host
+    if (owner != null) {
+      putPlace(owner)
+    } else {
+      for (name in arrayOf(underlay, group, overlay)) {
+        val backdrop = name?.let { GlassRegistry.backdrop(it) }
+        if (backdrop == null) {
+          putPose(-1f)
+          continue
+        }
+        putPlace(backdrop)
+        putPose(if (backdrop.visibleNode?.hasDisplayList() == true) 1f else 0f)
+      }
+    }
+    var same = poseSize == lastPose.size
+    var i = 0
+    while (same && i < poseSize) {
+      same = pose[i] == lastPose[i]
+      i++
+    }
+    if (same) return false
+    lastPose = pose.copyOf(poseSize)
+    return true
+  }
+
+  // Lifted, its host records it (recordLifted), so a change to it is the host's to draw.
+  override fun invalidate() {
+    super.invalidate()
+    host?.invalidate()
   }
 
   private val contrastObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {

@@ -12,7 +12,6 @@ import android.graphics.RenderNode
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 
@@ -104,11 +103,6 @@ class GlassBackdropView(context: Context, appContext: AppContext) :
       if (isAttachedToWindow) GlassRegistry.register(value, this)
     }
 
-  private val preDraw = ViewTreeObserver.OnPreDrawListener {
-    if (lifted.isNotEmpty()) invalidate()
-    true
-  }
-
   // Recorded again for glass drawn at the new level, which may sample it differently.
   override fun glassSupportChanged() {
     invalidate()
@@ -117,11 +111,9 @@ class GlassBackdropView(context: Context, appContext: AppContext) :
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     GlassRegistry.register(group, this)
-    viewTreeObserver.addOnPreDrawListener(preDraw)
   }
 
   override fun onDetachedFromWindow() {
-    viewTreeObserver.removeOnPreDrawListener(preDraw)
     GlassRegistry.unregister(group, this)
     super.onDetachedFromWindow()
   }
