@@ -200,7 +200,8 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   const fullWidth = hasSearch ? barSpan - layout.tabBarGap - fullHeight : barSpan;
   const overlayWidthStyle = { right: barSpan - fullWidth };
   const rowPadStyle = { paddingRight: fullWidth - restWidth };
-  const towardSearch = hasSearch ? motion.barGrow.towardSearch : 0;
+  // How far the bar's end toward search grows, against its other end's.
+  const towardSearch = hasSearch ? motion.barGrow.towardSearch : 1;
   const disabledKey = tabs.map((tab) => (tab.disabled ? 1 : 0)).join('');
   const disabledTabs = useSharedValue(tabs.map((tab) => tab.disabled));
   useEffect(() => {

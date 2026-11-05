@@ -132,7 +132,8 @@ export const glass = {
   lensFrostMagnify: { dark: 0, light: 0.7 },
   lensFalloff: 0,
   lensDispersion: 0.95,
-  lensMagnify: 0.2,
+  // Held, iOS 27 magnifies the tab under its lens about 1.21x (iPhone 18 Pro Max, its icon and label alike).
+  lensMagnify: 0.17,
   lensSpecular: 0.22,
   lensEdgeShade: { dark: -0.08, light: -0.04 },
   lensHeldEdge: { dark: -0.08, light: -0.04 },

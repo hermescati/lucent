@@ -236,11 +236,10 @@ export const motion = {
     pinch: 0.2,
     bend: 0.6,
   },
-  // Held, iOS 27's tab bar (simulator, over flat grey) reaches about 11.7pt out at its end, most of it the lens
-  // bulging past it, while the bar itself grows about 1.7pt above and below; it's 90% there by about 110ms and back
-  // about 130ms after letting go. Its end toward search grows three times as far, necking into the search circle 31pt
-  // thick at the middle of the gap.
-  barGrow: { x: 2.5, y: 1.25, towardSearch: 2, held: 1.25 },
+  // Held or dragged on, iOS 27's tab bar (iPhone 18 Pro Max, over black) grows about 7.5pt out at each end, its tabs
+  // spreading with it, and about 1.7pt above and below; it's 90% there by about 110ms and back about 140ms after letting
+  // go. Beside a search circle its end toward it runs into the circle across the 8pt gap and necks into it.
+  barGrow: { x: 6, y: 1.25, towardSearch: 1, held: 1.25 },
   // Let go mid-drag (iPhone 18 Pro Max, a quick drag two tabs over): the lens carries about 6pt past its tab and back
   // over about 100ms, and about 60ms after it reaches it fills (dark by about 80ms more) while still spread wide, a
   // squashed dark pill, gathering to its size slowly, about 100ms after that.
