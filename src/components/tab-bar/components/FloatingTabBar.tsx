@@ -292,6 +292,16 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   }, [ready]);
   const tabEnter = useMemo(() => tabEnterAfter(ready), [ready]);
 
+  const circlePress = !circleTab
+    ? undefined
+    : !circleTab.searchRole
+      ? () => openApart(circleTab.name)
+      : searchFocused
+        ? searchIdle
+          ? () => command('focus')
+          : closeSearch
+        : openSearch;
+
   const content = (
     <>
       <BottomAccessoryBar
@@ -349,24 +359,18 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           </GestureDetector>
           <View style={styles.grow} pointerEvents="none" />
           {circleTab ? (
-            <Animated.View style={[styles.search, searchSpreadStyle]} pointerEvents={searchTab ? 'auto' : 'none'}>
+            <Animated.View
+              style={[styles.search, searchSpreadStyle]}
+              pointerEvents={searchTab ? 'auto' : 'none'}
+              // TalkBack reads its stand-in instead (circleStandIn), after the tabs and search's field.
+              importantForAccessibility="no-hide-descendants">
               <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
                 <Pressable
                   style={StyleSheet.absoluteFill}
-                  onPress={
-                    !circleTab.searchRole
-                      ? () => openApart(circleTab.name)
-                      : searchFocused
-                        ? searchIdle
-                          ? () => command('focus')
-                          : closeSearch
-                        : openSearch
-                  }
+                  onPress={circlePress}
                   onPressIn={() => searchPress.onPressIn()}
                   onPressOut={searchPress.onPressOut}
-                  accessibilityRole="tab"
-                  accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : circleTab.label}
-                  accessibilityState={{ selected: searchFocused }}>
+                  accessible={false}>
                   <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
                     <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
                     <Animated.View style={[styles.searchIcon, searchInkStyle]}>
@@ -582,6 +586,20 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             dip={searchDip}
           />
         ) : null}
+        {circleTab ? (
+          // The circle for TalkBack, which reads in the order views are drawn: the circle draws with the bar's glass,
+          // before the tabs, where VoiceOver reads iOS's after them and after search's field. Touches pass through to
+          // the circle; TalkBack's double tap presses it.
+          <Animated.View style={[styles.circleStandIn, searchSpreadStyle]} pointerEvents="none">
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={circlePress}
+              accessibilityRole="tab"
+              accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : circleTab.label}
+              accessibilityState={{ selected: searchFocused }}
+            />
+          </Animated.View>
+        ) : null}
       </Animated.View>
     </>
   );
@@ -634,6 +652,13 @@ const styles = StyleSheet.create({
     marginLeft: -layout.tabBarGap,
   },
   search: {
+    width: fullHeight,
+    height: fullHeight,
+  },
+  circleStandIn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
     width: fullHeight,
     height: fullHeight,
   },

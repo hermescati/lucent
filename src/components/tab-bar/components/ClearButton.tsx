@@ -27,6 +27,8 @@ export const ClearButton = ({ color, gesture, dimStyle, fadeStyle, shown, onClea
       pointerEvents={shown ? 'auto' : 'none'}
       style={styles.target}
       accessible={shown}
+      // Out of TalkBack's reach while the field is empty and it's hidden: its gesture alone would leave it clickable.
+      importantForAccessibility={shown ? 'auto' : 'no-hide-descendants'}
       accessibilityRole="button"
       accessibilityLabel="Clear text"
       accessibilityActions={[{ name: 'activate' }]}
