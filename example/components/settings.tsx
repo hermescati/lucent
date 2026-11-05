@@ -3,6 +3,8 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Appearance, useColorScheme } from 'react-native';
 
+import type { AccessoryKind } from '@/components/accessories';
+
 export type Scheme = 'auto' | 'light' | 'dark';
 export type Minimize = 'never' | 'onScrollDown' | 'onScrollUp';
 
@@ -22,7 +24,8 @@ export interface Settings {
   tint: string;
   glassOpacity: number;
   minimize: Minimize;
-  accessory: boolean;
+  // Which bottom accessory the bar shows, if any.
+  accessory: AccessoryKind;
   // How many tabs the bar has besides search, and search: none, a circle of its own, or a tab among them.
   tabs: TabCount;
   search: SearchPlacement;
@@ -37,7 +40,7 @@ const defaults: Settings = {
   tint: accents[0].color,
   glassOpacity: 0.5,
   minimize: 'onScrollDown',
-  accessory: false,
+  accessory: 'none',
   tabs: 3,
   search: 'circle',
   prominent: false,

@@ -184,7 +184,7 @@ export default function Search() {
 - **Glass on glass** works one layer deep. Glass sees other glass behind it, but not a third layer.
 - **Opacity:** as with Expo, an opacity below 1 on the glass or a parent can stop it rendering. Animate a wrapper's opacity instead.
 - **Glass opacity:** Android has no Clear/Tinted setting like iOS, so `LucentProvider`'s `glassOpacity` sets it for the whole app.
-- **Not drawn yet:** `NativeTabs.Trigger.VectorIcon` and `NativeTabs.BottomAccessory`.
+- **Not drawn yet:** `NativeTabs.Trigger.VectorIcon`.
 - **Ignored:** Material-only tab bar props such as `indicatorColor` and `rippleColor`, since the bar is iOS-styled.
 
 ## Playground

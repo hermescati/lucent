@@ -1,5 +1,6 @@
 import { Stack } from 'expo-lucent/navigation';
 
+import type { AccessoryKind } from '@/components/accessories';
 import { useSettings, type Minimize, type SearchPlacement, type TabCount } from '@/components/settings';
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
@@ -56,14 +57,19 @@ export default function TabBarScreen() {
             onChange={(next) => set({ prominent: next === 'on' })}
           />
         </Row>
-        <Row label="BottomAccessory" detail="A now-playing bar above the tabs, beside them once minimized" stacked>
-          <Options<'off' | 'on'>
+        <Row
+          label="BottomAccessory"
+          detail="Any content, above the tabs and beside them once minimized; usePlacement() gives each placement its own copy"
+          stacked>
+          <Options<AccessoryKind>
             options={[
-              { label: 'None', value: 'off' },
-              { label: 'Now playing', value: 'on' },
+              { label: 'None', value: 'none' },
+              { label: 'Playing', value: 'nowPlaying' },
+              { label: 'Upload', value: 'upload' },
+              { label: 'Actions', value: 'actions' },
             ]}
-            value={accessory ? 'on' : 'off'}
-            onChange={(next) => set({ accessory: next === 'on' })}
+            value={accessory}
+            onChange={(next) => set({ accessory: next })}
           />
         </Row>
         <Row label="minimizeBehavior" detail="Scroll the Gallery to see it" stacked last>

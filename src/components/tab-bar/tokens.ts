@@ -13,6 +13,9 @@ export const layout = {
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,
   tabBarGap: 8,
+  // The bottom accessory (iOS 27 simulator, iPhone 18 Pro Max): a capsule 48pt tall across the bar's whole span, 8pt
+  // above it; minimized, the same height in the bar's row, 14pt from the circles beside it.
+  accessory: { height: 48, gap: 8, inlineGap: 14 },
   // More's list (iOS 27 simulator, iPhone 18 Pro): rows 51pt tall from just under the status bar; icons centred 25pt
   // in, labels from 50pt (a point's bearing after), hairlines from 50pt to 20.3pt short of the edge, above the first
   // row and under each; a chevron 6.4 by 11pt ending 21.3pt in. A Material symbol at 22 draws about SF's 16.6pt glyph.
@@ -329,5 +332,28 @@ export const motion = {
   labelFadeRate: 1.8,
   collapseDistance: 24,
   compactPop: { delay: 110, depth: 0.06 },
+  // Minimizing (iOS 27 simulator, iPhone 18 Pro Max): the bar and its accessory first shrink about their middle to
+  // `scale` over `duration`, icons and labels with them, and gather into their circles from `gatherAfter`.
+  // The gather itself is quick, an ease-out: iOS's bar is 45% of the way in 40ms, 86% in 100 and a circle by ~150.
+  tuck: { scale: 0.953, duration: 120, gatherAfter: 140, gather: 180 },
   collapseTopOffset: 24,
+  // The bottom accessory (iOS 27 simulator, frame by frame), from when the bar starts to gather: its content swaps to
+  // the inline copy at once (`swap`); its near end slides along (`slide`) and its far end draws in (`narrow`), both
+  // ease-outs; and from 50ms it drops into the bar's row on a spring with a little give (`drop`: iOS's fall measured
+  // 26% at 40ms, 48% at 73, 80% at 140, 90% at 172, then just past its place and back). The bar gathers fast enough to be its circle before the
+  // accessory reaches the row.
+  accessory: {
+    swap: { after: 0, duration: 50 },
+    slide: { after: 30, duration: 220 },
+    narrow: { after: 60, duration: 180 },
+    drop: { after: 50, spring: { mass: 1, stiffness: 529, damping: 37 } },
+    // Landed, it grows out of the bar's first shrink with a little give (iOS: 255pt wide on arrival, 260 by ~570ms,
+    // its top 1.3pt past its place and back by ~690ms).
+    land: { after: 260, spring: { duration: 360, dampingRatio: 0.55 } },
+    expand: { duration: 380, dampingRatio: 0.78 },
+    show: 270,
+    hide: 150,
+    pressX: 8.7,
+    pressY: 1,
+  },
 } as const;

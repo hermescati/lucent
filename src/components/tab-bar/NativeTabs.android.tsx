@@ -5,7 +5,7 @@ import type {
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs, type TabSlotProps } from 'expo-router/ui';
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Children, isValidElement, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -22,6 +22,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { FloatingTabBar } from './components/FloatingTabBar';
 import { MoreList } from './components/MoreList';
 import { TabIcon } from './components/TabIcon';
+import { AccessoryShownContext, useAccessoryPlacement } from './context/accessory';
 import { TabBarCollapseProvider, useTabBarCollapse } from './context/collapse';
 import { SearchHostProvider, useSearchHost } from './context/search';
 import { barSpanFor, fullHeight } from './helpers/bar';
@@ -48,9 +49,17 @@ const Trigger = Object.assign(triggerPart<LucentNativeTabTriggerProps>('trigger'
   VectorIcon: triggerPart<object>('vectorIcon'),
 });
 
+// Rendered by the bar (BottomAccessoryBar), not where it's written.
 const BottomAccessory = Object.assign((_: NativeTabsBottomAccessoryProps) => null, {
-  usePlacement: (): 'regular' | 'inline' => 'regular',
+  usePlacement: useAccessoryPlacement,
 });
+
+const accessoryOf = (children: ReactNode) => {
+  const found = Children.toArray(children).find(
+    (child) => isValidElement<NativeTabsBottomAccessoryProps>(child) && child.type === BottomAccessory,
+  );
+  return isValidElement<NativeTabsBottomAccessoryProps>(found) ? found.props.children : undefined;
+};
 
 const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
   behavior === 'onScrollDown' || behavior === 'onScrollUp' ? behavior : null;
@@ -177,6 +186,7 @@ const NativeTabsRoot = ({
   badgeTextColor,
 }: LucentNativeTabsProps) => {
   const triggers = parseTriggers(children);
+  const accessory = accessoryOf(children);
   const visible = setApart(triggers.filter((trigger) => !trigger.hidden));
   const {
     barTabs: primary,
@@ -258,7 +268,9 @@ const NativeTabsRoot = ({
                 <InsideTabsContext value>
                   <TabsTintContext value={colorString(tintColor)}>
                     <TabBarReachProvider shown={!hidden && primary.length > 0}>
-                      <Screens background={colors.background} />
+                      <AccessoryShownContext value={!hidden && primary.length > 0 && accessory !== undefined}>
+                        <Screens background={colors.background} />
+                      </AccessoryShownContext>
                     </TabBarReachProvider>
                   </TabsTintContext>
                 </InsideTabsContext>
@@ -285,6 +297,7 @@ const NativeTabsRoot = ({
                     <FloatingTabBar
                       tabs={primary}
                       searchTab={search}
+                      accessory={accessory}
                       tintColor={colorString(tintColor)}
                       badgeColor={colorString(badgeBackgroundColor)}
                       badgeTextColor={colorString(badgeTextColor)}

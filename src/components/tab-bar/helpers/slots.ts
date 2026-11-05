@@ -4,6 +4,9 @@
  * otherwise wants `ideal` wide; neighbours overlap by `overlap`, and the bar wraps them with `edge` at each end. With
  * too little room, the tabs overlap more, up to `crowdedOverlap`, and then narrow evenly, though never under `min` or
  * their content. The selected tab's bubble is the tab itself, `outset` wider at each side.
+ * Asked to `fill`, the tabs widen evenly until the bar fills the room: iOS 27 does this for three tabs or more beside
+ * an action's circle, keeping the circle 8pt away (iPhone 18 Pro Max: 328pt for three tabs where they want 300; one
+ * tab stays 111 and two 205, far from the circle).
  * Measured: two tabs beside search's circle 205pt; three centred 297; four entries 99 each, bubbles 103; five, Components
  * 101 (bubble 105) and the rest 78 (bubbles 82).
  */
@@ -28,7 +31,7 @@ export interface SlotPlan {
   overlap: number;
 }
 
-export const planSlots = (room: number, contents: number[], spacing: TabSpacing): SlotPlan => {
+export const planSlots = (room: number, contents: number[], spacing: TabSpacing, fill = false): SlotPlan => {
   'worklet';
   const count = contents.length;
   const { edge, contentPad, ideal, min } = spacing;
@@ -65,6 +68,9 @@ export const planSlots = (room: number, contents: number[], spacing: TabSpacing)
         widths = wants.map((want, index) => Math.max(floors[index], Math.min(want, low)));
       }
     }
+  } else if (fill) {
+    const spare = (room - span(wants, overlap)) / count;
+    widths = wants.map((want) => want + spare);
   }
   const lefts: number[] = [];
   let x = edge;

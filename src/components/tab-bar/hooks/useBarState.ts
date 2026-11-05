@@ -1,5 +1,5 @@
 import { useTabTrigger } from 'expo-router/ui';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
   Easing,
@@ -33,13 +33,15 @@ import { layout, motion } from '../tokens';
 export interface FloatingTabBarProps {
   tabs: TabSpec[];
   searchTab?: TabSpec;
+  // The bottom accessory's content, when there is one.
+  accessory?: ReactNode;
   tintColor?: string;
   badgeColor?: string;
   badgeTextColor?: string;
 }
 
 /** The bar's state: focus, collapse, keyboard and every shared value the hooks below animate. */
-export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps) => {
+export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingTabBarProps) => {
   const tabCount = tabs.length;
   const lastIndex = tabCount - 1;
   const middleIndex = lastIndex / 2;
@@ -74,6 +76,9 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
 
   const fallbackCollapsed = useSharedValue(0);
   const collapsed = collapse?.progress ?? fallbackCollapsed;
+  const fallbackTuck = useSharedValue(0);
+  const tuck = collapse?.tuck ?? fallbackTuck;
+  const hasAccessory = accessory !== undefined;
   const barWidth = useSharedValue(0);
   const lensPosition = useSharedValue(Math.max(focusedIndex, 0));
   const lift = useSharedValue(0);
@@ -113,9 +118,11 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   );
   const contents = tabs.map((tab) => Math.max(labelSizes[tab.name] ?? 0, layout.tabIconSize));
   // iOS 27 fits the bar to its tabs (helpers/slots), up to the room it has: the span, or the span less search's circle.
-  // Fitted short of it, a bar without the circle sits in the middle.
+  // Fitted short of it, a bar without the circle sits in the middle. Three tabs or more beside the circle fill the
+  // room, so the circle stays `tabBarGap` from the bar; under a bottom accessory, any number of tabs do, as wide as it.
   const room = hasSearch ? barSpan - layout.tabBarGap - fullHeight : barSpan;
-  const plan = planSlots(room, contents, layout.tabSpacing);
+  const fill = hasAccessory || (hasSearch && tabs.length >= 3);
+  const plan = planSlots(room, contents, layout.tabSpacing, fill);
   const restWidth = plan.width;
   const centerShift = hasSearch ? 0 : (barSpan - restWidth) / 2;
   const centering = useSharedValue(centerShift);
@@ -283,7 +290,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
       if (target === 1 && previous === 0) {
         compactPop.set(
           withDelay(
-            motion.compactPop.delay,
+            motion.tuck.gatherAfter + motion.compactPop.delay,
             withSequence(
               withSpring(motion.compactPop.depth, motion.springs.compactPopIn),
               withSpring(0, motion.springs.compactPopOut),
@@ -402,6 +409,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     glideSpan,
     glideTo,
     gliding,
+    hasAccessory,
     hasBadges,
     hasSearch,
     searchApart,
@@ -480,6 +488,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     tapStay,
     tintColor,
     towardSearch,
+    tuck,
     wallSide,
   };
 };

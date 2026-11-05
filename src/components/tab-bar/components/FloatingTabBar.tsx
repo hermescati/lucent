@@ -11,6 +11,7 @@ import Animated, {
 import Svg, { Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { BottomAccessoryBar } from './BottomAccessoryBar';
 import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
@@ -291,214 +292,112 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const tabEnter = useMemo(() => tabEnterAfter(ready), [ready]);
 
   return (
-    <Animated.View
-      style={[styles.bar, { bottom, left: barLeft, width: barSpan }, barLiftStyle]}
-      pointerEvents="box-none">
-      {/* The tabs' labels at their own widths, unconstrained by their slots, which are sized from them. */}
-      <View style={styles.measure} pointerEvents="none" importantForAccessibility="no-hide-descendants">
-        {tabs.map((tab) => (
-          <Text
-            key={tab.name}
-            style={styles.measureLabel}
-            numberOfLines={1}
-            onTextLayout={(event) => setLabelSize(tab.name, event.nativeEvent.lines[0]?.width ?? 0)}>
-            {tab.label}
-          </Text>
-        ))}
-      </View>
-      <NativeGlassBackdrop group={tabBarGroup} style={styles.backdrop}>
-        <AnimatedNativeGlassView
-          style={styles.barGlass}
-          pointerEvents="none"
-          animatedProps={barGlassProps}
-          {...glassStyle}
-          continuous={1}
-          sampleBackdrop
-          onBackdropLuma={onBackdropLuma}
-        />
-        <GestureDetector gesture={pan}>
-          <Animated.View
-            style={[styles.frame, frameWidthStyle, pillModeStyle]}
-            pointerEvents={searchFocused ? 'none' : 'auto'}>
+    <>
+      <BottomAccessoryBar
+        span={barSpan}
+        left={barLeft}
+        bottom={bottom}
+        circle={state.hasSearch}
+        hidden={searchFocused}
+        collapse={state.collapse}
+        lift={state.barLift}
+        tintColor={tintColor}>
+        {props.accessory}
+      </BottomAccessoryBar>
+      <Animated.View
+        style={[styles.bar, { bottom, left: barLeft, width: barSpan }, barLiftStyle]}
+        pointerEvents="box-none">
+        {/* The tabs' labels at their own widths, unconstrained by their slots, which are sized from them. */}
+        <View style={styles.measure} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+          {tabs.map((tab) => (
+            <Text
+              key={tab.name}
+              style={styles.measureLabel}
+              numberOfLines={1}
+              onTextLayout={(event) => setLabelSize(tab.name, event.nativeEvent.lines[0]?.width ?? 0)}>
+              {tab.label}
+            </Text>
+          ))}
+        </View>
+        <NativeGlassBackdrop group={tabBarGroup} style={styles.backdrop}>
+          <AnimatedNativeGlassView
+            style={styles.barGlass}
+            pointerEvents="none"
+            animatedProps={barGlassProps}
+            {...glassStyle}
+            continuous={1}
+            sampleBackdrop
+            onBackdropLuma={onBackdropLuma}
+          />
+          <GestureDetector gesture={pan}>
             <Animated.View
-              pointerEvents="none"
-              style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
-            />
-            <Animated.View pointerEvents="none" style={[styles.lens, lensStyle, lensWidthStyle]}>
-              <Svg style={StyleSheet.absoluteFill}>
-                <AnimatedPath animatedProps={lensFillProps} />
-              </Svg>
-              <Animated.View style={[styles.lensLayer, lensFillStyle]} />
+              style={[styles.frame, frameWidthStyle, pillModeStyle]}
+              pointerEvents={searchFocused ? 'none' : 'auto'}>
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
+              />
+              <Animated.View pointerEvents="none" style={[styles.lens, lensStyle, lensWidthStyle]}>
+                <Svg style={StyleSheet.absoluteFill}>
+                  <AnimatedPath animatedProps={lensFillProps} />
+                </Svg>
+                <Animated.View style={[styles.lensLayer, lensFillStyle]} />
+              </Animated.View>
             </Animated.View>
-          </Animated.View>
-        </GestureDetector>
-        <View style={styles.grow} pointerEvents="none" />
-        {circleTab ? (
-          <Animated.View style={[styles.search, searchSpreadStyle]} pointerEvents={searchTab ? 'auto' : 'none'}>
-            <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
-              <Pressable
-                style={StyleSheet.absoluteFill}
-                onPress={
-                  !circleTab.searchRole
-                    ? () => openApart(circleTab.name)
-                    : searchFocused
-                      ? searchIdle
-                        ? () => command('focus')
-                        : closeSearch
-                      : openSearch
-                }
-                onPressIn={() => searchPress.onPressIn()}
-                onPressOut={searchPress.onPressOut}
-                accessibilityRole="tab"
-                accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : circleTab.label}
-                accessibilityState={{ selected: searchFocused }}>
-                <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
-                  <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
-                  <Animated.View style={[styles.searchIcon, searchInkStyle]}>
-                    <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
-                      <TabIcon
-                        icon={circleTab.icon}
-                        selected={apartFocused && !circleTab.searchRole}
-                        size={layout.searchIconSize}
-                        color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.text) : color.text}
-                      />
-                    </Animated.View>
-                    <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
-                      <Animated.View style={idleGlyphStyle}>
-                        <CloseGlyph size={layout.closeIconSize} color={color.text} />
+          </GestureDetector>
+          <View style={styles.grow} pointerEvents="none" />
+          {circleTab ? (
+            <Animated.View style={[styles.search, searchSpreadStyle]} pointerEvents={searchTab ? 'auto' : 'none'}>
+              <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={
+                    !circleTab.searchRole
+                      ? () => openApart(circleTab.name)
+                      : searchFocused
+                        ? searchIdle
+                          ? () => command('focus')
+                          : closeSearch
+                        : openSearch
+                  }
+                  onPressIn={() => searchPress.onPressIn()}
+                  onPressOut={searchPress.onPressOut}
+                  accessibilityRole="tab"
+                  accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : circleTab.label}
+                  accessibilityState={{ selected: searchFocused }}>
+                  <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
+                    <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
+                    <Animated.View style={[styles.searchIcon, searchInkStyle]}>
+                      <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
+                        <TabIcon
+                          icon={circleTab.icon}
+                          selected={apartFocused && !circleTab.searchRole}
+                          size={layout.searchIconSize}
+                          color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.text) : color.text}
+                        />
+                      </Animated.View>
+                      <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
+                        <Animated.View style={idleGlyphStyle}>
+                          <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                        </Animated.View>
                       </Animated.View>
                     </Animated.View>
                   </Animated.View>
-                </Animated.View>
-              </Pressable>
+                </Pressable>
+              </Animated.View>
             </Animated.View>
-          </Animated.View>
-        ) : null}
-      </NativeGlassBackdrop>
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.lensOverlay, overlayWidthStyle, pillModeStyle, pressScaleStyle]}>
-        <Animated.View style={[styles.rowClip, rowClipStyle]}>
-          <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
-            <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
-              <AnimatedNativeGlassBlur
-                style={[styles.row, rowPadStyle]}
-                animatedProps={rowBlurProps}
-                accessibilityRole="tablist">
-                {tabs.map((tab, index) => (
-                  <TabItem
-                    key={tab.name}
-                    tab={tab}
-                    index={index}
-                    middleIndex={middleIndex}
-                    tintColor={tintColor}
-                    selected={index === focusedIndex}
-                    lensPosition={lensPosition}
-                    lift={lift}
-                    shine={shine}
-                    presence={lensPresence}
-                    cover={iconCover}
-                    covered={coveredIcons}
-                    collapsed={collapsed}
-                    collapseX={collapseX}
-                    collapseSpread={collapseSpread}
-                    inkTone={inkTone}
-                    swell={swell}
-                    slotStyle={slotStyles[index]}
-                    entering={tabEnter}
-                    handoff={index === backIndex ? searchMode : undefined}
-                    onActivate={selectTab}
-                  />
-                ))}
-              </AnimatedNativeGlassBlur>
-            </Animated.View>
-          </Animated.View>
-        </Animated.View>
-        <NativeGlassBackdrop
-          group={revealGroup}
-          offscreen
-          style={StyleSheet.absoluteFill}
-          importantForAccessibility="no-hide-descendants">
-          <View style={[styles.row, rowPadStyle]}>
-            {tabs.map((tab, index) => (
-              <TabItem
-                key={tab.name}
-                tab={tab}
-                index={index}
-                middleIndex={middleIndex}
-                tintColor={tintColor}
-                selected={index === focusedIndex}
-                lensPosition={lensPosition}
-                lift={lift}
-                shine={shine}
-                presence={lensPresence}
-                cover={iconCover}
-                covered={coveredIcons}
-                collapsed={collapsed}
-                collapseX={collapseX}
-                collapseSpread={collapseSpread}
-                inkTone={inkTone}
-                swell={swell}
-                slotStyle={slotStyles[index]}
-                entering={tabEnter}
-                revealed
-                onActivate={selectTab}
-              />
-            ))}
-          </View>
+          ) : null}
         </NativeGlassBackdrop>
-        <Animated.View style={[styles.lens, lensGlassStyle, lensWidthStyle]}>
-          <AnimatedNativeGlassView
-            style={styles.lensGlass}
-            animatedProps={lensSideProps}
-            rimOutBand={glass.lensRimOut.band}
-            group={tabBarGroup}
-            underlay={screenGroup}
-            inset={glass.lensPad}
-            refractionYScale={glass.lensRefractionYScale}
-            cornerRadius={lensFullHeight / 2}
-            continuous={1}
-            blurRadius={glass.lensBlurRadius}
-            bezel={glass.lensBezel}
-            refraction={glass.lensRefraction}
-            falloff={glass.lensFalloff}
-            dispersion={glass.lensDispersion}
-            magnify={glass.lensMagnify}
-            pinchWidth={glass.lensPinchWidth}
-            sharpWidth={glass.lensShadeWidth}
-            lightAngle={glass.lightAngle}
-            rimSide={glass.lensRimSide[scheme]}
-            shadowRadius={glass.lensShadowRadius}
-            shadowOffset={glass.lensShadowOffset}
-          />
-        </Animated.View>
-        <Animated.View style={[styles.lens, lensIconStyle, lensWidthStyle]}>
-          <AnimatedNativeGlassView
-            style={styles.lensGlass}
-            animatedProps={lensIconProps}
-            rimOutBand={glass.lensRimOut.band}
-            group={revealGroup}
-            alphaPass
-            inset={glass.lensPad}
-            refractionYScale={glass.lensRefractionYScale}
-            cornerRadius={lensFullHeight / 2}
-            continuous={1}
-            blurRadius={glass.lensBlurRadius}
-            bezel={glass.lensBezel}
-            refraction={glass.lensRefraction}
-            falloff={glass.lensFalloff}
-            dispersion={glass.lensDispersion}
-            magnify={glass.lensMagnify}
-          />
-        </Animated.View>
-        {hasBadges ? (
-          <Animated.View
-            style={[styles.rowClip, rowClipStyle]}
-            pointerEvents="none"
-            importantForAccessibility="no-hide-descendants">
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.lensOverlay, overlayWidthStyle, pillModeStyle, pressScaleStyle]}>
+          <Animated.View style={[styles.rowClip, rowClipStyle]}>
             <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
               <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
-                <View style={[styles.row, rowPadStyle]}>
+                <AnimatedNativeGlassBlur
+                  style={[styles.row, rowPadStyle]}
+                  animatedProps={rowBlurProps}
+                  accessibilityRole="tablist">
                   {tabs.map((tab, index) => (
                     <TabItem
                       key={tab.name}
@@ -521,51 +420,166 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       slotStyle={slotStyles[index]}
                       entering={tabEnter}
                       handoff={index === backIndex ? searchMode : undefined}
-                      badgeOnly
-                      badgeColor={badgeColor}
-                      badgeTextColor={badgeTextColor}
                       onActivate={selectTab}
                     />
                   ))}
-                </View>
+                </AnimatedNativeGlassBlur>
               </Animated.View>
             </Animated.View>
           </Animated.View>
+          <NativeGlassBackdrop
+            group={revealGroup}
+            offscreen
+            style={StyleSheet.absoluteFill}
+            importantForAccessibility="no-hide-descendants">
+            <View style={[styles.row, rowPadStyle]}>
+              {tabs.map((tab, index) => (
+                <TabItem
+                  key={tab.name}
+                  tab={tab}
+                  index={index}
+                  middleIndex={middleIndex}
+                  tintColor={tintColor}
+                  selected={index === focusedIndex}
+                  lensPosition={lensPosition}
+                  lift={lift}
+                  shine={shine}
+                  presence={lensPresence}
+                  cover={iconCover}
+                  covered={coveredIcons}
+                  collapsed={collapsed}
+                  collapseX={collapseX}
+                  collapseSpread={collapseSpread}
+                  inkTone={inkTone}
+                  swell={swell}
+                  slotStyle={slotStyles[index]}
+                  entering={tabEnter}
+                  revealed
+                  onActivate={selectTab}
+                />
+              ))}
+            </View>
+          </NativeGlassBackdrop>
+          <Animated.View style={[styles.lens, lensGlassStyle, lensWidthStyle]}>
+            <AnimatedNativeGlassView
+              style={styles.lensGlass}
+              animatedProps={lensSideProps}
+              rimOutBand={glass.lensRimOut.band}
+              group={tabBarGroup}
+              underlay={screenGroup}
+              inset={glass.lensPad}
+              refractionYScale={glass.lensRefractionYScale}
+              cornerRadius={lensFullHeight / 2}
+              continuous={1}
+              blurRadius={glass.lensBlurRadius}
+              bezel={glass.lensBezel}
+              refraction={glass.lensRefraction}
+              falloff={glass.lensFalloff}
+              dispersion={glass.lensDispersion}
+              magnify={glass.lensMagnify}
+              pinchWidth={glass.lensPinchWidth}
+              sharpWidth={glass.lensShadeWidth}
+              lightAngle={glass.lightAngle}
+              rimSide={glass.lensRimSide[scheme]}
+              shadowRadius={glass.lensShadowRadius}
+              shadowOffset={glass.lensShadowOffset}
+            />
+          </Animated.View>
+          <Animated.View style={[styles.lens, lensIconStyle, lensWidthStyle]}>
+            <AnimatedNativeGlassView
+              style={styles.lensGlass}
+              animatedProps={lensIconProps}
+              rimOutBand={glass.lensRimOut.band}
+              group={revealGroup}
+              alphaPass
+              inset={glass.lensPad}
+              refractionYScale={glass.lensRefractionYScale}
+              cornerRadius={lensFullHeight / 2}
+              continuous={1}
+              blurRadius={glass.lensBlurRadius}
+              bezel={glass.lensBezel}
+              refraction={glass.lensRefraction}
+              falloff={glass.lensFalloff}
+              dispersion={glass.lensDispersion}
+              magnify={glass.lensMagnify}
+            />
+          </Animated.View>
+          {hasBadges ? (
+            <Animated.View
+              style={[styles.rowClip, rowClipStyle]}
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants">
+              <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
+                <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
+                  <View style={[styles.row, rowPadStyle]}>
+                    {tabs.map((tab, index) => (
+                      <TabItem
+                        key={tab.name}
+                        tab={tab}
+                        index={index}
+                        middleIndex={middleIndex}
+                        tintColor={tintColor}
+                        selected={index === focusedIndex}
+                        lensPosition={lensPosition}
+                        lift={lift}
+                        shine={shine}
+                        presence={lensPresence}
+                        cover={iconCover}
+                        covered={coveredIcons}
+                        collapsed={collapsed}
+                        collapseX={collapseX}
+                        collapseSpread={collapseSpread}
+                        inkTone={inkTone}
+                        swell={swell}
+                        slotStyle={slotStyles[index]}
+                        entering={tabEnter}
+                        handoff={index === backIndex ? searchMode : undefined}
+                        badgeOnly
+                        badgeColor={badgeColor}
+                        badgeTextColor={badgeTextColor}
+                        onActivate={selectTab}
+                      />
+                    ))}
+                  </View>
+                </Animated.View>
+              </Animated.View>
+            </Animated.View>
+          ) : null}
+        </Animated.View>
+        {searchTab?.searchRole ? (
+          <SearchMode
+            active={searchFocused}
+            idle={idleFade}
+            onCancel={idleSearch}
+            onWake={wakeSearch}
+            fieldPress={state.fieldPress}
+            mode={searchMode}
+            backTab={tabs[backIndex]}
+            searchTab={searchTab}
+            tintColor={tintColor}
+            badgeColor={badgeColor}
+            badgeTextColor={badgeTextColor}
+            backPress={backPress}
+            travel={{
+              index: backIndex,
+              slots: slotPlan,
+              width: barWidth,
+              circle: searchCenter,
+              press: searchPress.press,
+              target: modeTarget,
+              fit: rowFit,
+            }}
+            onBack={backSearch}
+            backDrag={backDrag}
+            keyboard={searchRaise}
+            spread={keyboardSpread}
+            reach={keyboardReach}
+            sink={tileSink}
+            dip={searchDip}
+          />
         ) : null}
       </Animated.View>
-      {searchTab?.searchRole ? (
-        <SearchMode
-          active={searchFocused}
-          idle={idleFade}
-          onCancel={idleSearch}
-          onWake={wakeSearch}
-          fieldPress={state.fieldPress}
-          mode={searchMode}
-          backTab={tabs[backIndex]}
-          searchTab={searchTab}
-          tintColor={tintColor}
-          badgeColor={badgeColor}
-          badgeTextColor={badgeTextColor}
-          backPress={backPress}
-          travel={{
-            index: backIndex,
-            slots: slotPlan,
-            width: barWidth,
-            circle: searchCenter,
-            press: searchPress.press,
-            target: modeTarget,
-            fit: rowFit,
-          }}
-          onBack={backSearch}
-          backDrag={backDrag}
-          keyboard={searchRaise}
-          spread={keyboardSpread}
-          reach={keyboardReach}
-          sink={tileSink}
-          dip={searchDip}
-        />
-      ) : null}
-    </Animated.View>
+    </>
   );
 };
 

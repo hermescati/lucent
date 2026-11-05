@@ -22,6 +22,8 @@ export const useSearchMorph = (bar: BarState) => {
     barWidth,
     centering,
     collapsed,
+    hasAccessory,
+    tuck,
     frameWidth,
     fullWidth,
     circleCenter,
@@ -147,9 +149,20 @@ export const useSearchMorph = (bar: BarState) => {
     },
   );
   const tileSink = useDerivedValue(() => -barLift.get());
+  // Minimizing, the bar first shrinks a little (motion.tuck), about the middle of it and its accessory together; the
+  // shrink gives way as it gathers into its circles.
+  const tuckScale = useDerivedValue(() => lerp(1, motion.tuck.scale, tuck.get() * (1 - collapsed.get())));
   const barLiftStyle = useAnimatedStyle(() => ({
     // A fitted bar without search's circle sits in the middle, until it minimizes to its circle at the left.
-    transform: [{ translateX: centering.get() * (1 - collapsed.get()) }, { translateY: barLift.get() }],
+    transform: [
+      { translateX: centering.get() * (1 - collapsed.get()) },
+      {
+        translateY:
+          barLift.get() +
+          (hasAccessory ? (layout.accessory.gap + layout.accessory.height) / 2 : 0) * (tuckScale.get() - 1),
+      },
+      { scale: tuckScale.get() },
+    ],
   }));
   const searchSpreadStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: keyboardSpread.get() }, { translateY: searchDip.get() }],

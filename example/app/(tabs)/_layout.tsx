@@ -1,7 +1,7 @@
 import { NativeTabs } from 'expo-lucent/navigation';
 import { usePathname } from 'expo-router';
 
-import { NowPlaying } from '@/components/now-playing';
+import { accessories } from '@/components/accessories';
 import { useSettings } from '@/components/settings';
 
 // Screens with a bottom toolbar: the toolbar stories and one navigation bar story. As in Apple's apps, the tab bar steps
@@ -12,13 +12,14 @@ const hasToolbar = (pathname: string) =>
 export default function TabsLayout() {
   const { tint, minimize, accessory, tabs, search, prominent } = useSettings();
   const pathname = usePathname();
+  const Accessory = accessory === 'none' ? null : accessories[accessory];
   // Search keeps its role: on iOS 27 it sits in its own circle while it activates its field, and among the tabs when it
   // doesn't, so the bar moves it live instead of remounting.
   return (
     <NativeTabs tintColor={tint} minimizeBehavior={minimize} hidden={hasToolbar(pathname)}>
-      {accessory ? (
+      {Accessory ? (
         <NativeTabs.BottomAccessory>
-          <NowPlaying />
+          <Accessory />
         </NativeTabs.BottomAccessory>
       ) : null}
       <NativeTabs.Trigger name="components">

@@ -73,6 +73,32 @@ On Android `useTabBarScroll` and `useTabBarInset` do the work. On iOS they're no
 
 Keep `expo-router` in your app config's `plugins`: its config plugin turns on the react-native-screens feature that `TabScrollMarker` needs to minimize the iOS tab bar.
 
+## Bottom accessory
+
+`NativeTabs.BottomAccessory` shows any content in a glass capsule above the tabs, as `UITabBarController.bottomAccessory` does: a now-playing bar, an upload's progress, a row of actions.
+
+```tsx
+function NowPlaying() {
+  const placement = NativeTabs.BottomAccessory.usePlacement();
+  return placement === 'inline' ? <ShortRow /> : <FullRow />;
+}
+
+<NativeTabs minimizeBehavior="onScrollDown">
+  <NativeTabs.BottomAccessory>
+    <NowPlaying />
+  </NativeTabs.BottomAccessory>
+  {/* triggers */}
+</NativeTabs>;
+```
+
+- **Two placements.** `regular` spans the bar's width just above it; once the bar minimizes, `inline` sits in the bar's row between its circles. As on iOS, the content is rendered once per placement, so keep its state outside it (a store, context or props) for both copies to agree.
+- **The bar fills its room** while there's an accessory, so the two line up.
+- **Search** hides it while its field is open.
+- **Screens** leave room under their content for it (`TabScrollView`, `useTabBarInset`).
+- To hide it, stop rendering the element: it fades out.
+
+On Android it moves as iOS 27's does when the bar minimizes: the bar and accessory shrink a little together, the bar gathers into its circle as the content swaps to the inline copy, and the accessory narrows, drops into the row and settles with a little give. Pressed, it swells as glass does.
+
 ## Lucent additions
 
 | Prop                                                | Type                                | Default | Notes                                                                                                                                      |
@@ -96,5 +122,5 @@ The `svg` icon supports `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`,
 - **A `disabled` tab** looks normal and still reacts to a tap or drag, but the lens slides back to the current tab and nothing navigates.
 - **`minimizeBehavior`:** `onScrollDown` and `onScrollUp` work as on iOS. `automatic` and `never` don't minimize, which is what iOS does on iPhone.
 - **Icons** use `md` (Material Symbol), an image `src` or Lucent's `svg`. `VectorIcon` isn't drawn yet.
-- **`NativeTabs.BottomAccessory`** isn't drawn yet.
+- **`NativeTabs.BottomAccessory`** is drawn as on iOS 26 and 27. See [Bottom accessory](#bottom-accessory).
 - **Ignored props:** the Material-only props (`indicatorColor`, `rippleColor`, `labelVisibilityMode`, `disableIndicator`) are accepted and ignored, since the bar is iOS-styled. Props that only affected iOS before 26 (`blurEffect`, `shadowColor`, `backgroundColor`) are ignored on both platforms, matching iOS 26.
