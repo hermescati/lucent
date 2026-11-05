@@ -1,4 +1,4 @@
-import { useFrameCallback, withSpring } from 'react-native-reanimated';
+import { useFrameCallback, withDelay, withSpring } from 'react-native-reanimated';
 
 import { clamp01, fullHeight, lerp } from '../helpers/bar';
 import { pillWidthAt, slotCenterAt } from '../helpers/slots';
@@ -14,6 +14,8 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
   const {
     approachSpeed,
     atEnd,
+    barGrowth,
+    barPress,
     barWidth,
     bounceAt,
     collapsed,
@@ -51,6 +53,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     settleAt,
     settleOnArrival,
     settledIndex,
+    settleFill,
     slideFrom,
     slideRight,
     slideShape,
@@ -77,7 +80,10 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     }
     if (settleAt.get() >= 0 && Math.abs(position - settleAt.get()) < motion.dragSettle.near) {
       settleAt.set(-1);
-      lift.set(withSpring(0, motion.springs.release));
+      lift.set(withDelay(motion.dragSettle.after, withSpring(0, motion.dragSettle.lower)));
+      settleFill.set(withDelay(motion.dragSettle.after, withSpring(1, motion.dragSettle.fill)));
+      barPress.set(withDelay(motion.dragSettle.after, withSpring(0, motion.dragSettle.relax)));
+      barGrowth.set(withDelay(motion.dragSettle.after, withSpring(0, motion.dragSettle.relax)));
     }
     const direction = Math.sign(delta);
     previousLensPosition.set(position);
@@ -92,10 +98,13 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     smoothSpeed.set(filteredSpeed < restBelow ? 0 : filteredSpeed);
     const acceleration = (filteredSpeed - previousSpeed) / dt;
     const free = 1 - slideShape.get();
-    // Dragged, the lens stretches with its speed, about 10% at a quick swipe; gliding to a tapped tab, it doesn't (iOS 27).
-    const stretchTarget = gliding.get()
-      ? 0
-      : Math.min(1, filteredSpeed / motion.lensMoveSpeed) * motion.jelly.stretch * lift.get();
+    // Moving, the lens stretches with its speed and springs back as it stops: about 10% at a quick swipe, and about 7%
+    // gliding to a tapped tab (iPhone 18 Pro Max: 131pt at rest lifted, 140 at speed).
+    const stretchTarget =
+      Math.min(1, filteredSpeed / motion.lensMoveSpeed) *
+      motion.jelly.stretch *
+      lift.get() *
+      (gliding.get() ? motion.switchTravel.stretch : 1);
     const omega = (2 * Math.PI) / motion.jelly.period;
     const force =
       omega * omega * (stretchTarget - jelly.get()) -
@@ -140,7 +149,10 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     // Each comes to rest at exactly 0 once it's too small to see: decaying forever, it changed the lens's transforms by
     // float noise every frame and kept the window drawing with nothing moving.
     const nextSquishVelocity = squishVelocity.get() + squishForce * dt;
-    const nextSquish = Math.min(motion.squish.max, Math.max(-motion.squish.max, squish.get() + nextSquishVelocity * dt));
+    const nextSquish = Math.min(
+      motion.squish.max,
+      Math.max(-motion.squish.max, squish.get() + nextSquishVelocity * dt),
+    );
     const squishRests = Math.abs(nextSquish) < restBelow && Math.abs(nextSquishVelocity) < restBelow;
     squishVelocity.set(squishRests ? 0 : nextSquishVelocity);
     squish.set(squishRests ? 0 : nextSquish);

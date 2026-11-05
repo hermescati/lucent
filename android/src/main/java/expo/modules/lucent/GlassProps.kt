@@ -81,6 +81,9 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var pinchRight = 0f
   var sampleMaxX = 0f
   var ellipse = 0f
+  var dropletTaper = 0f
+  var dropletTop = 0f
+  var dropletBottom = 0f
   var continuous = 0f
   var radiusBottom = 0f
   var wallSide = 0f

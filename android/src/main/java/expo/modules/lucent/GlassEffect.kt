@@ -273,6 +273,9 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = if (opaque) 0f else pinchRight * density
     state[i++] = sampleMaxX * density
     state[i++] = ellipse
+    state[i++] = dropletTaper
+    state[i++] = dropletTop
+    state[i++] = dropletBottom
     state[i++] = continuous
     state[i++] = radiusBottom * density
     state[i++] = wallSide
@@ -413,6 +416,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     glassShader.setFloatUniform("pinchRight", state[u++])
     glassShader.setFloatUniform("sampleMaxX", state[u++])
     glassShader.setFloatUniform("ellipse", state[u++])
+    glassShader.setFloatUniform("droplet", state[u], state[u + 1], state[u + 2])
+    u += 3
     glassShader.setFloatUniform("continuous", state[u++])
     glassShader.setFloatUniform("radiusBottom", state[u++])
     glassShader.setFloatUniform("wall", state[u], state[u + 1], state[u + 2])

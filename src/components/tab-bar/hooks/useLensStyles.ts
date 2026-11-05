@@ -13,6 +13,12 @@ import { clamp01, fullHeight, inlinePad, lensCompactScaleY, lensFullHeight, lerp
 import { layout, motion } from '../tokens';
 import type { BarState } from './useBarState';
 
+// How fast a gliding lens is moving, for its shape: 1 at speed, 0 at rest, and a little below 0 as it settles.
+const glidePace = (moving: number) => {
+  'worklet';
+  return Math.min(1, moving / motion.switchTravel.flatPace);
+};
+
 /** The lens's shape, fill, glass optics and how much it covers each tab icon. */
 export const useLensStyles = (bar: BarState) => {
   const {
@@ -289,6 +295,7 @@ export const useLensStyles = (bar: BarState) => {
   });
 
   const lensOptics = useDerivedValue(() => {
+    const pace = glidePace(moving.get());
     const geometry = lensGeometry.get();
     const slide = slideShape.get();
     const canal = slide * lift.get();
@@ -300,7 +307,7 @@ export const useLensStyles = (bar: BarState) => {
     const reveal = lensOut.get();
     return {
       refraction: glass.lensRefraction * bendScale * reveal,
-      magnify: glass.lensMagnify * optics * travel * reveal * (1 - glide.get()),
+      magnify: glass.lensMagnify * optics * travel * reveal * lerp(1, motion.switchTravel.magnify, glide.get()),
       rimOut:
         glass.lensRimOut.amount *
         lift.get() *
@@ -311,6 +318,12 @@ export const useLensStyles = (bar: BarState) => {
           clamp01(Math.min(lensPosition.get(), lastIndex - lensPosition.get()) / glass.lensRimOut.endReach),
         ),
       dispersion: glass.lensDispersion * bendScale * reveal * lerp(1, motion.switchTravel.dispersion, glide.get()),
+      // Gliding fast, its trailing end draws out.
+      // Gliding, it deforms lopsided with its pace: at speed its trailing end draws out and its top flattens, and as it
+      // stops its bottom bulges out of the bar, springing past and back.
+      dropletTaper: -heading.get() * motion.switchTravel.droplet.taper * clamp01(pace) * glide.get(),
+      dropletTop: motion.switchTravel.droplet.top * pace * glide.get(),
+      dropletBottom: motion.switchTravel.droplet.bottom * (1 - clamp01(pace)) * lift.get() * glide.get(),
       ellipse: Math.max(
         canal,
         motion.tapLens.ellipse * lift.get() * (1 - held.get()),
@@ -396,7 +409,11 @@ export const useLensStyles = (bar: BarState) => {
       rim: interpolateColor(
         reveal,
         [0, 1],
-        [color.lensRimEarly, interpolateColor(holding.get(), [0, 1], [color.lensRim, color.lensHeldRim])],
+        // Gliding to a tapped tab, iOS 27's lens has the held lens's outline.
+        [
+          color.lensRimEarly,
+          interpolateColor(Math.max(holding.get(), glide.get()), [0, 1], [color.lensRim, color.lensHeldRim]),
+        ],
       ),
       rimPrism: glass.lensRimPrism[scheme] * reveal,
       topBend: lerp(1, motion.tapLanding.iconBend, glideBend.get() * motion.switchTravel.topBend),

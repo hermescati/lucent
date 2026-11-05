@@ -75,6 +75,11 @@ export interface NativeGlassViewProps extends ViewProps {
   pinchRight?: number;
   sampleMaxX?: number;
   ellipse?: number;
+  // A lens moving fast, lopsided (GlassShader's droplet): one end narrowed toward its tip (sign: + right), the top half
+  // squashed in and the bottom half pushed out.
+  dropletTaper?: number;
+  dropletTop?: number;
+  dropletBottom?: number;
   continuous?: number;
   wallSide?: number;
   wallRound?: number;

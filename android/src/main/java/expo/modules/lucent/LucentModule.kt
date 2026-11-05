@@ -156,6 +156,9 @@ class LucentModule : Module() {
       Prop("pinchRight") { view: GlassView, value: Float? -> view.pinchRight = value ?: 0f }
       Prop("sampleMaxX") { view: GlassView, value: Float? -> view.sampleMaxX = value ?: 0f }
       Prop("ellipse") { view: GlassView, value: Float? -> view.ellipse = value ?: 0f }
+      Prop("dropletTaper") { view: GlassView, value: Float? -> view.dropletTaper = value ?: 0f }
+      Prop("dropletTop") { view: GlassView, value: Float? -> view.dropletTop = value ?: 0f }
+      Prop("dropletBottom") { view: GlassView, value: Float? -> view.dropletBottom = value ?: 0f }
       Prop("continuous") { view: GlassView, value: Float? -> view.continuous = value ?: 0f }
       Prop("radiusBottom") { view: GlassView, value: Float? -> view.radiusBottom = value ?: 0f }
       Prop("wallSide") { view: GlassView, value: Float? -> view.wallSide = value ?: 0f }

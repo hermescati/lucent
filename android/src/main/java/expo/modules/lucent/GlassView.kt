@@ -57,7 +57,8 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
   // doing it every frame kept the window drawing at full rate with nothing on screen moving.
   private val preDraw = ViewTreeObserver.OnPreDrawListener {
     stepPress()
-    if (lifted && !interactive && !pressesShapes) updateEffect()
+    // Without the shader there's no effect to keep current, and resetting it each frame would draw every frame.
+    if (lifted && !interactive && !pressesShapes && usesShader) updateEffect()
     val moved = poseChanged()
     if (moved || !pressResting) invalidate()
     true

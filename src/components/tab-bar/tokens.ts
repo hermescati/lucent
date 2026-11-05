@@ -65,7 +65,15 @@ export const layout = {
   // beside its magnifier; from 28pt (the accessibility sizes) the magnifier goes and the text starts `bareInset` in;
   // past that the field grows upward, `rate` x the text + `base` (53pt for 33pt text, 79 for 53), its circles
   // centred on it. The clear button grows with the text, then a little slower (37pt for 47pt text, 42 for 53).
-  searchFieldGrowth: { text: 17, glyphUpTo: 25.5, bareInset: 22, rate: 1.3, base: 10.1, clearUpTo: 28, clearRate: 0.79 },
+  searchFieldGrowth: {
+    text: 17,
+    glyphUpTo: 25.5,
+    bareInset: 22,
+    rate: 1.3,
+    base: 10.1,
+    clearUpTo: 28,
+    clearRate: 0.79,
+  },
   searchFieldInset: 10,
   tabBadgeHeight: 19,
   tabBadgePadding: 4.5,
@@ -119,6 +127,7 @@ export const motion = {
     // 47% of the way at 50ms, 81% at 100ms, 97% at 150ms, a little past (1%) at 200 and back by 370.
     expand: { mass: 1, stiffness: 462, damping: 34.4 },
     lens: { duration: 380, dampingRatio: 1 },
+    dragLand: { duration: 420, dampingRatio: 0.72 },
     lift: { duration: 220, dampingRatio: 1 },
     tapLift: { duration: 330, dampingRatio: 1 },
     tapDip: { duration: 120, dampingRatio: 0.5, overshootClamping: true },
@@ -226,29 +235,53 @@ export const motion = {
   // about 130ms after letting go. Its end toward search grows three times as far, necking into the search circle 31pt
   // thick at the middle of the gap.
   barGrow: { x: 2.5, y: 1.25, towardSearch: 2, held: 1.25 },
-  dragSettle: { near: 0.15 },
+  // Let go mid-drag (iPhone 18 Pro Max, a quick drag two tabs over): the lens carries about 6pt past its tab and back
+  // over about 100ms, and about 60ms after it reaches it fills (dark by about 80ms more) while still spread wide, a
+  // squashed dark pill, gathering to its size slowly, about 100ms after that.
+  dragSettle: {
+    near: 0.15,
+    after: 50,
+    fill: { duration: 280, dampingRatio: 1 },
+    lower: { duration: 520, dampingRatio: 1 },
+    // The bar, swollen while it was dragged on (barGrow), stays so until the lens lands, then relaxes over about 175ms.
+    relax: { duration: 320, dampingRatio: 1 },
+  },
   disabledBounce: { delay: 120 },
   poke: { tap: 0.5, holdDelay: 120, flat: 0.12, bulge: 0.04, lean: 8 },
   lensEdgeReach: -1.6,
-  // A tapped tab: iOS 27's lens (simulator) sets off at once and closes in on the tab exponentially, about 85ms to
-  // go a third of the way that's left for a neighbour and 20ms more for each tab further (half a neighbour's way in
-  // 50ms, 90% in about 200ms), lifting as it goes, as one piece, not stretched, about 120pt wide mid-way against a 100pt
-  // pill. Its glass clears as it lifts and fills again as it lowers (liftFor, fillDelay).
+  // A tapped tab: iOS 27's lens (iPhone 18 Pro Max, frame by frame) glides to it on a critically damped spring from
+  // rest, ω about 25/s for a neighbour: easing off (12% of the way at 45ms), fastest mid-way (half at 100ms) and landing
+  // crisply (94% at 190ms, there by about 220), not jumping off and creeping in. It lifts as it goes, widening from a
+  // 113pt pill to about 140 by mid-way, and flat while it moves fast (about 56pt tall), growing to 61 as it stops. Each tab further slows it a little (omegaPerSlot, a guess kept from the earlier fit).
+  // Its glass clears as it lifts and fills again as it lowers (liftFor, fillDelay).
   switchTravel: {
-    tau: 85,
-    tauPerSlot: 20,
+    omega: 25,
+    omegaPerSlot: 0.24,
+    // Critically damped: unlike a drag let go (springs.dragLand), iOS 27's tapped lens doesn't overshoot; it arrives
+    // quickly and takes its time over the last of the way. Its speed stretch, of a dragged lens's.
+    damping: 1,
+    stretch: 0.5,
+    // At speed (iPhone 18 Pro Max) it deforms lopsided: its top flattens about 5pt in while its bottom stays at the bar's,
+    // and its trailing end draws out toward its tip while its leading end stays round. As it stops it rounds up and its
+    // bottom bulges about 2pt out of the bar, a little past and back. `flatPace` is the (springy) pace that's full speed;
+    // `droplet` the shader's lopsided warp at full speed (taper, top) and at rest (bottom), of the lens's half-height.
+    flatPace: 0.5,
+    droplet: { taper: 0.35, top: 0.18, bottom: 0.065 },
     rise: 40,
     fall: { duration: 450, dampingRatio: 1 },
     delay: 0,
-    height: 0.87,
+    height: 1,
     optics: 1,
-    wide: 0.97,
+    wide: 1,
     // However long the finger stays (a quick tap or a 100ms click alike), iOS 27's lens (iPhone 18 Pro Max) stays lifted
-    // and clear about 220ms from the touch, then lowers in place, darkening into the pill from about 230ms to 400.
-    liftFor: 220,
-    fillDelay: 230,
-    // Gliding, its glass bends the tabs under it cleanly, with little of a held lens's colour fringe.
-    dispersion: 0.3,
+    // and clear about 250ms from the touch, then lowers in place, darkening into the pill by about 400ms. (Its touch
+    // lands about 40ms before the first frame that shows it, so these run from the touch.)
+    liftFor: 260,
+    fillDelay: 270,
+    // Gliding (iPhone 18 Pro Max), it doesn't magnify the tabs under it as a held lens does, and has a colour fringe
+    // along its top and bottom.
+    magnify: 0,
+    dispersion: 0.8,
     lingerPerSlot: 25,
     holdArrive: 0.1,
     // iOS 27 shows the tapped tab's page as the finger lifts (simulator), not once the lens lands.

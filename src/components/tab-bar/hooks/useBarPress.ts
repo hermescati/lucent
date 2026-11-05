@@ -131,13 +131,12 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     if (switching) {
       const distance = index - lensPosition.get();
       const extra = Math.max(0, Math.abs(distance) - 1);
-      // Critically damped, setting off at its rate of closing in: an exponential approach from the first frame.
-      const omega = 1000 / (motion.switchTravel.tau + motion.switchTravel.tauPerSlot * extra);
+      // From rest: it eases off, is fastest mid-way and eases into its tab over a long tail.
+      const omega = motion.switchTravel.omega / (1 + motion.switchTravel.omegaPerSlot * extra);
       const travel = withSpring(index, {
         mass: 1,
         stiffness: omega * omega,
-        damping: 2 * omega,
-        velocity: distance * omega,
+        damping: 2 * motion.switchTravel.damping * omega,
       });
       lensPosition.set(motion.switchTravel.delay > 0 ? withDelay(motion.switchTravel.delay, travel) : travel);
     } else {
@@ -198,15 +197,18 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     const committed = !canceled || !moved.get();
     const pressTime = Date.now() - pressedAt.get();
     const linger = gliding.get() ? motion.switchTravel.lingerPerSlot * Math.max(0, glideSpan.get() - 1) : 0;
-    settleFill.set(
-      withDelay(
-        Math.max(0, motion.switchTravel.fillDelay + linger - pressTime),
-        withSpring(1, motion.springs.settleFill),
-      ),
-    );
     const picked = dragIndex.get();
     const blocked = committed && picked >= 0 && (disabledTabs.get()[picked] ?? false);
     const index = committed && !blocked ? picked : focused.get();
+    // Dragged, it fills once it lands (useLensPhysics), not as the finger lifts.
+    if (!(moved.get() && index >= 0)) {
+      settleFill.set(
+        withDelay(
+          Math.max(0, motion.switchTravel.fillDelay + linger - pressTime),
+          withSpring(1, motion.springs.settleFill),
+        ),
+      );
+    }
     if (blocked) {
       gliding.set(false);
     }
@@ -261,30 +263,34 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
         pressSwitch
           ? settle
           : quick || pressed
-              ? dipping
-                ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise, settle)
-                : gliding.get()
-                  ? withSequence(
-                      // Timed, not sprung: a spring's tail toward 1 held the fall back a few hundred ms.
-                      withTiming(1, { duration: motion.switchTravel.rise, easing: Easing.out(Easing.quad) }),
-                      withDelay(
-                        Math.max(0, motion.switchTravel.liftFor - pressTime - motion.switchTravel.rise) + linger,
-                        withSpring(0, motion.switchTravel.fall),
-                      ),
-                    )
-                  : withSequence(rise, fall)
-              : settle,
+            ? dipping
+              ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise, settle)
+              : gliding.get()
+                ? withSequence(
+                    // Timed, not sprung: a spring's tail toward 1 held the fall back a few hundred ms.
+                    withTiming(1, { duration: motion.switchTravel.rise, easing: Easing.out(Easing.quad) }),
+                    withDelay(
+                      Math.max(0, motion.switchTravel.liftFor - pressTime - motion.switchTravel.rise) + linger,
+                      withSpring(0, motion.switchTravel.fall),
+                    ),
+                  )
+                : withSequence(rise, fall)
+            : settle,
       );
       tapDipping.set(false);
     }
-    barPress.set(withSpring(0, motion.springs.barPressOut));
-    barGrowth.set(withSpring(0, motion.springs.barPressOut));
+    // Let go mid-drag, the bar stays swollen until the lens lands (useLensPhysics), as iOS 27's takes its impact.
+    if (!(moved.get() && index >= 0)) {
+      barPress.set(withSpring(0, motion.springs.barPressOut));
+      barGrowth.set(withSpring(0, motion.springs.barPressOut));
+    }
     if (index >= 0) {
       const bounce = blocked && !moved.get() ? pressedAt.get() + motion.disabledBounce.delay : -1;
       if (bounce > Date.now()) {
         bounceAt.set(bounce);
       } else if (!tapping && !(gliding.get() && index === glideTo.get())) {
-        lensPosition.set(withSpring(index, motion.springs.lens));
+        // Let go mid-drag, it carries on with the finger's speed a little past its tab and back.
+        lensPosition.set(withSpring(index, moved.get() ? motion.springs.dragLand : motion.springs.lens));
       }
       settledIndex.set(index);
       if (committed && index !== focused.get()) {

@@ -56,6 +56,9 @@ uniform float pinchLeft;
 uniform float pinchRight;
 uniform float sampleMaxX;
 uniform float ellipse;
+// Deforms the first shape as a lens moving fast does, lopsided: x narrows one end toward its tip (its sign picks the end,
+// + right), y squashes the top half in and z pushes the bottom half out, each of the half's height.
+uniform float3 droplet;
 uniform float continuous;
 uniform float radiusBottom;
 uniform float topBend;
@@ -180,10 +183,23 @@ float stadium(float2 p, float4 rect) {
   return min(max(q.x, q.y), 0.0) + length(max(q, float2(0.0))) - r;
 }
 
-float field(float2 p) {
+float2 dropletWarp(float2 p, float4 rect) {
+  float2 center = (rect.xy + rect.zw) * 0.5;
+  float2 extent = max((rect.zw - rect.xy) * 0.5, float2(1.0));
+  float2 q = p - center;
+  float s = clamp(q.x * sign(droplet.x) / extent.x, 0.0, 1.0);
+  q.y /= max(1.0 - abs(droplet.x) * s * s, 0.2);
+  q.y *= q.y < 0.0 ? 1.0 + droplet.y : 1.0 / (1.0 + droplet.z);
+  return center + q;
+}
+
+float field(float2 pos) {
   float d = 100000.0;
   for (int i = 0; i < 4; i++) {
     if (float(i) < shapeCount) {
+      float2 p = i == 0 && (droplet.x != 0.0 || droplet.y != 0.0 || droplet.z != 0.0)
+        ? dropletWarp(pos, shapes[i])
+        : pos;
       float shape = i == 0 && wall.x != 0.0 ? wallCapsule(p, shapes[i]) : capsule(p, shapes[i]);
       if (continuous > 0.0) {
         shape = mix(shape, continuousCapsule(p, shapes[i]), continuous);
@@ -195,7 +211,7 @@ float field(float2 p) {
     }
   }
   if (clipOn > 0.0) {
-    float2 q = (p - size * 0.5) * clipScale;
+    float2 q = (pos - size * 0.5) * clipScale;
     float wall = stadium(q, clipRect) / max(min(clipScale.x, clipScale.y), 0.01);
     float clipped = -smoothUnion(-d, -wall, clipSoft);
     d = mix(d, clipped, clipOn);

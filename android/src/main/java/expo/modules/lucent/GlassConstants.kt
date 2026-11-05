@@ -20,7 +20,7 @@ internal const val EDGE_SOFT_STRENGTH = 0.6f
 internal val EDGE_STOPS = floatArrayOf(0f, 0.3f, 0.7f, 1f)
 internal const val ADAPTIVE_LIFT = 0.14f
 internal const val ADAPTIVE_DARKEN = 0.22f
-internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 78
+internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 81
 internal const val SAMPLE_SIZE = 8
 internal const val CONTINUOUS_STEPS = 128
 // Apple's continuous corner, as an angle about the corner's centre: its wedge's middle and half-width, in radians.
