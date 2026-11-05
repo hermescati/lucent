@@ -56,7 +56,10 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     GlassSupport.track(this)
   }
 
+  // Rebuilt, not just redrawn: the effect is otherwise rebuilt only when a prop changes, so a view back from a fallback
+  // would keep the cleared one, and its contents (the lens's icons) would draw without it.
   override fun glassSupportChanged() {
+    updateEffect()
     invalidate()
   }
 

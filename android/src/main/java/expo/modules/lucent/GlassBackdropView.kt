@@ -16,7 +16,8 @@ import android.view.ViewTreeObserver
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 
-class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+class GlassBackdropView(context: Context, appContext: AppContext) :
+  ExpoView(context, appContext), GlassSupport.Listener {
   internal val node: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassBackdrop") else null
   internal val outNode: RenderNode? =
@@ -29,6 +30,7 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   private val toHost = Matrix()
 
   init {
+    GlassSupport.track(this)
     clipChildren = false
     clipToPadding = false
   }
@@ -105,6 +107,11 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   private val preDraw = ViewTreeObserver.OnPreDrawListener {
     if (lifted.isNotEmpty()) invalidate()
     true
+  }
+
+  // Recorded again for glass drawn at the new level, which may sample it differently.
+  override fun glassSupportChanged() {
+    invalidate()
   }
 
   override fun onAttachedToWindow() {
