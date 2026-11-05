@@ -1,4 +1,4 @@
-import { Stack } from 'expo-lucent/navigation';
+import { Stack, TabScrollView } from 'expo-lucent/navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
@@ -8,10 +8,11 @@ import { useSettings, type SearchPlacement, type TabCount } from '@/components/s
 
 // A flat colour under the bars, for measuring how much of what's behind them the glass lets through:
 // lucent-example://components/backdrop/000000. The tab bar story's settings can ride along, to measure each layout:
-// ?tabs=4&search=tab&prominent=1&accessory=playing.
+// ?tabs=4&search=tab&prominent=1&accessory=playing. With &scroll=1 it scrolls, to minimize and expand the bar over it.
 export default function BackdropScreen() {
-  const { color, tabs, search, prominent, accessory } = useLocalSearchParams<{
+  const { color, tabs, search, prominent, accessory, scroll } = useLocalSearchParams<{
     color: string;
+    scroll?: string;
     tabs?: string;
     search?: SearchPlacement;
     prominent?: string;
@@ -32,7 +33,13 @@ export default function BackdropScreen() {
   return (
     <>
       <Stack.Screen options={{ title: '', headerTransparent: true }} />
-      <View style={{ flex: 1, backgroundColor: `#${color}` }} />
+      {scroll ? (
+        <TabScrollView style={{ backgroundColor: `#${color}` }}>
+          <View style={{ height: 4000 }} />
+        </TabScrollView>
+      ) : (
+        <View style={{ flex: 1, backgroundColor: `#${color}` }} />
+      )}
     </>
   );
 }

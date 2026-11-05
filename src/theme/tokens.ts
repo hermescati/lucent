@@ -121,9 +121,10 @@ export const glass = {
   lensPinchEndReach: 0.08,
   lensPad: 12,
   lensFrost: 1,
-  // The selected ink lightens with what's under the bar in dark mode, read from the window under the bar's glass:
-  // about 0.25 over a dark list and 0.36 over a photo on the emulator.
-  inkLuma: { dark: { from: 0.26, to: 0.4, step: 0.1 }, light: { from: 0.72, to: 0.9, step: 0.1 } },
+  // The selected ink follows how light what's under the bar reads (the window under the bar's glass, on the emulator):
+  // in dark mode 0.04 over black, 0.18 over a dark list, 0.36 over a photo and 0.56 over white; in light mode 0.39 over
+  // black, 0.86 over a light list and 0.9 over white. From a dark backdrop's ink at `from` to a light one's at `to`.
+  inkLuma: { dark: { from: 0.26, to: 0.4, step: 0.1 }, light: { from: 0.39, to: 0.72, step: 0.1 } },
   lensFrostClear: { dark: 0.9, light: 0 },
   // iOS 27's dark pill over stripes (simulator): the bar's material blurred about 1.75pt more (39% of its 8pt stripes
   // left, 80% of its 16pt), at the bar's own scale. A disc 4.3pt wide is that blur, its taps too close to print copies.

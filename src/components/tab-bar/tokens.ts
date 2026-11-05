@@ -115,6 +115,9 @@ export const motion = {
     track: { duration: 110, dampingRatio: 1 },
     snappy: { duration: 160, dampingRatio: 1 },
     morph: { duration: 420, dampingRatio: 1 },
+    // The bar expanding from its minimized circles, fitted to iOS 27's, frame by frame (iPhone 18 Pro Max): its edge
+    // 47% of the way at 50ms, 81% at 100ms, 97% at 150ms, a little past (1%) at 200 and back by 370.
+    expand: { mass: 1, stiffness: 462, damping: 34.4 },
     lens: { duration: 380, dampingRatio: 1 },
     lift: { duration: 220, dampingRatio: 1 },
     tapLift: { duration: 330, dampingRatio: 1 },

@@ -55,7 +55,7 @@ iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings â†
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Text              | `text`, `placeholder`, `placeholderActive`                                                                                |
 | Tab bar           | `barTint`, `barFallback`, `barShadow`, `legibilityShadow`                                                                 |
-| Tabs              | `tabAccent`, `tabActive`, `tabActiveOver` (mixed from `tintColor` unless set)                                             |
+| Tabs              | `tabAccent`, `tabAccentOver`, `tabActive`, `tabActiveOver` (mixed from `tintColor` unless set)                            |
 | Lens              | `lens`, `lensActive`, `lensRim`, `lensRimEarly`, `lensTint`, `lensTintEarly`, `lensHeldTint`, `lensHeldRim`, `lensShadow` |
 | Press             | `pressFill`, `pressLift`                                                                                                  |
 | Badge and search  | `badge`, `badgeText`, `clearButton`                                                                                       |

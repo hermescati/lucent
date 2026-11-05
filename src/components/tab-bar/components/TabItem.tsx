@@ -124,7 +124,10 @@ export const TabItem = ({
     color: interpolateColor(
       glow.get(),
       [0, 1],
-      [interpolateColor(inkTone.get(), [0, 1], [color.tabActiveOver, color.tabActive]), color.tabAccent],
+      [
+        interpolateColor(inkTone.get(), [0, 1], [color.tabActiveOver, color.tabActive]),
+        interpolateColor(inkTone.get(), [0, 1], [color.tabAccentOver, color.tabAccent]),
+      ],
     ),
   }));
   const labelStyle = useAnimatedStyle(() => ({
@@ -180,7 +183,10 @@ export const TabItem = ({
             </Animated.View>
           </Animated.View>
           <Animated.View style={[StyleSheet.absoluteFill, activeLiftStyle]}>
-            <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabAccent} />
+            <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabAccentOver} />
+            <Animated.View style={[StyleSheet.absoluteFill, brightInkStyle]}>
+              <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabAccent} />
+            </Animated.View>
           </Animated.View>
         </Animated.View>
         <Animated.View style={[styles.labelBox, labelStyle]}>

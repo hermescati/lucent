@@ -19,7 +19,9 @@ export interface LucentColors {
   lensShadow: string;
   pressFill: string;
   pressLift: string;
+  // The selected tab's ink under a finger, over a light backdrop and over a dark one.
   tabAccent: string;
+  tabAccentOver: string;
   tabActive: string;
   tabActiveOver: string;
   legibilityShadow: string;
@@ -47,7 +49,7 @@ export const systemTint: Record<LucentScheme, string> = {
   light: '#007AFF',
 };
 
-const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' | 'tabActive' | 'tabActiveOver'>> = {
+const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' | 'tabAccentOver' | 'tabActive' | 'tabActiveOver'>> = {
   dark: {
     text: '#FFFFFF',
     placeholder: 'rgba(255, 255, 255, 0.3)',
@@ -139,18 +141,33 @@ const toHex = (channels: number[]) =>
     )
     .join('')}`;
 
-// The selected tab's ink on iOS 27 (simulator): the tint with the same amount added to every channel, which keeps it as
-// saturated as it is (a mix toward white would wash it out). In light mode a shade darker over any backdrop, (244, 123,
-// 43) for #FF8433 over both a white list and a photo; in dark mode lighter as the backdrop is, from (255, 153, 72) over
-// a dark list towards (255, 218, 137) over a bright photo.
-const tintRamp: Record<LucentScheme, { accent: number; active: number; over: number }> = {
-  dark: { accent: 0.083, active: 0.337, over: 0.083 },
-  light: { accent: 0, active: -0.035, over: -0.035 },
+// The selected tab's ink on iOS 27 (simulator, iPhone 18 Pro Max, #FF8433), by what's under the bar: each a scale and
+// a lift on every channel of the tint, which keeps it as saturated as it is (a mix toward white would wash it out).
+// - Resting, over a light backdrop (a photo, white): dark mode (255, 212, 135), light mode a shade darker (243, 123, 43).
+// - Resting, over a dark one (a dark list, black): dark mode (255, 140, 59); light mode over black much darker (187,
+//   76, 4).
+// - Held under a finger (the lens), over a light backdrop: dark mode (255, 251, 171), light mode the tint itself.
+// - Held, over a dark backdrop: dark mode (255, 167, 92); light mode over black (212, 97, 21).
+// The bar blends each pair by how light its backdrop reads (`inkTone`, glass.inkLuma).
+type Ink = { scale: number; lift: number };
+const tintRamp: Record<LucentScheme, { active: Ink; over: Ink; held: Ink; heldOver: Ink }> = {
+  dark: {
+    active: { scale: 1, lift: 0.337 },
+    over: { scale: 1, lift: 0.025 },
+    held: { scale: 1, lift: 0.47 },
+    heldOver: { scale: 0.914, lift: 0.17 },
+  },
+  light: {
+    active: { scale: 1, lift: -0.035 },
+    over: { scale: 0.917, lift: -0.184 },
+    held: { scale: 1, lift: 0 },
+    heldOver: { scale: 0.935, lift: -0.104 },
+  },
 };
 
-const shade = (hex: string, amount: number) => {
+const ink = (hex: string, { scale, lift }: Ink) => {
   const channels = parseHex(hex);
-  return channels ? toHex(channels.map((channel) => channel + 255 * amount)) : hex;
+  return channels ? toHex(channels.map((channel) => channel * scale + 255 * lift)) : hex;
 };
 
 export const resolveColors = (
@@ -163,9 +180,10 @@ export const resolveColors = (
   return {
     ...baseColors[scheme],
     tint: accent,
-    tabAccent: shade(accent, ramp.accent),
-    tabActive: shade(accent, ramp.active),
-    tabActiveOver: shade(accent, ramp.over),
+    tabAccent: ink(accent, ramp.held),
+    tabAccentOver: ink(accent, ramp.heldOver),
+    tabActive: ink(accent, ramp.active),
+    tabActiveOver: ink(accent, ramp.over),
     ...overrides?.[scheme],
   };
 };

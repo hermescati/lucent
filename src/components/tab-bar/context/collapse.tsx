@@ -49,6 +49,6 @@ export const setTabBarCollapsed = (state: TabBarCollapseState, value: number) =>
     );
   } else {
     state.tuck.set(0);
-    state.progress.set(withSpring(0, motion.springs.morph));
+    state.progress.set(withSpring(0, motion.springs.expand));
   }
 };
