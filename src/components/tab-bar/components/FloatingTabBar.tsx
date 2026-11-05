@@ -556,6 +556,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
         </Animated.View>
         {searchTab?.searchRole ? (
           <SearchMode
+            fieldFit={state.fieldFit}
             active={searchFocused}
             idle={idleFade}
             onCancel={idleSearch}

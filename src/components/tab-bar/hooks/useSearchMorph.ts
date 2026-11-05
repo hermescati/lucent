@@ -24,6 +24,7 @@ export const useSearchMorph = (bar: BarState) => {
     collapsed,
     hasAccessory,
     tuck,
+    fieldFit,
     frameWidth,
     fullWidth,
     circleCenter,
@@ -165,7 +166,15 @@ export const useSearchMorph = (bar: BarState) => {
     ],
   }));
   const searchSpreadStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: keyboardSpread.get() }, { translateY: searchDip.get() }],
+    transform: [
+      { translateX: keyboardSpread.get() },
+      {
+        // Rising to the middle of a field grown for larger text (helpers/bar searchFieldFit).
+        translateY:
+          searchDip.get() -
+          (fieldFit.rise / 2) * Math.pow(clamp01(searchMode.get()), motion.searchMorph.heightLag),
+      },
+    ],
   }));
 
   const pillModeStyle = useAnimatedStyle(() => ({

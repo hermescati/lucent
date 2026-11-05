@@ -14,6 +14,8 @@ interface Props {
   fadeStyle: CSSStyle<ViewStyle>;
   shown: boolean;
   onClear: () => void;
+  // Grown with the field's text (helpers/bar searchFieldFit).
+  scale?: number;
 }
 
 const { size, span, stroke } = clearButton;
@@ -21,7 +23,7 @@ const center = size / 2;
 const near = center - span / 2;
 const far = center + span / 2;
 
-export const ClearButton = ({ color, gesture, dimStyle, fadeStyle, shown, onClear }: Props) => (
+export const ClearButton = ({ color, gesture, dimStyle, fadeStyle, shown, onClear, scale = 1 }: Props) => (
   <GestureDetector gesture={gesture}>
     <View
       pointerEvents={shown ? 'auto' : 'none'}
@@ -33,7 +35,7 @@ export const ClearButton = ({ color, gesture, dimStyle, fadeStyle, shown, onClea
       accessibilityLabel="Clear text"
       accessibilityActions={[{ name: 'activate' }]}
       onAccessibilityAction={onClear}>
-      <Animated.View style={fadeStyle}>
+      <Animated.View style={[fadeStyle, scale !== 1 && { transform: [{ scale }] }]}>
         <Animated.View style={dimStyle}>
           <Glyph color={color} />
         </Animated.View>

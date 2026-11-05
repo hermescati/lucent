@@ -23,7 +23,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { glass, space } from '../../../theme/tokens';
 import { setTabBarCollapsed, useTabBarCollapse } from '../context/collapse';
 import { useSearchActions } from '../context/search';
-import { barSpanFor, clamp01, fullHeight, inlinePad, lensFullHeight, lerp } from '../helpers/bar';
+import { barSpanFor, clamp01, fullHeight, inlinePad, lensFullHeight, lerp, searchFieldFit } from '../helpers/bar';
 import { moreName, useMore } from '../helpers/more';
 import { islandTo } from '../helpers/presence';
 import { mixSlots, pillWidthAt, planSlots } from '../helpers/slots';
@@ -51,6 +51,7 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   };
   const bottom = useTabBarOffset();
   const window = useWindowDimensions();
+  const fieldFit = searchFieldFit(window.fontScale);
   const barSpan = barSpanFor(window.width);
   const barLeft = (window.width - barSpan) / 2;
   const theme = useLucentTheme(tintColor);
@@ -405,6 +406,7 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     slotPlan,
     plan,
     setLabelSize,
+    fieldFit,
     glassStyle,
     glideFrom,
     glideSpan,

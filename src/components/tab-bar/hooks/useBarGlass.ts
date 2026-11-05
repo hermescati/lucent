@@ -28,6 +28,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     barPress,
     barWidth,
     frameWidth,
+    fieldFit,
     swell,
     circleCenter,
     collapsed,
@@ -129,8 +130,10 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       backGrow +
       bump * motion.searchBump.overshoot -
       backBump.get() * motion.searchBump.squish;
-    const backTop = lerp(pillTop, modeInset, settledY) - backGrow;
-    const backBottom = lerp(fullHeight - pillInset + grow, fullHeight - modeInset, settledY) + backGrow;
+    // At larger text the field reaches above its row (helpers/bar searchFieldFit), and its circles rise to its middle.
+    const rise = fieldFit.rise * settledY;
+    const backTop = lerp(pillTop, modeInset, settledY) - rise / 2 - backGrow;
+    const backBottom = lerp(fullHeight - pillInset + grow, fullHeight - modeInset, settledY) - rise / 2 + backGrow;
     const spread = keyboardSpread.get();
     const sink = tileSink.get();
     const dip = searchDip.get();
@@ -157,7 +160,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       spread;
     const fieldLeft = lerp(searchX - searchRadius, fieldStart, settled);
     const fieldRight = lerp(fieldEnd, searchX - modeRadius - layout.searchModeGap + spread, popPlace);
-    const fieldTop = lerp(circleY - searchRadius, modeInset, settledY);
+    const fieldTop = lerp(circleY - searchRadius, modeInset, settledY) - rise;
     const fieldBottom = lerp(circleY + searchRadius, fullHeight - modeInset, settledY);
     const tucked =
       settled > 0 ? Math.min(circleRadius, ((fieldBottom - fieldTop) / 2) * motion.searchPop.tuckScale) : circleRadius;
@@ -239,9 +242,9 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
         ...(apart > 0.002
           ? [
               splitX - splitRadius + bump * motion.searchBump.squish + pad,
-              circleY - splitRadius + dip + pad,
+              circleY - rise / 2 - splitRadius + dip + pad,
               splitX + splitRadius + pad,
-              circleY + splitRadius + dip + pad,
+              circleY - rise / 2 + splitRadius + dip + pad,
             ]
           : []),
         ...(mode > 0

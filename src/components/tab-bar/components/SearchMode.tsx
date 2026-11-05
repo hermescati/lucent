@@ -17,6 +17,7 @@ import { useClearButton } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
+import type { SearchFieldFit } from '../helpers/bar';
 import { mirrored } from '../helpers/mirror';
 import type { SlotPlan } from '../helpers/slots';
 import type { TabSpec } from '../helpers/triggers';
@@ -77,6 +78,8 @@ interface Props {
   reach: number;
   sink: SharedValue<number>;
   dip: SharedValue<number>;
+  // The field at the system's text size: taller, without its magnifier, its clear button bigger.
+  fieldFit: SearchFieldFit;
 }
 
 export const SearchMode = ({
@@ -100,6 +103,7 @@ export const SearchMode = ({
   reach,
   sink,
   dip,
+  fieldFit,
 }: Props) => {
   const { color, scheme } = useLucentTheme(tintColor);
   const iconDim = motion.pressIconDim[scheme];
@@ -262,7 +266,7 @@ export const SearchMode = ({
       importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}>
       <GestureDetector gesture={backDrag}>
         <Pressable
-          style={styles.back}
+          style={[styles.back, { top: modeInset - fieldFit.rise / 2 }]}
           pointerEvents={keyboardUp ? 'none' : 'auto'}
           onPress={goBack}
           onPressIn={() => backPress.onPressIn()}
@@ -295,13 +299,21 @@ export const SearchMode = ({
           </Animated.View>
         </Pressable>
       </GestureDetector>
-      <Animated.View style={[styles.field, fieldStyle]}>
-        <Animated.View style={glyphStyle}>
-          <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.text} />
-          <Animated.View style={[StyleSheet.absoluteFill, glyphAccentStyle]}>
-            <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
+      <Animated.View
+        style={[
+          styles.field,
+          { top: modeInset - fieldFit.rise, height: modeHeight + fieldFit.rise },
+          !fieldFit.glyph && styles.fieldBare,
+          fieldStyle,
+        ]}>
+        {fieldFit.glyph ? (
+          <Animated.View style={glyphStyle}>
+            <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.text} />
+            <Animated.View style={[StyleSheet.absoluteFill, glyphAccentStyle]}>
+              <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
+        ) : null}
         <GestureDetector gesture={fieldTouch}>
           <View style={[styles.text, mirrored && styles.textMirrored]}>
             <Animated.View style={[styles.layer, inputStyle]}>
@@ -324,7 +336,6 @@ export const SearchMode = ({
                 returnKeyType="search"
                 autoCorrect={false}
                 numberOfLines={1}
-                maxFontSizeMultiplier={layout.searchFieldTextScaleMax}
               />
               {query ? null : (
                 <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
@@ -335,8 +346,7 @@ export const SearchMode = ({
                       mirrored && styles.inputMirrored,
                       { color: color.placeholderActive },
                     ]}
-                    numberOfLines={1}
-                    maxFontSizeMultiplier={layout.searchFieldTextScaleMax}>
+                    numberOfLines={1}>
                     {placeholder}
                   </Text>
                 </View>
@@ -353,8 +363,7 @@ export const SearchMode = ({
                   mirrored && styles.inputMirrored,
                   { color: query ? color.text : color.placeholder },
                 ]}
-                numberOfLines={1}
-                maxFontSizeMultiplier={layout.searchFieldTextScaleMax}>
+                numberOfLines={1}>
                 {query || placeholder}
               </Text>
             </AnimatedNativeGlassBlur>
@@ -367,6 +376,7 @@ export const SearchMode = ({
           fadeStyle={clear.fadeStyle}
           shown={Boolean(query)}
           onClear={clearQuery}
+          scale={fieldFit.clearScale}
         />
       </Animated.View>
     </View>
@@ -408,6 +418,10 @@ const styles = StyleSheet.create({
   text: {
     flex: 1,
     alignSelf: 'stretch',
+  },
+  // Without its magnifier, at the accessibility text sizes, the text starts further in, as iOS's does.
+  fieldBare: {
+    paddingLeft: layout.searchFieldGrowth.bareInset,
   },
   // In the mirrored bar (helpers/mirror), the text flipped back, and set right to left.
   textMirrored: {

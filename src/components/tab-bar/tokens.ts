@@ -60,11 +60,12 @@ export const layout = {
   searchIconShrink: 0.137,
   closeIconSize: 44,
   searchFieldIconSize: 24,
-  // Larger text (iOS 27 simulator): the tab labels and badges keep their size, as iOS's do. The search field's text
-  // grows, in a 48pt field with its magnifier up to Extra Extra Extra Large (23pt, 1.35x); iOS's accessibility sizes
-  // then drop the magnifier and grow the field upward (28pt text in 48, up to 53pt text in 79), which Android doesn't
-  // draw yet, so its text stops here.
-  searchFieldTextScaleMax: 1.35,
+  // Larger text (iOS 27 simulator, iPhone 18 Pro Max): the tab labels and badges keep their size, as iOS's do; the
+  // search field's text grows with it (17pt by default). Up to 23pt (Extra Extra Extra Large) it fits the 48pt field
+  // beside its magnifier; from 28pt (the accessibility sizes) the magnifier goes and the text starts `bareInset` in;
+  // past that the field grows upward, `rate` x the text + `base` (53pt for 33pt text, 79 for 53), its circles
+  // centred on it. The clear button grows with the text, then a little slower (37pt for 47pt text, 42 for 53).
+  searchFieldGrowth: { text: 17, glyphUpTo: 25.5, bareInset: 22, rate: 1.3, base: 10.1, clearUpTo: 28, clearRate: 0.79 },
   searchFieldInset: 10,
   tabBadgeHeight: 19,
   tabBadgePadding: 4.5,

@@ -17,6 +17,21 @@ export const modeRadius = modeHeight / 2;
 export const modeShrink = modeHeight / fullHeight;
 export const fieldGlyphCenter =
   modeInset + modeHeight + layout.searchModeGap + layout.searchFieldInset + layout.searchFieldIconSize / 2;
+/** The search field at the system's font scale, as iOS 27 fits it to its text size (layout.searchFieldGrowth). */
+export const searchFieldFit = (fontScale: number) => {
+  const { text: base, glyphUpTo, rate, base: lift, clearUpTo, clearRate } = layout.searchFieldGrowth;
+  const text = base * fontScale;
+  const clear = text <= clearUpTo ? text : Math.max(clearUpTo, text * clearRate);
+  return {
+    // How far the field reaches above its 48pt row, and how big its clear button is against its 17pt.
+    rise: Math.max(0, rate * text + lift - modeHeight),
+    glyph: text < glyphUpTo,
+    clearScale: clear / base,
+  };
+};
+
+export type SearchFieldFit = ReturnType<typeof searchFieldFit>;
+
 export const tabBarGroup = 'tabbar';
 export const screenGroup = 'default';
 export const revealGroup = 'tabbar-reveal';
