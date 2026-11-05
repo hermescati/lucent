@@ -1,13 +1,17 @@
 package expo.modules.lucent
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.os.Build
 import expo.modules.kotlin.AppContext
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -32,6 +36,17 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
   private val shadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val shadeRect = RectF()
   private val frostPath = Path()
+
+  // Android 7 and 8 draw no shadow layer on a shape with hardware acceleration (only on text, before Android 9), so
+  // there the shadow is blurred in software into a small bitmap, at a quarter of the size, and redrawn only when the
+  // shape changes.
+  private var plainCount = 0
+  private var softShadow: Bitmap? = null
+  private val softBounds = RectF()
+  private val softKey = FloatArray(SOFT_KEY_HEAD + MAX_SHAPES * 4)
+  private val softNext = FloatArray(SOFT_KEY_HEAD + MAX_SHAPES * 4)
+  private val softBlur = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val softDraw = Paint(Paint.FILTER_BITMAP_FLAG)
   private val frostRect = RectF()
 
   // Apple's continuous corner, traced from the same fit the glass shader uses (see appleRadius there): each corner's
@@ -98,6 +113,7 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
 
   private fun buildPlainPath(): Boolean {
     val count = fillShapes()
+    plainCount = count
     plainPath.reset()
     val corner = cornerRadius * density
     var any = false
@@ -173,6 +189,54 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     canvas.restore()
   }
 
+  private fun drawSoftShadow(canvas: Canvas, color: Color, radius: Float, offset: Float) {
+    plainPath.computeBounds(softBounds, true)
+    // The blur reaches about its radius past the shape; its offset moves it down.
+    val reach = radius * SOFT_REACH
+    softBounds.set(softBounds.left - reach, softBounds.top - reach + offset, softBounds.right + reach, softBounds.bottom + reach + offset)
+    val w = ceil(softBounds.width() * SOFT_SCALE).toInt().coerceAtLeast(1)
+    val h = ceil(softBounds.height() * SOFT_SCALE).toInt().coerceAtLeast(1)
+
+    // What the shape's built from (helpers above): the same values draw the same shadow.
+    var n = 0
+    val argb = color.toArgb()
+    softNext[n++] = (argb ushr 16).toFloat()
+    softNext[n++] = (argb and 0xFFFF).toFloat()
+    softNext[n++] = radius
+    softNext[n++] = offset
+    softNext[n++] = cornerRadius
+    softNext[n++] = ellipse
+    softNext[n++] = continuous
+    softNext[n++] = wallSide
+    softNext[n++] = wallRound
+    softNext[n++] = wallLead
+    softNext[n++] = if (clipOn >= 0.5f) clipLeft + clipTop * 3f + clipRight * 7f + clipBottom * 11f + clipScaleX + clipScaleY * 5f else 0f
+    softNext[n++] = plainCount.toFloat()
+    for (i in 0 until minOf(plainCount, MAX_SHAPES) * 4) softNext[n++] = shapeBuffer[i]
+    val bitmap = softShadow
+    val same = bitmap != null && bitmap.width == w && bitmap.height == h &&
+      (0 until n).all { abs(softKey[it] - softNext[it]) < SOFT_KEY_SLOP }
+    if (!same) {
+      val target = if (bitmap != null && bitmap.width == w && bitmap.height == h) bitmap else {
+        bitmap?.recycle()
+        Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { softShadow = it }
+      }
+      target.eraseColor(android.graphics.Color.TRANSPARENT)
+      val soft = Canvas(target)
+      soft.scale(SOFT_SCALE, SOFT_SCALE)
+      soft.translate(-softBounds.left, -softBounds.top + offset)
+      softBlur.color = color.toArgb()
+      softBlur.maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
+      soft.drawPath(plainPath, softBlur)
+      System.arraycopy(softNext, 0, softKey, 0, n)
+    }
+    val shadow = softShadow ?: return
+    canvas.save()
+    canvas.clipOutPath(plainPath)
+    canvas.drawBitmap(shadow, null, softBounds, softDraw)
+    canvas.restore()
+  }
+
   protected fun drawPlain(canvas: Canvas) {
     if (width <= 0 || height <= 0 || !buildPlainPath()) return
     // A pass of what's behind it only (the tab bar's lens over its icons): drawn sharp within the shape, without the
@@ -197,7 +261,9 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     val dropColor = if (ownShadow) fallbackShadow else shadow
     val dropRadius = if (ownShadow) fallbackShadowRadius else shadowRadius
     val dropOffset = if (ownShadow) fallbackShadowOffset else shadowOffset
-    if (dropColor.alpha() > 0f && dropRadius > 0f) {
+    if (dropColor.alpha() > 0f && dropRadius > 0f && (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || SOFT_SHADOW_TEST)) {
+      drawSoftShadow(canvas, dropColor, dropRadius * density, dropOffset * density)
+    } else if (dropColor.alpha() > 0f && dropRadius > 0f) {
       canvas.save()
       canvas.clipOutPath(plainPath)
       shadowPaint.color = Color.BLACK

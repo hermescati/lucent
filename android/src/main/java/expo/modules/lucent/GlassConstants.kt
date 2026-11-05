@@ -7,6 +7,14 @@ internal const val HIGH_TEXT_CONTRAST = "high_text_contrast_enabled"
 internal const val DEFAULT_LIGHT_ANGLE = 30f
 internal const val DEFAULT_HIGHLIGHT_WIDTH = 2f
 internal const val SHAPE_STEPS = 4f
+// Android 7 and 8's solid shadow (GlassPlain.drawSoftShadow): blurred at this fraction of its size, reaching this
+// many radii past its shape, and redrawn when what builds its shape moves more than the slop. SOFT_SHADOW_TEST draws
+// it on any Android, to check it on a newer device.
+internal const val SOFT_SCALE = 0.25f
+internal const val SOFT_REACH = 1.5f
+internal const val SOFT_KEY_SLOP = 0.05f
+internal const val SOFT_KEY_HEAD = 12
+internal const val SOFT_SHADOW_TEST = false
 // How much a press shades solid glass: black over a light fill, white over a dark one.
 internal const val PRESS_SHADE_LIGHT = 0.06f
 internal const val PRESS_SHADE_DARK = 0.08f
