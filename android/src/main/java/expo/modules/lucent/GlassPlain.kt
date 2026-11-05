@@ -29,6 +29,8 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
   private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
   private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val frostPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val shadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val shadeRect = RectF()
   private val frostPath = Path()
   private val frostRect = RectF()
 
@@ -151,6 +153,26 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     return any
   }
 
+  // Pressed, solid glass shades as One UI's surfaces do: lighter over a dark fill, darker over a light one.
+  private fun drawPressShade(canvas: Canvas, fill: Color) {
+    if (press <= 0f || !(interactive || pressedShape >= 0)) return
+    val light = fill.luminance() > 0.5f
+    val amount = (press.coerceIn(0f, 1f) * if (light) PRESS_SHADE_LIGHT else PRESS_SHADE_DARK)
+    shadePaint.color = if (light) Color.argb(amount, 0f, 0f, 0f) else Color.argb(amount, 1f, 1f, 1f)
+    canvas.save()
+    if (pressedShape >= 0) {
+      shadeRect.set(
+        pressedRect.left * density + outPx,
+        pressedRect.top * density + outPx,
+        pressedRect.right * density + outPx,
+        pressedRect.bottom * density + outPx,
+      )
+      canvas.clipRect(shadeRect)
+    }
+    canvas.drawPath(plainPath, shadePaint)
+    canvas.restore()
+  }
+
   protected fun drawPlain(canvas: Canvas) {
     if (width <= 0 || height <= 0 || !buildPlainPath()) return
     // A pass of what's behind it only (the tab bar's lens over its icons): drawn sharp within the shape, without the
@@ -165,8 +187,9 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
       }
       return
     }
-    // Opaque: the component's fallback colour, or its tint with the see-through taken out.
-    val fill = if (fallback.alpha() > 0f) fallback else activeTint
+    // Opaque: a tinted glass's own tint (a prominent button), else the component's fallback surface, else its tint,
+    // each with the see-through taken out.
+    val fill = if (effectTint.alpha() > 0f) effectTint else if (fallback.alpha() > 0f) fallback else activeTint
     val solid = Color.valueOf(fill.red(), fill.green(), fill.blue(), 1f)
 
     // Its own solid shadow if it has one, else the glass's.
@@ -186,6 +209,8 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     fillPaint.color = solid.toArgb()
     canvas.drawPath(plainPath, fillPaint)
     drawPlainFrost(canvas, solid)
+
+    drawPressShade(canvas, solid)
 
     // No glass outline drawn solid, as One UI's bar has none: only a solid rim of its own.
     if (fallbackRim.alpha() > 0f && fallbackRimWidth > 0f) {

@@ -18,7 +18,7 @@ import { useGlassMaterial } from '../../../core/glass/material';
 import { MaterialSymbol } from '../../../core/icons/MaterialSymbol';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { createLucentContext } from '../../../theme/context';
-import { menu, menuColors, menuMotion } from '../tokens';
+import { menu, menuColors, menuMotion, menuSolidColors } from '../tokens';
 
 /** A rectangle in the window's coordinates, as `measureInWindow` gives it. */
 export interface Anchor {
@@ -35,7 +35,7 @@ const MenuContext = createLucentContext<OpenMenu | null>('StackMenu', null);
 /** Opens a menu from a bar button, over the screen it's on. */
 export const useOpenMenu = () => useContext(MenuContext);
 
-type Colors = (typeof menuColors)[keyof typeof menuColors];
+type Colors = Record<keyof (typeof menuColors)['light'], string>;
 
 // ——— Layout ———
 // The menu lays its rows out itself, so it knows its height before it opens and where each row is for a submenu.
@@ -366,8 +366,8 @@ const OpenMenuView = ({
   // Once the close has played out.
   onClosed: () => void;
 }) => {
-  const { scheme } = useLucentTheme();
-  const colors = menuColors[scheme];
+  const { scheme, solid } = useLucentTheme();
+  const colors = (solid ? menuSolidColors : menuColors)[scheme];
   const progress = useSharedValue(0);
   const subProgress = useSharedValue(0);
   const [submenu, setSubmenu] = useState<SubmenuState | null>(null);

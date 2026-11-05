@@ -53,6 +53,9 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
   protected val usesShader: Boolean
     get() = shader != null && !lowRam && !plain && !reducedTransparency && GlassSupport.refracts
 
+  override val pressesSolid: Boolean
+    get() = !usesShader
+
   init {
     GlassSupport.track(this)
   }

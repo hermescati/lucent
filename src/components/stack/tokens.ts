@@ -249,6 +249,20 @@ export const menuColors = {
   },
 } as const;
 
+// Drawn solid, the menu is One UI's surface (barFallback): dark mode's ink turns light on it, where iOS 27 inks a light
+// grey glass in black.
+export const menuSolidColors = {
+  light: menuColors.light,
+  dark: {
+    ...menuColors.dark,
+    text: '#FFFFFF',
+    secondary: 'rgba(235, 235, 245, 0.6)',
+    separator: 'rgba(255, 255, 255, 0.08)',
+    destructive: '#FF4245',
+    pressed: 'rgba(255, 255, 255, 0.08)',
+  },
+} as const;
+
 export const menuMotion = {
   open: { damping: 26, stiffness: 320, mass: 1 },
   close: 180,

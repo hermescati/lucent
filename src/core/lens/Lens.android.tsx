@@ -40,7 +40,9 @@ export const Lens = ({
   children,
 }: LensProps) => {
   const frosted = variant === 'knob';
-  const { scheme } = useLucentTheme();
+  // Drawn solid, there's no lens: the thumb keeps its resting shape and slides, as the tab bar's pill does, where an
+  // opaque lens would be a blob outgrowing its track.
+  const { scheme, solid } = useLucentTheme();
   const thumbPath = useMemo(() => continuousCapsule(thumb.width, thumb.height), [thumb.width, thumb.height]);
   const shape = () => {
     'worklet';
@@ -142,6 +144,9 @@ export const Lens = ({
   }));
 
   const thumbStyle = useAnimatedStyle(() => {
+    if (solid) {
+      return { opacity: 1, transform: [{ translateX: lens.x.get() }, { scaleX: 1 }, { scaleY: 1 }] };
+    }
     const land = lens.land.get();
     const form = lens.form.get();
     const stretch = lens.stretch.get();
@@ -183,45 +188,49 @@ export const Lens = ({
         ) : null}
       </Animated.View>
       {children}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.layer,
-          { left: -glass.width / 2, top: centerY - glass.height / 2, width: glass.width, height: glass.height },
-          glassStyle,
-        ]}>
-        <AnimatedNativeGlassView
-          {...material}
-          animatedProps={hazeProps}
-          frostLeft={hazeInset}
-          frostTop={hazeInset}
-          frostRight={glass.width - hazeInset}
-          frostBottom={glass.height - hazeInset}
-          frostRadius={hazeRadius}
-          lift
-          continuous={1}
-          cornerRadius={glass.height / 2}
-          style={styles.fill}
-        />
-      </Animated.View>
-      {frosted ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.layer,
-            { left: -glass.width / 2, top: centerY - glass.height / 2, width: glass.width, height: glass.height },
-            frostStyle,
-          ]}>
-          <AnimatedNativeGlassView
-            {...frostMaterial}
-            animatedProps={frostProps}
-            lift
-            continuous={1}
-            cornerRadius={glass.height / 2}
-            style={styles.fill}
-          />
-        </Animated.View>
-      ) : null}
+      {solid ? null : (
+        <>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.layer,
+              { left: -glass.width / 2, top: centerY - glass.height / 2, width: glass.width, height: glass.height },
+              glassStyle,
+            ]}>
+            <AnimatedNativeGlassView
+              {...material}
+              animatedProps={hazeProps}
+              frostLeft={hazeInset}
+              frostTop={hazeInset}
+              frostRight={glass.width - hazeInset}
+              frostBottom={glass.height - hazeInset}
+              frostRadius={hazeRadius}
+              lift
+              continuous={1}
+              cornerRadius={glass.height / 2}
+              style={styles.fill}
+            />
+          </Animated.View>
+          {frosted ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.layer,
+                { left: -glass.width / 2, top: centerY - glass.height / 2, width: glass.width, height: glass.height },
+                frostStyle,
+              ]}>
+              <AnimatedNativeGlassView
+                {...frostMaterial}
+                animatedProps={frostProps}
+                lift
+                continuous={1}
+                cornerRadius={glass.height / 2}
+                style={styles.fill}
+              />
+            </Animated.View>
+          ) : null}
+        </>
+      )}
     </>
   );
 };

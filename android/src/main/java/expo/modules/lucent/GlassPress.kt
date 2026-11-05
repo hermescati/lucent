@@ -15,6 +15,8 @@ import kotlin.math.max
 /** Touch and press: the press spring, the lean and stretch, the light that follows the finger, and pressed shapes. */
 abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps(context, appContext) {
   protected var press = 0f
+  /** Drawn solid, a press only shades the glass (GlassPlain): no growing, leaning or stretching toward the finger. */
+  protected abstract val pressesSolid: Boolean
   private var pressVelocity = 0f
   private var pressTarget = 0f
   protected var glowLevel = 0f
@@ -139,6 +141,7 @@ abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps
   }
 
   protected fun shapeScale(): Pair<Float, Float> {
+    if (pressesSolid) return Pair(1f, 1f)
     val side = max(pressedRect.width(), pressedRect.height())
     val scale = if (side > 0f) 1f + pressGrow / side * press else 1f
     val lx = kotlin.math.abs(shapeLeanX)
@@ -150,10 +153,10 @@ abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps
     get() = max(pressedRect.width(), pressedRect.height()) * 0.5f
 
   protected val shapeLeanX: Float
-    get() = if (pressedShape < 0) 0f else leanOf(glowFollowX - pressedRect.centerX(), shapeHalf)
+    get() = if (pressedShape < 0 || pressesSolid) 0f else leanOf(glowFollowX - pressedRect.centerX(), shapeHalf)
 
   protected val shapeLeanY: Float
-    get() = if (pressedShape < 0) 0f else leanOf(glowFollowY - pressedRect.centerY(), shapeHalf)
+    get() = if (pressedShape < 0 || pressesSolid) 0f else leanOf(glowFollowY - pressedRect.centerY(), shapeHalf)
 
   protected fun shapeLight(follow: Float, center: Float): Float {
     val half = shapeHalf
@@ -162,7 +165,7 @@ abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps
 
   private val currentScale: Float
     get() {
-      if (pressesShapes) return 1f
+      if (pressesShapes || pressesSolid) return 1f
       val side = max(width, height) / density
       val target = if (pressGrow > 0f && side > 0f) 1f + pressGrow / side else pressScale
       return 1f + (target - 1f) * press
@@ -189,10 +192,10 @@ abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps
     if (half <= 0f) 0f else kotlin.math.tanh(offset / half) * press
 
   private val leanX: Float
-    get() = if (pressGrow > 0f && !pressesShapes) leanOf(glowFollowX - width * 0.5f / density, max(width, height) * 0.5f / density) else 0f
+    get() = if (pressGrow > 0f && !pressesShapes && !pressesSolid) leanOf(glowFollowX - width * 0.5f / density, max(width, height) * 0.5f / density) else 0f
 
   private val leanY: Float
-    get() = if (pressGrow > 0f && !pressesShapes) leanOf(glowFollowY - height * 0.5f / density, max(width, height) * 0.5f / density) else 0f
+    get() = if (pressGrow > 0f && !pressesShapes && !pressesSolid) leanOf(glowFollowY - height * 0.5f / density, max(width, height) * 0.5f / density) else 0f
 
   protected fun applyPress(canvas: Canvas) {
     val scale = currentScale

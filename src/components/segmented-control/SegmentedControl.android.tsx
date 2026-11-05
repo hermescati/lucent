@@ -51,7 +51,7 @@ export const SegmentedControl = ({
   style,
   testID,
 }: SegmentedControlProps) => {
-  const { color } = useLucentTheme();
+  const { color, solid } = useLucentTheme();
   const knob = tintColor ?? color.segmentedThumb;
   const count = values.length;
   const [selected, setSelected] = useState(selectedIndex);
@@ -196,6 +196,10 @@ export const SegmentedControl = ({
   });
 
   const shadowStyle = useAnimatedStyle(() => {
+    // Drawn solid, the thumb never lifts into a lens (core/lens), so its shadow stays under it.
+    if (solid) {
+      return { opacity: 1, transform: [{ translateX: lens.x.get() }, { scaleX: 1 }, { scaleY: 1 }] };
+    }
     const land = lens.land.get();
     return {
       opacity: lens.solid.get(),

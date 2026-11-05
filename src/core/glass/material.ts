@@ -26,6 +26,18 @@ export const glassEdge = (scheme: LucentTheme['scheme']) => ({
   rimOpticDarken: glass.edge.darken[scheme],
 });
 
+// Drawn solid (below Android 13, or with high-contrast text), every glass is One UI 9's surface: opaque, with a pill
+// for its frost, a soft drop shadow and a hairline.
+const solidPaint = (color: LucentTheme['color']) => ({
+  fallback: color.barFallback,
+  fallbackPill: color.barFallbackPill,
+  fallbackShadow: color.barFallbackShadow,
+  fallbackRim: color.barFallbackRim,
+  fallbackRimWidth: StyleSheet.hairlineWidth,
+  fallbackShadowRadius: glass.fallbackShadow.radius,
+  fallbackShadowOffset: glass.fallbackShadow.offset,
+});
+
 export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTheme) => ({
   blurRadius: glass.haze.blur,
   haze: glass.haze.weight[scheme],
@@ -69,13 +81,7 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   shadowSpread: glass.shadowSpread[scheme],
   tint: color.barTint,
   ...levelOf(scheme, level),
-  fallback: color.barFallback,
-  fallbackPill: color.barFallbackPill,
-  fallbackShadow: color.barFallbackShadow,
-  fallbackRim: color.barFallbackRim,
-  fallbackRimWidth: StyleSheet.hairlineWidth,
-  fallbackShadowRadius: glass.fallbackShadow.radius,
-  fallbackShadowOffset: glass.fallbackShadow.offset,
+  ...solidPaint(color),
   shadow: color.barShadow,
   rimSide: glass.rimSide,
   ...glassEdge(scheme),
@@ -90,7 +96,7 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
 export const useGlassMaterial = (style: GlassStyle, colorScheme: GlassColorScheme = 'auto') => {
   const theme = useLucentTheme(undefined, colorScheme);
   if (style === 'clear') {
-    return clearPresets[theme.scheme];
+    return { ...clearPresets[theme.scheme], ...solidPaint(theme.color) };
   }
   return {
     ...regularMaterial(theme),

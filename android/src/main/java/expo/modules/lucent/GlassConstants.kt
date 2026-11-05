@@ -7,6 +7,9 @@ internal const val HIGH_TEXT_CONTRAST = "high_text_contrast_enabled"
 internal const val DEFAULT_LIGHT_ANGLE = 30f
 internal const val DEFAULT_HIGHLIGHT_WIDTH = 2f
 internal const val SHAPE_STEPS = 4f
+// How much a press shades solid glass: black over a light fill, white over a dark one.
+internal const val PRESS_SHADE_LIGHT = 0.06f
+internal const val PRESS_SHADE_DARK = 0.08f
 internal const val OPEN_CLIP = 100000f
 internal const val REFERENCE_SIDE = 110f
 internal const val BEZEL_RATIO = 0.5f

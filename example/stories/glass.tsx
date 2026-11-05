@@ -1,7 +1,17 @@
-import { GlassView, isLiquidGlassAvailable, type GlassViewProps } from 'expo-lucent';
+import { GlassView, isLiquidGlassAvailable, useLucentTheme, type GlassViewProps } from 'expo-lucent';
 import { StyleSheet, Text } from 'react-native';
 
 import { story } from './types';
+
+// White over the photo through glass; drawn solid, the glass is an opaque surface, so the theme's text colour.
+const Label = () => {
+  const { solid, color } = useLucentTheme();
+  return (
+    <Text style={[styles.label, solid && { color: color.text, textShadowColor: 'rgba(255, 255, 255, 0)' }]}>
+      Liquid Glass
+    </Text>
+  );
+};
 
 const effect = (style: 'regular' | 'clear' | 'none') => ({ style, animate: true });
 
@@ -40,7 +50,7 @@ export default story({
       tintColor={props.tintColor as string | undefined}
       isInteractive={Boolean(props.isInteractive)}
       style={[styles.glass, props.style as object]}>
-      <Text style={styles.label}>Liquid Glass</Text>
+      <Label />
     </GlassView>
   ),
   stage: { height: 260, photo: 'always' },
