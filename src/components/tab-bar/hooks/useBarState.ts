@@ -88,6 +88,8 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   const leftTarget = useSharedValue(0);
   const rightTarget = useSharedValue(0);
   const restSpan = useSharedValue(0);
+  // Pressed in place, the lens's width at rest and how much it grows when fully lifted (useLensPhysics).
+  const placeSpan = useSharedValue({ rest: 0, grow: 0 });
   const edgesReady = useSharedValue(false);
   const previousCollapsed = useSharedValue(0);
   const previousLensPosition = useSharedValue(Math.max(focusedIndex, 0));
@@ -451,6 +453,7 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     previousLensPosition,
     push,
     restSpan,
+    placeSpan,
     rightEdge,
     rightTarget,
     scaleX,

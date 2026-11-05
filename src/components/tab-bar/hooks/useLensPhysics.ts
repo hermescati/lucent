@@ -47,6 +47,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     previousLensPosition,
     push,
     restSpan,
+    placeSpan,
     rightEdge,
     rightTarget,
     scaleX,
@@ -201,6 +202,7 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     const left = contain ? Math.max(hugged - halfWidth, barLeft) : hugged - halfWidth;
     const right = contain ? Math.min(hugged + halfWidth, barRight) : hugged + halfWidth;
     restSpan.set(halfWidth * 2);
+    placeSpan.set({ rest: restHalf * 2, grow: (liftHalf - restHalf) * 2 * free });
 
     const collapsing = collapsed.get() !== previousCollapsed.get();
     previousCollapsed.set(collapsed.get());
@@ -250,7 +252,8 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     if (gliding.get() && lift.get() < 0.001 && Math.abs(position - glideTo.get()) < 0.002) {
       gliding.set(false);
     }
-    if (gliding.get() || (tapStay.get() === 1 && !moved.get() && held.get() < 0.5)) {
+    // Pressed in place, it swells and settles as one: its edges keep to its lift rather than chasing it on their springs.
+    if (gliding.get() || (tapStay.get() === 1 && !moved.get())) {
       leftTarget.set(left);
       rightTarget.set(right);
       leftEdge.set(left);

@@ -54,6 +54,7 @@ export const useLensStyles = (bar: BarState) => {
     pressSquash,
     push,
     restSpan,
+    placeSpan,
     rightEdge,
     scheme,
     settleFill,
@@ -80,8 +81,13 @@ export const useLensStyles = (bar: BarState) => {
 
   const lensGeometry = useDerivedValue(() => {
     const fullWidth = lensBase.get();
-    const left = leftEdge.get();
-    const right = rightEdge.get();
+    // Pressed in place, its width keeps to this frame's lift, as its height does, so it swells and settles as one.
+    const place = placeSpan.get();
+    const pinned = tapStay.get() === 1 && !moved.get() && !gliding.get() && place.rest > 0;
+    const middle = (leftEdge.get() + rightEdge.get()) / 2;
+    const halfSpan = (place.rest + place.grow * lift.get()) / 2;
+    const left = pinned ? middle - halfSpan : leftEdge.get();
+    const right = pinned ? middle + halfSpan : rightEdge.get();
     const span = Math.max(0, right - left);
     const barScale = fullHeight / lensFullHeight;
     const slide = slideShape.get();
@@ -215,9 +221,13 @@ export const useLensStyles = (bar: BarState) => {
     };
   });
 
+  // Pressed in place on the selected tab, its glass stays whole until it's nearly back in its pill, so what it magnifies
+  // settles into the tab under it rather than showing over it twice.
+  const inPlace = useDerivedValue(() => (tapStay.get() === 1 && !moved.get() && !gliding.get() ? 1 : 0));
   const lensGlassOpacity = useDerivedValue(() =>
     edgesReady.get()
       ? Math.max(
+          clamp01(lift.get() * motion.tapLens.settleGlass) * inPlace.get(),
           lerp(
             lift.get(),
             clamp01(
@@ -313,7 +323,13 @@ export const useLensStyles = (bar: BarState) => {
     const reveal = lensOut.get();
     return {
       refraction: glass.lensRefraction * bendScale * reveal,
-      magnify: glass.lensMagnify * optics * travel * reveal * lerp(1, motion.switchTravel.magnify, glide.get()),
+      magnify:
+        glass.lensMagnify *
+        optics *
+        travel *
+        reveal *
+        lerp(1, motion.switchTravel.magnify, glide.get()) *
+        lerp(1, lift.get(), inPlace.get()),
       rimOut:
         glass.lensRimOut.amount *
         lift.get() *

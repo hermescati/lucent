@@ -130,10 +130,10 @@ export const motion = {
     dragLand: { duration: 420, dampingRatio: 0.72 },
     lift: { duration: 220, dampingRatio: 1 },
     tapLift: { duration: 330, dampingRatio: 1 },
-    // A press on the selected tab lifts its lens, however long it's held, on one curve (iPhone 18 Pro Max, 50 to 800ms
-    // presses): critically damped from rest, ω about 25/s, half-way at about 70ms and settled by about 215. A short tap
-    // lets go partway up it and the lens carries on rising a little before it falls.
-    pressRise: { mass: 1, stiffness: 625, damping: 50 },
+    // A press on the selected tab lifts its lens, however long it's held, on one curve: critically damped from rest.
+    // iOS 27 measures about ω 25/s (iPhone 18 Pro Max), but swelling as far as a drag's bubble that read as rushed, so
+    // it's a touch softer: half-way at about 85ms and settled by about 270.
+    pressRise: { mass: 1, stiffness: 400, damping: 40 },
     // Let go, it drops back to the bar quickly: critically damped at ω about 45/s, nine tenths down in about 85ms.
     pressFall: { mass: 1, stiffness: 2025, damping: 90 },
     tapDip: { duration: 120, dampingRatio: 0.5, overshootClamping: true },
@@ -144,7 +144,12 @@ export const motion = {
     compactPopOut: { duration: 300, dampingRatio: 1 },
     landFall: { duration: 190, dampingRatio: 1 },
     tapRise: { duration: 240, dampingRatio: 1, energyThreshold: 2e-3 },
-    tapGlowOut: { duration: 420, dampingRatio: 1 },
+    // Pressed, the selected tab's lens clears at once (iPhone 18 Pro Max, the black pill under it): 90% by about 60ms.
+    tapClear: { mass: 1, stiffness: 4225, damping: 130 },
+    // Tapped, it stays clear to about 160ms, is half dark again by about 270 and all by about 480.
+    tapGlowOut: { duration: 380, dampingRatio: 1 },
+    // A tapped lens settles back softly, carrying on from how it was rising: about 200ms to rest.
+    tapSettleIn: { mass: 1, stiffness: 400, damping: 40 },
     pokeIn: { duration: 160, dampingRatio: 1 },
     pokeHold: { duration: 320, dampingRatio: 1 },
     pokeOut: { duration: 560, dampingRatio: 0.85 },
@@ -173,6 +178,8 @@ export const motion = {
     barPressIn: { duration: 160, dampingRatio: 1 },
     barGrowIn: { duration: 130, dampingRatio: 1 },
     barPressOut: { duration: 140, dampingRatio: 1 },
+    // A tap on the selected tab swells the bar about 2.5pt, relaxing over about 150ms once let go.
+    tapSwellOut: { duration: 360, dampingRatio: 1 },
     jellyTrail: { duration: 340, dampingRatio: 0.6 },
     jellySettle: { duration: 420, dampingRatio: 0.55 },
   },
@@ -308,7 +315,8 @@ export const motion = {
     wide: 0,
     flat: 0,
     drop: 6,
-    tint: 0.5,
+    // Lifted, it shows clear glass, not a part-dark pill: iOS clears it fully however short or long the press.
+    tint: 0,
     hold: 1.5,
     glassHold: 4,
     iconHold: 4,
@@ -321,19 +329,23 @@ export const motion = {
     iconCoverRamp: 20,
     coverLift: 0.05,
     ellipse: 0.35,
-    heldEllipse: 0.35,
+    // Held on the selected tab, iOS 27's lens is a capsule, its top and bottom straight, not an oval.
+    heldEllipse: 0,
     coverFrom: 0.8,
     revealOverhang: 5.5,
     dip: 0.3,
     dipFrom: 0.5,
     dentFrom: 55,
     dentFull: 120,
-    glowHold: 40,
+    // A tapped lens stays clear this long from touch-down (iPhone 18 Pro Max), then darkens back.
+    glowHold: 160,
     glassRamp: 1.4,
-    // A quick tap's lens rises to three quarters of a held one's lift and falls about 215ms after touch-down,
-    // whether it was let go at 50 or 200ms (a longer one is past it and falls from where it is).
-    peak: 0.75,
-    peakAt: 215,
+    // Pressed in place, how soon its glass is whole as it lifts and how late it gives way as it settles.
+    settleGlass: 4,
+    // A quick tap pops the lens up as a drag lifts it, all the way, and lets it settle about 250ms after touch-down,
+    // whether it was let go at 50 or 150ms.
+    peak: 1,
+    peakAt: 250,
     liftY: 1.345,
     holdLiftY: 1.345,
     fallGrey: { from: 0.15, to: 0.6 },
