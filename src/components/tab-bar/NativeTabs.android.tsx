@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import Animated, {
   Easing,
+  useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
@@ -63,6 +64,18 @@ const accessoryOf = (children: ReactNode) => {
 
 const minimizeMode = (behavior: LucentNativeTabsProps['minimizeBehavior']) =>
   behavior === 'onScrollDown' || behavior === 'onScrollUp' ? behavior : null;
+
+// Tells the tabs whether the bar is minimized, or minimizing.
+const CollapseWatch = ({ onChange }: { onChange: (minimized: boolean) => void }) => {
+  const collapse = useTabBarCollapse();
+  useAnimatedReaction(
+    () => (collapse?.target.get() ?? 0) === 1,
+    (minimized, before) => {
+      if (minimized !== before) scheduleOnRN(onChange, minimized);
+    },
+  );
+  return null;
+};
 
 // Tells what floats above the bar, such as a stack's bottom toolbar, how far up the bar reaches as it minimizes.
 const TabSearchActive = ({ children }: { children: ReactNode }) => (
@@ -187,15 +200,27 @@ const NativeTabsRoot = ({
 }: LucentNativeTabsProps) => {
   const triggers = parseTriggers(children);
   const accessory = accessoryOf(children);
-  const visible = setApart(triggers.filter((trigger) => !trigger.hidden));
+  const [minimized, setMinimized] = useState(false);
+  const shownTriggers = setApart(triggers.filter((trigger) => !trigger.hidden));
+  const laidOut = splitEntries(
+    shownTriggers.filter((trigger) => !trigger.search),
+    shownTriggers.find((trigger) => trigger.search),
+  );
+  // Minimized, iOS 27 pulls search out of the bar into its own circle, as long as it was in the bar, not in More.
+  const pulled = minimized && !laidOut.barSearch ? laidOut.barTabs.find((trigger) => trigger.searchRole) : undefined;
+  const visible = pulled
+    ? shownTriggers.map((trigger) => (trigger === pulled ? { ...trigger, search: true } : trigger))
+    : shownTriggers;
   const {
     barTabs: primary,
     barSearch: search,
     overflow,
-  } = splitEntries(
-    visible.filter((trigger) => !trigger.search),
-    visible.find((trigger) => trigger.search),
-  );
+  } = pulled
+    ? splitEntries(
+        visible.filter((trigger) => !trigger.search),
+        visible.find((trigger) => trigger.search),
+      )
+    : laidOut;
   const [moreOpen, setMoreOpen] = useState(false);
   const [moreTop, setMoreTop] = useState<string | null>(null);
   const slide = useSharedValue(1);
@@ -264,6 +289,7 @@ const NativeTabsRoot = ({
         <KeyboardProvider>
           <SearchHostProvider>
             <TabBarCollapseProvider minimize={minimizeMode(minimizeBehavior)}>
+              <CollapseWatch onChange={setMinimized} />
               <Tabs style={styles.fill}>
                 <InsideTabsContext value>
                   <TabsTintContext value={colorString(tintColor)}>

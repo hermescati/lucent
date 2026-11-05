@@ -103,8 +103,11 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   // Search set apart in its own circle (1) or among the tabs (0). Moving between them, the circle pinches off the bar's
   // end and drifts to its place, or drifts back and melts into it, as the search field's close button does.
   const searchApart = useSharedValue(hasSearch ? 1 : 0);
+  // Pulled out as the bar minimizes, search splits off quickly, before the bar gathers into its circles.
+  const splitSpring = () =>
+    collapse !== null && collapse.target.get() === 1 && hasSearch ? motion.searchSplit.pull : motion.searchSplit.spring;
   useEffect(() => {
-    searchApart.set(withSpring(hasSearch ? 1 : 0, motion.searchSplit.spring));
+    searchApart.set(withSpring(hasSearch ? 1 : 0, splitSpring()));
   }, [hasSearch, searchApart]);
   // Search's circle sits at the span's right end, wherever the bar ends.
   const circleCenter = barSpan - fullHeight / 2;
@@ -142,6 +145,9 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   const slotPlan = useDerivedValue(() => mixSlots(planFrom.get(), planTo.get(), planMix.get()));
   const laidOut = useRef({ restWidth, tabCount, planKey, hasSearch });
   const splitAt = useRef(0);
+  const splitWith = useRef<{ duration: number; dampingRatio: number }>(motion.searchSplit.spring);
+  // Pulled out as the bar minimizes, the bar takes its new width at once, so no empty place shows as it gathers.
+  const pulling = useRef(false);
   useLayoutEffect(() => {
     labelWidths.set(tabs.map((tab) => labelSizes[tab.name] ?? 0));
     const before = laidOut.current;
@@ -149,10 +155,13 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     // (The new tab's label is measured a moment later, so the whole split window counts, not just the first layout.)
     if (before.hasSearch !== hasSearch) {
       splitAt.current = Date.now();
+      splitWith.current = splitSpring();
+      pulling.current = splitWith.current === motion.searchSplit.pull;
     }
-    const splitting = Date.now() - splitAt.current < motion.searchSplit.spring.duration;
+    const splitting = Date.now() - splitAt.current < splitWith.current.duration;
+    const snap = splitting && pulling.current;
     const toWidth = (from: number, to: number) =>
-      splitting ? withSpring(to, motion.searchSplit.spring) : islandTo(from, to, barItemMotion.show.width);
+      snap ? to : splitting ? withSpring(to, splitWith.current) : islandTo(from, to, barItemMotion.show.width);
     if (before.planKey !== planKey) {
       planFrom.set(slotPlan.get());
       planTo.set(plan);
@@ -171,16 +180,20 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     barWidth.set(toWidth(barWidth.get(), restWidth));
     centering.set(toWidth(centering.get(), centerShift));
     frameWidth.set(
-      splitting
-        ? withSpring(restWidth, motion.searchSplit.spring)
-        : islandTo(frameWidth.get(), restWidth, (growing ? show : hide).width),
+      snap
+        ? restWidth
+        : splitting
+          ? withSpring(restWidth, splitWith.current)
+          : islandTo(frameWidth.get(), restWidth, (growing ? show : hide).width),
     );
-    swell.set(
-      withSequence(
-        withTiming(1, { duration: swellUp, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: swellDown, easing: Easing.inOut(Easing.quad) }),
-      ),
-    );
+    if (!snap) {
+      swell.set(
+        withSequence(
+          withTiming(1, { duration: swellUp, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: swellDown, easing: Easing.inOut(Easing.quad) }),
+        ),
+      );
+    }
   }, [
     restWidth,
     tabCount,
@@ -344,10 +357,21 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     }
     settledIndex.set(focusedIndex);
     lensPresence.set(withSpring(focusedIndex >= 0 ? 1 : 0, motion.springs.morph));
+  }, [focusedIndex, focused, settledIndex, dragIndex, lensPosition, lensPresence]);
+
+  // Choosing another tab expands a minimized bar. Only a new tab does: the tabs shifting in the bar, as search pulled
+  // out into its circle as it minimizes, isn't one.
+  const focusedName = focusedIndex >= 0 ? tabs[focusedIndex]?.name : apartFocused ? searchTab?.name : undefined;
+  const lastFocused = useRef(focusedName);
+  useEffect(() => {
+    if (lastFocused.current === focusedName) {
+      return;
+    }
+    lastFocused.current = focusedName;
     if (collapse) {
       setTabBarCollapsed(collapse, 0);
     }
-  }, [focusedIndex, focused, settledIndex, dragIndex, lensPosition, lensPresence, collapse]);
+  }, [focusedName, collapse]);
 
   useEffect(() => {
     if (!collapse) {

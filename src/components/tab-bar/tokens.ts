@@ -381,6 +381,9 @@ export const motion = {
   // end, and the two melt together this much at the midpoint.
   searchSplit: {
     spring: { duration: 780, dampingRatio: 0.74 },
+    // Pulled out as the bar minimizes (iOS 27: split off within about 60ms, the bar gathering as it goes), it splits
+    // off quickly, done as the bar gathers into its circles.
+    pull: { duration: 200, dampingRatio: 1 },
     from: 0.55,
     blend: 26,
     iconFrom: 0.04,

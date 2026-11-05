@@ -6,7 +6,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import type { BarState } from './useBarState';
 import type { SearchMorph } from './useSearchMorph';
 import { setTabBarCollapsed } from '../context/collapse';
-import { clamp01, inlinePad, lerp, modeInset, tick } from '../helpers/bar';
+import { clamp01, inlinePad, modeInset, tick } from '../helpers/bar';
 import { slotIndexAt } from '../helpers/slots';
 import { motion } from '../tokens';
 
@@ -244,10 +244,6 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
           : 0;
       dent.set(strength);
       const dripNow = strength > 0 && !gliding.get();
-      const fall = withSpring(0, {
-        duration: lerp(motion.springs.release.duration, motion.springs.landFall.duration, strength),
-        dampingRatio: 1,
-      });
       tapGlow.set(
         quick && strength < 1 && !gliding.get() && tapStay.get() === 1
           ? // Clear until a set time from touch-down, however short the tap, then darkening back.
