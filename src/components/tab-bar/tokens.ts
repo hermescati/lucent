@@ -60,6 +60,11 @@ export const layout = {
   searchIconShrink: 0.137,
   closeIconSize: 44,
   searchFieldIconSize: 24,
+  // Larger text (iOS 27 simulator): the tab labels and badges keep their size, as iOS's do. The search field's text
+  // grows, in a 48pt field with its magnifier up to Extra Extra Extra Large (23pt, 1.35x); iOS's accessibility sizes
+  // then drop the magnifier and grow the field upward (28pt text in 48, up to 53pt text in 79), which Android doesn't
+  // draw yet, so its text stops here.
+  searchFieldTextScaleMax: 1.35,
   searchFieldInset: 10,
   tabBadgeHeight: 19,
   tabBadgePadding: 4.5,
@@ -79,7 +84,8 @@ export const clearButton = {
   span: 5,
   stroke: 1.8,
   inset: 4.5,
-  hitSlop: 12,
+  // 17 + 16 a side: Android's 48dp touch target.
+  hitSlop: 16,
 } as const;
 
 export const closeGlyph = {

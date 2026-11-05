@@ -193,7 +193,8 @@ export const TabItem = ({
               },
               idleStyle,
             ]}
-            numberOfLines={1}>
+            numberOfLines={1}
+            allowFontScaling={false}>
             {tab.label}
           </Animated.Text>
           <Animated.Text
@@ -207,7 +208,8 @@ export const TabItem = ({
               activeStyle,
               activeLabelColor,
             ]}
-            numberOfLines={1}>
+            numberOfLines={1}
+            allowFontScaling={false}>
             {tab.label}
           </Animated.Text>
         </Animated.View>

@@ -314,6 +314,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               key={tab.name}
               style={styles.measureLabel}
               numberOfLines={1}
+              allowFontScaling={false}
               onTextLayout={(event) => setLabelSize(tab.name, event.nativeEvent.lines[0]?.width ?? 0)}>
               {tab.label}
             </Text>
@@ -390,6 +391,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
         </NativeGlassBackdrop>
         <Animated.View
           pointerEvents="none"
+          // Hidden from TalkBack while search's field is open, as iOS hides them from VoiceOver.
+          importantForAccessibility={searchFocused ? 'no-hide-descendants' : 'auto'}
           style={[styles.lensOverlay, overlayWidthStyle, pillModeStyle, pressScaleStyle]}>
           <Animated.View style={[styles.rowClip, rowClipStyle]}>
             <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
@@ -586,6 +589,9 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
 const styles = StyleSheet.create({
   bar: {
     position: 'absolute',
+    // Laid out left to right in every language: its places are measured from its left edge, which a right-to-left
+    // layout would swap.
+    direction: 'ltr',
   },
   backdrop: {
     flexDirection: 'row',

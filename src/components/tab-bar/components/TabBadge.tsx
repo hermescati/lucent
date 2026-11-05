@@ -25,7 +25,7 @@ export const TabBadge = ({
     pointerEvents="none">
     <View style={[styles.badge, { backgroundColor: color }]}>
       {text ? (
-        <Text style={[styles.text, { color: textColor }]} numberOfLines={1}>
+        <Text style={[styles.text, { color: textColor }]} numberOfLines={1} allowFontScaling={false}>
           {text}
         </Text>
       ) : null}

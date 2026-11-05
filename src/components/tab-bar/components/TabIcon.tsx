@@ -1,8 +1,9 @@
-import { SymbolView, type AndroidSymbol } from 'expo-symbols';
+import { type AndroidSymbol } from 'expo-symbols';
 import { isValidElement } from 'react';
 import { Image, type ColorValue, type ImageSourcePropType } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
+import { MaterialSymbol } from '../../../core/icons/MaterialSymbol';
 import { isSvgIcon } from '../helpers/svgIcon';
 import type { LucentNativeTabsTriggerIconProps } from '../types';
 
@@ -55,7 +56,7 @@ export const TabIcon = ({ icon, selected, size, color }: Props) => {
   }
   const material = 'md' in icon ? pick<AndroidSymbol>(icon.md, selected) : undefined;
   if (material) {
-    return <SymbolView name={{ android: material }} size={size} tintColor={color} />;
+    return <MaterialSymbol name={material} size={size} tintColor={color} />;
   }
   const source = 'src' in icon ? pick(icon.src, selected) : undefined;
   if (!source || isValidElement(source)) {

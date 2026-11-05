@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -9,6 +8,7 @@ import type { ButtonProps } from './types';
 import { NativeGlassView } from '../../core/glass/NativeGlass';
 import { useGlassMaterial } from '../../core/glass/material';
 import { glassPress } from '../../core/glass/presets';
+import { MaterialSymbol } from '../../core/icons/MaterialSymbol';
 import { useLucentTheme } from '../../theme/LucentProvider';
 
 const onAccent = '#FFFFFF';
@@ -98,7 +98,7 @@ export const Button = ({
       </ButtonColorContext.Provider>
     ) : (
       <>
-        {icon?.md ? <SymbolView name={{ android: icon.md }} size={metrics.icon} tintColor={ink} /> : null}
+        {icon?.md ? <MaterialSymbol name={icon.md} size={metrics.icon} tintColor={ink} /> : null}
         {label ? (
           <Text numberOfLines={1} style={[textStyle, { color: ink }, icon?.md ? { marginLeft: metrics.gap } : null]}>
             {label}

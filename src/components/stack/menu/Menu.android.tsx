@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { useCallback, useContext, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -16,6 +15,7 @@ import { hasChecks, toSections, type MenuActionNode, type MenuNode, type MenuTre
 import { useBackClaim } from '../../../core/back/claims';
 import { AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { useGlassMaterial } from '../../../core/glass/material';
+import { MaterialSymbol } from '../../../core/icons/MaterialSymbol';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { createLucentContext } from '../../../theme/context';
 import { menu, menuColors, menuMotion } from '../tokens';
@@ -102,7 +102,7 @@ interface RowContext {
 const ItemIcon = ({ item, color, left }: { item: MenuNode; color: string; left: number }) => {
   const style = [styles.icon, { left: left - menu.icon.size / 2 }];
   if (item.md) {
-    return <SymbolView name={{ android: item.md }} size={menu.icon.size} tintColor={color} style={style} />;
+    return <MaterialSymbol name={item.md} size={menu.icon.size} tintColor={color} style={style} />;
   }
   if (item.image) return <Image source={item.image} style={[style, styles.image, { tintColor: color }]} />;
   return null;
@@ -126,8 +126,8 @@ const Row = ({ entry, context }: { entry: Extract<Entry, { kind: 'row' }>; conte
         <>
           {pressed ? <View style={[styles.pressed, { backgroundColor: colors.pressed }]} /> : null}
           {checks && item.kind === 'action' && item.isOn ? (
-            <SymbolView
-              name={{ android: 'check' }}
+            <MaterialSymbol
+              name="check"
               size={menu.check.size}
               tintColor={color}
               style={[styles.check, { left: menu.check.centre - menu.check.size / 2 }]}
@@ -152,8 +152,8 @@ const Row = ({ entry, context }: { entry: Extract<Entry, { kind: 'row' }>; conte
             ) : null}
           </View>
           {submenu ? (
-            <SymbolView
-              name={{ android: 'chevron_right' }}
+            <MaterialSymbol
+              name="chevron_right"
               size={menu.chevron.size}
               tintColor={colors.text}
               style={[styles.chevron, { right: menu.chevron.right - menu.chevron.size / 2 + 3 }]}
@@ -178,7 +178,7 @@ const Palette = ({ entry, context }: { entry: Extract<Entry, { kind: 'palette' }
           onPress={() => (item.kind === 'action' ? context.onAction(item) : undefined)}
           style={({ pressed }) => [styles.paletteItem, pressed && { backgroundColor: context.colors.pressed }]}>
           {item.md ? (
-            <SymbolView name={{ android: item.md }} size={menu.icon.size} tintColor={color} />
+            <MaterialSymbol name={item.md} size={menu.icon.size} tintColor={color} />
           ) : item.image ? (
             <Image source={item.image} style={[styles.image, { tintColor: color }]} />
           ) : (
@@ -244,8 +244,8 @@ const Entries = ({ entries, context, onHeader }: { entries: Entry[]; context: Ro
                   {entry.item.label}
                 </Text>
               </View>
-              <SymbolView
-                name={{ android: 'expand_more' }}
+              <MaterialSymbol
+                name="expand_more"
                 size={menu.chevron.size}
                 tintColor={context.colors.text}
                 style={[styles.chevron, { right: menu.chevron.right - menu.chevron.size / 2 }]}

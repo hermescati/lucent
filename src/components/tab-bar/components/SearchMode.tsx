@@ -253,7 +253,11 @@ export const SearchMode = ({
   };
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={active ? 'box-none' : 'none'}>
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents={active ? 'box-none' : 'none'}
+      // Closed, its back button and field are out of sight, and out of TalkBack's reach.
+      importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}>
       <GestureDetector gesture={backDrag}>
         <Pressable
           style={styles.back}
@@ -318,12 +322,14 @@ export const SearchMode = ({
                 returnKeyType="search"
                 autoCorrect={false}
                 numberOfLines={1}
+                maxFontSizeMultiplier={layout.searchFieldTextScaleMax}
               />
               {query ? null : (
                 <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
                   <Text
                     style={[styles.input, searchFieldText[scheme], { color: color.placeholderActive }]}
-                    numberOfLines={1}>
+                    numberOfLines={1}
+                    maxFontSizeMultiplier={layout.searchFieldTextScaleMax}>
                     {placeholder}
                   </Text>
                 </View>
@@ -335,7 +341,8 @@ export const SearchMode = ({
               pointerEvents="none">
               <Text
                 style={[styles.input, searchFieldText[scheme], { color: query ? color.text : color.placeholder }]}
-                numberOfLines={1}>
+                numberOfLines={1}
+                maxFontSizeMultiplier={layout.searchFieldTextScaleMax}>
                 {query || placeholder}
               </Text>
             </AnimatedNativeGlassBlur>

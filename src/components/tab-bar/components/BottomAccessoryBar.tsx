@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { I18nManager, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -203,12 +203,18 @@ export const BottomAccessoryBar = ({
         own === 'regular' ? regularStyle : inlineStyle,
       ]}>
       <View
-        style={styles.fill}
+        style={[styles.fill, { direction: I18nManager.isRTL ? 'rtl' : 'ltr' }]}
         pointerEvents={placement === own ? 'auto' : 'none'}
         importantForAccessibility={placement === own ? 'auto' : 'no-hide-descendants'}>
-        <Pressable style={styles.fill} onPressIn={() => press.onPressIn()} onPressOut={press.onPressOut}>
+        {/* A finger on it swells the capsule. Watched with plain touches, not a Pressable, so the capsule isn't a control:
+            TalkBack reads and focuses the content's own. */}
+        <View
+          style={styles.fill}
+          onTouchStart={() => press.onPressIn()}
+          onTouchEnd={press.onPressOut}
+          onTouchCancel={press.onPressOut}>
           <AccessoryPlacementContext value={own}>{kept}</AccessoryPlacementContext>
-        </Pressable>
+        </View>
       </View>
     </Animated.View>
   );
@@ -233,6 +239,8 @@ export const BottomAccessoryBar = ({
 const styles = StyleSheet.create({
   layer: {
     position: 'absolute',
+    // Placed left to right, as the bar is; its content keeps the app's direction (copy).
+    direction: 'ltr',
     height: barTop + fullHeight,
   },
   glass: {
