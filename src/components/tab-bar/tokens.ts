@@ -130,6 +130,12 @@ export const motion = {
     dragLand: { duration: 420, dampingRatio: 0.72 },
     lift: { duration: 220, dampingRatio: 1 },
     tapLift: { duration: 330, dampingRatio: 1 },
+    // A press on the selected tab lifts its lens, however long it's held, on one curve (iPhone 18 Pro Max, 50 to 800ms
+    // presses): critically damped from rest, ω about 25/s, half-way at about 70ms and settled by about 215. A short tap
+    // lets go partway up it and the lens carries on rising a little before it falls.
+    pressRise: { mass: 1, stiffness: 625, damping: 50 },
+    // Let go, it drops back to the bar quickly: critically damped at ω about 45/s, nine tenths down in about 85ms.
+    pressFall: { mass: 1, stiffness: 2025, damping: 90 },
     tapDip: { duration: 120, dampingRatio: 0.5, overshootClamping: true },
     landIn: { duration: 160, dampingRatio: 1, energyThreshold: 2e-3 },
     landOut: { duration: 430, dampingRatio: 1 },
@@ -325,8 +331,12 @@ export const motion = {
     dentFull: 120,
     glowHold: 40,
     glassRamp: 1.4,
-    liftY: 1.31,
-    holdLiftY: 1.31,
+    // A quick tap's lens rises to three quarters of a held one's lift and falls about 215ms after touch-down,
+    // whether it was let go at 50 or 200ms (a longer one is past it and falls from where it is).
+    peak: 0.75,
+    peakAt: 215,
+    liftY: 1.345,
+    holdLiftY: 1.345,
     fallGrey: { from: 0.15, to: 0.6 },
     iconHalf: 0.35,
   },

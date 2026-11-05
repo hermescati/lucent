@@ -110,7 +110,13 @@ export const useLensStyles = (bar: BarState) => {
     const lead = slideRight.get() ? right : left;
     const arrived = Math.abs(travel) > 0.5 ? clamp01((lead - slideFrom.get()) / travel) : 1;
     const thinning = lerp(0.5, arrived * arrived, slide);
-    const squash = Math.min(1 / floor, Math.max(floor, Math.pow(Math.max(stretchRatio, 0.01), -thinning)));
+    // Kept to its area: stretched it thins, and drawn in it bulges. Pressed in place, its edges trail its growing width,
+    // and bulging there would shoot it up and sag it back, which iOS 27's lens doesn't: it only rises with its lift.
+    const inPlace = tapStay.get() === 1 && !moved.get() && !gliding.get();
+    const squash = Math.min(
+      inPlace ? 1 : 1 / floor,
+      Math.max(floor, Math.pow(Math.max(stretchRatio, 0.01), -thinning)),
+    );
     const compact = lerp(1, lensCompactScaleY, collapsed.get());
     const base = compact * Math.max(minScaleY, liftScale * squash * (1 - pressSquash.get() * motion.pressSquashY));
     const wobble = 1 + jelly.get() * lerp(1, motion.tapSlide.jellyX, slide);

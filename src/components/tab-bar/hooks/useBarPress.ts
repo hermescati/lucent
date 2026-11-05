@@ -107,7 +107,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     settleOnArrival.set(false);
     tapSlide.set(1);
     tapSlide.set(withDelay(motion.tapSlide.holdDelay, withSpring(0, motion.springs.lift)));
-    landing.set(switching ? withSpring(0, motion.springs.lift) : withSpring(1, motion.springs.landIn));
+    landing.set(switching ? withSpring(0, motion.springs.lift) : withSpring(1, motion.springs.pressRise));
     barPress.set(withSpring(1, motion.springs.barPressIn));
     barGrowth.set(withSpring(motion.barGrow.held, motion.springs.barGrowIn));
     dragRelease.set(0);
@@ -120,7 +120,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     } else {
       tapGlow.set(withSpring(1, motion.springs.tapRise));
       const dipping = lift.get() > motion.tapLens.dipFrom;
-      const rise = withSpring(1, motion.springs.tapLift);
+      const rise = withSpring(1, motion.springs.pressRise);
       tapDipping.set(dipping);
       lift.set(dipping ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise) : rise);
     }
@@ -274,7 +274,16 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
                       withSpring(0, motion.switchTravel.fall),
                     ),
                   )
-                : withSequence(rise, fall)
+                : quick
+                  ? withSequence(
+                      // A quick tap carries on up to its peak, then falls from the same moment however short it was.
+                      withTiming(Math.max(lift.get(), motion.tapLens.peak), {
+                        duration: Math.max(0, motion.tapLens.peakAt - pressTime),
+                        easing: Easing.out(Easing.quad),
+                      }),
+                      withSpring(0, motion.springs.pressFall),
+                    )
+                  : withSpring(0, motion.springs.pressFall)
             : settle,
       );
       tapDipping.set(false);
