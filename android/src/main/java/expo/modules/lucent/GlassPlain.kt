@@ -3,35 +3,24 @@ package expo.modules.lucent
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.RenderNode
-import android.graphics.Shader
-import android.os.Build
 import expo.modules.kotlin.AppContext
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** The fallback without the shader (low-RAM devices, older Android, plain glass): paths, blur, fill, edges and rim. */
-// How much of the haze's radius the fallback's single blur takes, at full haze weight.
-private const val PLAIN_HAZE_REACH = 0.5f
+/**
+ * Solid glass, for every device without the shader (older Android, low RAM, plain glass, or the override): the shape
+ * filled opaque with the component's fallback colour, as One UI's bars are, with its shadow and the tab bar's pill.
+ */
 
 abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffect(context, appContext) {
   private val wallRadii = FloatArray(8)
 
-  private val plainNode: RenderNode? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassPlain") else null
-
-  private var plainBlur = -1f
   private val plainPath = Path()
   private val shapePath = Path()
   private val clipPath = Path()
@@ -39,10 +28,7 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
   private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
   private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-  private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val frostPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-  private val frostMatrix = ColorMatrix()
-  private val frostScale = ColorMatrix()
   private val frostPath = Path()
   private val frostRect = RectF()
 
@@ -83,11 +69,8 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
   private fun appleRadius(s: Float): Float =
     1.0017855f + s * (-0.0287977f + s * (-0.6672829f + s * (3.2177690f + s * (-5.2756717f + s * (4.1355015f + s * -1.2528373f)))))
 
-  /**
-   * The tab bar's pill, which the shader draws as a toned patch of the glass (its frost): the same tone curve
-   * (base + gain x, then saturation) over the blurred backdrop, or over the flat fill without blur.
-   */
-  private fun drawPlainFrost(canvas: Canvas, node: RenderNode?) {
+  /** The tab bar's pill, which the shader draws as a toned patch of the glass (its frost): here a flat tone of the fill. */
+  private fun drawPlainFrost(canvas: Canvas, base: Color) {
     if (frost <= 0f) return
     frostRect.set(
       frostLeft * density + outPx,
@@ -98,29 +81,11 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     if (frostRect.width() <= 0f || frostRect.height() <= 0f) return
     frostPath.reset()
     addContinuous(frostPath, frostRect, min(frostRect.width(), frostRect.height()) * 0.5f)
-    val gain = frostGain
-    val offset = frostBase * 255f
-    frostMatrix.setSaturation(frostChroma)
-    frostScale.set(
-      floatArrayOf(gain, 0f, 0f, 0f, offset, 0f, gain, 0f, 0f, offset, 0f, 0f, gain, 0f, offset, 0f, 0f, 0f, 1f, 0f),
-    )
-    frostMatrix.postConcat(frostScale)
+    val tone = { c: Float -> (frostBase + frostGain * c).coerceIn(0f, 1f) }
+    frostPaint.color = Color.argb(frost.coerceIn(0f, 1f), tone(base.red()), tone(base.green()), tone(base.blue()))
     canvas.save()
     canvas.clipPath(plainPath)
-    canvas.clipPath(frostPath)
-    if (node != null) {
-      frostPaint.colorFilter = ColorMatrixColorFilter(frostMatrix)
-      frostPaint.alpha = (frost.coerceIn(0f, 1f) * 255f).roundToInt()
-      canvas.saveLayer(frostRect, frostPaint)
-      canvas.drawRenderNode(node)
-      canvas.restore()
-    } else {
-      val base = if (fallback.alpha() > 0f) fallback else tint
-      val tone = { c: Float -> (frostBase + frostGain * c).coerceIn(0f, 1f) }
-      frostPaint.colorFilter = null
-      frostPaint.color = Color.argb(base.alpha() * frost.coerceIn(0f, 1f), tone(base.red()), tone(base.green()), tone(base.blue()))
-      canvas.drawPath(frostPath, frostPaint)
-    }
+    canvas.drawPath(frostPath, frostPaint)
     canvas.restore()
   }
 
@@ -181,27 +146,10 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     return any
   }
 
-  private fun drawEdge(canvas: Canvas, depth: Float, strength: Float) {
-    if (depth <= 0f || strength <= 0f) return
-    val peak = Color.argb(strength.coerceIn(0f, 1f), 1f, 1f, 1f)
-    strokePaint.shader = LinearGradient(
-      0f,
-      shapeRect.top,
-      0f,
-      shapeRect.bottom,
-      intArrayOf(peak, Color.TRANSPARENT, Color.TRANSPARENT, peak),
-      EDGE_STOPS,
-      Shader.TileMode.CLAMP,
-    )
-    strokePaint.color = Color.WHITE
-    strokePaint.strokeWidth = depth * 2f
-    canvas.drawPath(plainPath, strokePaint)
-  }
-
   protected fun drawPlain(canvas: Canvas) {
     if (width <= 0 || height <= 0 || !buildPlainPath()) return
     // A pass of what's behind it only (the tab bar's lens over its icons): drawn sharp within the shape, without the
-    // material's fill, which would cover what it's there to show.
+    // fill, which would cover what it's there to show.
     if (alphaPass) {
       if (prepareBackdrop()) {
         canvas.save()
@@ -212,13 +160,9 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
       }
       return
     }
-    val tint = activeTint
-    val opaque = reducedTransparency && fallback.alpha() > 0f
-    // Without the shader there's no haze to mix over a near-sharp image (iOS 27's glass is mostly haze), so the blur
-    // stands in for it: as wide as the haze reaches, by its weight. The material's own blur alone (well under a point)
-    // left the glass see-through over a photo.
-    val blurPx = if (opaque) 0f else max(blurRadius, haze * hazeRadius * PLAIN_HAZE_REACH) * density
-    val canBlur = GlassSupport.blurs && canvas.isHardwareAccelerated && plainNode != null
+    // Opaque: the component's fallback colour, or its tint with the see-through taken out.
+    val fill = if (fallback.alpha() > 0f) fallback else activeTint
+    val solid = Color.valueOf(fill.red(), fill.green(), fill.blue(), 1f)
 
     if (shadow.alpha() > 0f && shadowRadius > 0f) {
       canvas.save()
@@ -229,54 +173,9 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
       canvas.restore()
     }
 
-    if (canBlur && !opaque && prepareBackdrop()) {
-      val node = plainNode!!
-      node.setPosition(0, 0, layerWidth.roundToInt(), layerHeight.roundToInt())
-      if (blurPx != plainBlur) {
-        node.setRenderEffect(blur(blurPx))
-        plainBlur = blurPx
-      }
-      val recording = node.beginRecording(layerWidth.roundToInt(), layerHeight.roundToInt())
-      try {
-        recording.translate(outPx, outPx)
-        drawBackdrops(recording)
-      } finally {
-        node.endRecording()
-      }
-      canvas.save()
-      canvas.clipPath(plainPath)
-      canvas.drawRenderNode(node)
-      canvas.restore()
-      fillPaint.color = activeTint.toArgb()
-    } else {
-      fillPaint.color = (if (fallback.alpha() > 0f) fallback else tint).toArgb()
-    }
+    fillPaint.color = solid.toArgb()
     canvas.drawPath(plainPath, fillPaint)
-    if (!opaque) drawPlainFrost(canvas, if (canBlur && plainNode != null && plainBlur >= 0f) plainNode else null)
-
-    if (adaptive > 0f && !opaque) {
-      val lightTint = 0.2126f * tint.red() + 0.7152f * tint.green() + 0.0722f * tint.blue() > 0.5f
-      fillPaint.color =
-        if (lightTint) Color.argb(ADAPTIVE_DARKEN * adaptive, 0f, 0f, 0f) else Color.argb(ADAPTIVE_LIFT * adaptive, 1f, 1f, 1f)
-      canvas.drawPath(plainPath, fillPaint)
-    }
-
-    if (glowStrength > 0f && !opaque && glowSpread > 0f) {
-      val spread = glowSpread * density * GLOW_REACH
-      val peak = Color.argb(glowStrength.coerceIn(0f, 1f), 1f, 1f, 1f)
-      glowPaint.shader = RadialGradient(glowX * density + outPx, glowY * density + outPx, spread, peak, Color.TRANSPARENT, Shader.TileMode.CLAMP)
-      canvas.drawPath(plainPath, glowPaint)
-    }
-
-    if (edgeSharp > 0f || edgeSoft > 0f) {
-      plainPath.computeBounds(shapeRect, false)
-      canvas.save()
-      canvas.clipPath(plainPath)
-      drawEdge(canvas, softWidth * density, edgeSoft * EDGE_SOFT_STRENGTH)
-      drawEdge(canvas, sharpWidth * density, edgeSharp * EDGE_SHARP_STRENGTH)
-      canvas.restore()
-      strokePaint.shader = null
-    }
+    drawPlainFrost(canvas, solid)
 
     if (rim.alpha() > 0f) {
       canvas.save()

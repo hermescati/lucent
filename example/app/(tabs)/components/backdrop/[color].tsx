@@ -9,7 +9,7 @@ import { useSettings, type SearchPlacement, type TabCount } from '@/components/s
 
 // A flat colour under the bars, for measuring how much of what's behind them the glass lets through:
 // lucent-example://components/backdrop/000000. The tab bar story's settings can ride along, to measure each layout:
-// ?tabs=4&search=tab&prominent=1&accessory=playing&fallback=android12. With &scroll=1 it scrolls, to minimize and expand the bar over it.
+// ?tabs=4&search=tab&prominent=1&accessory=playing&fallback=solid. With &scroll=1 it scrolls, to minimize and expand the bar over it.
 export default function BackdropScreen() {
   const { color, tabs, search, prominent, accessory, scroll, fallback } = useLocalSearchParams<{
     color: string;
@@ -28,11 +28,12 @@ export default function BackdropScreen() {
     ...(accessory ? { accessory } : {}),
     ...(fallback ? { glassFallback: fallback } : {}),
   };
-  // Only what differs: a new layout can remount this screen, which would set it again.
+  // Once per link, and only what differs: a new layout can remount this screen, which would set it again. Settings
+  // changed afterwards (the fallback, from the Settings tab) stay, though this screen is still mounted.
   const changed = Object.entries(patch).some(([key, value]) => settings[key as keyof typeof patch] !== value);
   useEffect(() => {
     if (changed) settings.set(patch);
-  }, [changed, tabs, search, prominent, accessory]);
+  }, [tabs, search, prominent, accessory, fallback]);
   return (
     <>
       <Stack.Screen options={{ title: '', headerTransparent: true }} />

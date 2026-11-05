@@ -49,8 +49,9 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
   private val lowRam =
     (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice ?: false
 
+  // High-contrast text draws solid glass too, as iOS's Reduce Transparency does.
   protected val usesShader: Boolean
-    get() = shader != null && !lowRam && !plain && GlassSupport.refracts
+    get() = shader != null && !lowRam && !plain && !reducedTransparency && GlassSupport.refracts
 
   init {
     GlassSupport.track(this)
@@ -185,8 +186,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
       return
     }
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    val opaque = reducedTransparency && fallback.alpha() > 0f
-    val blurPx = if (opaque) 0f else blurRadius * density
+    val blurPx = blurRadius * density
     val glassShader = shader?.takeIf { width > 0 && height > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU }
 
     if (glassShader == null) {
@@ -204,7 +204,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     val side = shortestSide(count)
     val reference = REFERENCE_SIDE * density
     val bezelPx = min(bezel * density, side * BEZEL_RATIO).coerceAtLeast(MIN_BAND)
-    val refractionPx = if (opaque) 0f else min(refraction * density, side * REFRACTION_RATIO * min(1f, side / reference))
+    val refractionPx = min(refraction * density, side * REFRACTION_RATIO * min(1f, side / reference))
     val highlightPx = min(highlightWidth * density, side * HIGHLIGHT_RATIO).coerceAtLeast(MIN_BAND)
     val angle = Math.toRadians(lightAngle.toDouble())
 
@@ -228,12 +228,12 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = bumpSplit
     state[i++] = bumpShapeY * density
     state[i++] = bumpCurve
-    state[i++] = if (opaque) 0f else dispersion
-    state[i++] = if (opaque) 0f else magnify
-    state[i++] = if (opaque) -999f else magnifyY
-    state[i++] = if (opaque) 1f else saturation
-    state[i++] = if (opaque) 0f else adaptive
-    state[i++] = if (opaque) 0f else dim
+    state[i++] = dispersion
+    state[i++] = magnify
+    state[i++] = magnifyY
+    state[i++] = saturation
+    state[i++] = adaptive
+    state[i++] = dim
     state[i++] = cos(angle).toFloat()
     state[i++] = sin(angle).toFloat()
     state[i++] = specular
@@ -246,7 +246,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = (if (shapePress) shapeLight(glowFollowX, pressedRect.centerX()) else if (interactive) lightOf(glowFollowX, width.toFloat()) else glowX) * density + outPx
     state[i++] = (if (shapePress) shapeLight(glowFollowY, pressedRect.centerY()) else if (interactive) lightOf(glowFollowY, height.toFloat()) else glowY) * density + outPx
     state[i++] = (if (interactive || shapePress) pressGlowSpread else glowSpread) * density
-    state[i++] = if (opaque) 0f else if (shapePress) (pressShapes?.getOrNull(pressedShape) ?: 0f) * glowLevel else if (interactive) pressGlow * glowLevel else glowStrength
+    state[i++] = if (shapePress) (pressShapes?.getOrNull(pressedShape) ?: 0f) * glowLevel else if (interactive) pressGlow * glowLevel else glowStrength
     state[i++] = shadowRadius * density
     state[i++] = shadowOffset * density
     state[i++] = shadowSpread * density
@@ -255,22 +255,22 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = insetSide
     state[i++] = insetSideWidth * density
     state[i++] = insetRamp * density
-    state[i++] = if (opaque) 0f else pinch * density
+    state[i++] = pinch * density
     state[i++] = pinchWidth * density
-    state[i++] = if (opaque) 0f else pinchSpread
-    state[i++] = if (opaque) 0f else rimPrism
+    state[i++] = pinchSpread
+    state[i++] = rimPrism
     state[i++] = rimWidth
     state[i++] = if (!rimOutside) 0f else if (rimOptic) 3f else if (rimCrisp) 2f else 1f
     state[i++] = rimSide
     state[i++] = rimFloor
     state[i++] = edgeAxis
-    state[i++] = if (opaque) 0f else prismAxis
-    state[i++] = if (opaque) 0f else prismShift * density
-    state[i++] = if (opaque) 0f else insetShade
+    state[i++] = prismAxis
+    state[i++] = prismShift * density
+    state[i++] = insetShade
     state[i++] = insetOffset * density
     state[i++] = insetBlur * density
-    state[i++] = if (opaque) 0f else pinchLeft * density
-    state[i++] = if (opaque) 0f else pinchRight * density
+    state[i++] = pinchLeft * density
+    state[i++] = pinchRight * density
     state[i++] = sampleMaxX * density
     state[i++] = ellipse
     state[i++] = dropletTaper
@@ -291,38 +291,38 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = clipOn
     state[i++] = topBend
     state[i++] = topDepth
-    state[i++] = if (opaque) 1f else chroma
-    state[i++] = if (opaque) 0f else pullBottom * density
+    state[i++] = chroma
+    state[i++] = pullBottom * density
     state[i++] = pullBand * density
-    state[i++] = if (opaque) 0f else pullTop * density
+    state[i++] = pullTop * density
     state[i++] = pullTopBand * density
-    state[i++] = if (opaque) 0f else rimOut * density
+    state[i++] = rimOut * density
     state[i++] = rimOutBand * density
-    state[i++] = if (opaque) 0f else rimPull * density
+    state[i++] = rimPull * density
     state[i++] = rimPullBand * density
     state[i++] = frostLeft * density + outPx
     state[i++] = frostTop * density + outPx
     state[i++] = frostRight * density + outPx
     state[i++] = frostBottom * density + outPx
-    state[i++] = if (opaque) 0f else frost
+    state[i++] = frost
     state[i++] = frostClear
     state[i++] = frostRadius * density
     state[i++] = frostMagnify
     state[i++] = toneBase
     state[i++] = toneGain
     state[i++] = toneGamma
-    state[i++] = if (opaque) 0f else toneOn
+    state[i++] = toneOn
     state[i++] = frostBase
     state[i++] = frostGain
     state[i++] = frostGamma
     state[i++] = frostChroma
-    state[i++] = if (opaque) 0f else levelClear
-    state[i++] = if (opaque) 0f else levelFrostClear
-    state[i++] = if (opaque) 0f else levelLean
-    i = putColor(i, if (opaque) fallback else tint)
+    state[i++] = levelClear
+    state[i++] = levelFrostClear
+    state[i++] = levelLean
+    i = putColor(i, tint)
     i = putColor(i, rim)
     i = putColor(i, shadow)
-    i = putColor(i, if (opaque) TRANSPARENT else effectTint)
+    i = putColor(i, effectTint)
     state[i++] = tintDarken
     state[i++] = tintMix
     val glowShapeAt = i
@@ -343,17 +343,17 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     fillSampleClip(state, i)
     i += 4
     val fadeBlurAt = i
-    state[i++] = if (opaque) 0f else fadeBlur * density
+    state[i++] = fadeBlur * density
     state[i++] = fadeFrom * density + outPx
     state[i++] = fadeTo * density + outPx
     val opticAt = i
     state[i++] = rimOpticTop
     state[i++] = rimOpticDarken
-    state[i++] = if (opaque) 0f else haze
+    state[i++] = haze
     state[i++] = hazeRadius * density
     state[i++] = toneBow
     state[i++] = frostBow
-    state[i++] = if (tonePre && toneOn > 0f && !opaque) 1f else 0f
+    state[i++] = if (tonePre && toneOn > 0f) 1f else 0f
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -450,10 +450,10 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     glassShader.setFloatUniform("frostTone", state[u], state[u + 1], state[u + 2], state[u + 3])
     u += 4
     glassShader.setFloatUniform("level", state[u], state[u + 1], state[u + 2])
-    glassShader.setColorUniform("tint", if (opaque) fallback else tint)
+    glassShader.setColorUniform("tint", tint)
     glassShader.setColorUniform("rim", rim)
     glassShader.setColorUniform("shadow", shadow)
-    glassShader.setColorUniform("colorTint", if (opaque) TRANSPARENT else effectTint)
+    glassShader.setColorUniform("colorTint", effectTint)
     glassShader.setFloatUniform("colorTintModel", tintDarken, tintMix)
     glassShader.setFloatUniform("glowShape", state[glowShapeAt], state[glowShapeAt + 1], state[glowShapeAt + 2], state[glowShapeAt + 3])
     glassShader.setFloatUniform("sampleClip", state[sampleClipAt], state[sampleClipAt + 1], state[sampleClipAt + 2], state[sampleClipAt + 3])

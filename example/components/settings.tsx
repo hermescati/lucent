@@ -31,7 +31,7 @@ export interface Settings {
   search: SearchPlacement;
   // Profile set apart in the circle as iOS 27's prominent tab, as an action would be.
   prominent: boolean;
-  // Android: draw an older Android's glass (Android 12's blur, or 11's flat fill) to see the fallbacks.
+  // Android: draw the solid fallback that Androids below 13 get, to see it on a newer phone.
   glassFallback: GlassFallback;
 }
 

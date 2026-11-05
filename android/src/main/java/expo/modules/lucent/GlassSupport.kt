@@ -1,11 +1,10 @@
 package expo.modules.lucent
 
-import android.os.Build
 import java.util.WeakHashMap
 
 /**
- * Which glass this device draws, with an override that draws an older Android's on this one, so a newer phone can
- * show what the fallbacks look like: the refraction shader needs Android 13 (RuntimeShader), blur Android 12.
+ * Which glass this device draws: the liquid glass shader (Android 13, RuntimeShader), or solid, as every device without
+ * it draws. An override draws solid on a newer phone, so it can show what the fallback looks like.
  */
 internal object GlassSupport {
   /** A view whose drawing depends on the level, told when it changes. */
@@ -13,17 +12,13 @@ internal object GlassSupport {
     fun glassSupportChanged()
   }
 
-  /** 0: this device's own glass; 1: as Android 12 (blur, no refraction); 2: as Android 11 and below (no blur). */
+  /** 0: this device's own glass; 1: solid. */
   var fallback = 0
     private set
 
-  /** Whether glass refracts: the shader, unless an override draws an older Android's. */
+  /** Whether glass refracts: the shader, unless the override draws solid. */
   val refracts: Boolean
     get() = fallback == 0
-
-  /** Whether glass blurs what's behind it. */
-  val blurs: Boolean
-    get() = fallback < 2 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
   private val listeners = WeakHashMap<Listener, Unit>()
 
@@ -33,7 +28,7 @@ internal object GlassSupport {
 
   /** On the main thread: every live glass view redraws at the new level. */
   fun setFallback(level: Int) {
-    val next = level.coerceIn(0, 2)
+    val next = level.coerceIn(0, 1)
     if (next == fallback) return
     fallback = next
     listeners.keys.toList().forEach { it.glassSupportChanged() }

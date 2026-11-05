@@ -103,11 +103,11 @@ Fix what step 7 found, re-record, repeat until it matches.
 
 ## 9. Fallback glass
 
-With `setGlassFallback` (Settings → Device in the example): `'android12'` (blur, no refraction) and `'android11'`
-(flat), each in light and dark mode. There's no glass level to test here. The component must stay legible and keep
+With `setGlassFallback('solid')` (Settings → Device in the example), in light and dark mode. The fallback is fully
+solid, painted after the One UI 9 kit, and drawn below Android 13 and with high-contrast text. There's no glass level to test here. The component must stay legible and keep
 every state visible (the selected pill, pressed states) without the shader.
 
-**Check:** both fallbacks readable in both schemes, nothing missing that the shader drew.
+**Check:** the solid fallback readable in both schemes, nothing missing that the shader drew.
 
 ## 10. Review and manual pass
 
@@ -133,6 +133,6 @@ props marked), platform differences and the fallback's look. Update the componen
 
 API from `docs/design.md`'s rules · anatomy from the kit as relationships · a story for every prop · values measured
 on iOS · glass matched at 0, 0.5 and 1, light and dark, over a photo, white, black and text · motion planned, built
-and matched frame by frame · performance checked · fallbacks legible in light and dark · `/review-animations` run ·
+and matched frame by frame · performance checked · fallback legible in light and dark · `/review-animations` run ·
 Reduce Motion, Reduce Transparency, accessibility, RTL and haptics checked · manual pass done · docs written ·
 committed step by step.

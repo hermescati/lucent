@@ -45,15 +45,11 @@ export default function SettingsScreen() {
       <Section title="Device">
         <Row label="Platform" detail={`${Platform.OS} ${Platform.Version}`} />
         {Platform.OS === 'android' ? (
-          <Row
-            label="setGlassFallback"
-            detail="Draw an older Android's glass here: refraction needs Android 13, blur Android 12"
-            stacked>
+          <Row label="setGlassFallback" detail="Draw the solid fallback here: liquid glass needs Android 13" stacked>
             <Options<GlassFallback>
               options={[
                 { label: 'Liquid glass', value: 'auto' },
-                { label: 'Android 12', value: 'android12' },
-                { label: '11 and below', value: 'android11' },
+                { label: 'Solid', value: 'solid' },
               ]}
               value={glassFallback}
               onChange={(next) => {
