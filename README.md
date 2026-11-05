@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 <p align="center">
-  <img src="docs/media/tab-bar.webp" width="300" alt="Lucent's glass tab bar on Android in dark mode: switching tabs, dragging the lens between tabs and minimizing on scroll" />
+  <img src="docs/media/tab-bar.webp" width="300" alt="Lucent's glass tab bar on Android in dark mode with a now-playing accessory: switching tabs, dragging the lens between tabs, then minimizing on scroll as the accessory drops into the bar's row, and expanding again" />
 </p>
 
 ## Why Lucent
@@ -38,7 +38,7 @@ Screens don't branch on the platform. They import from `expo-lucent` and get the
 | Component                                                          | Exports                                                         | On iOS                          | On Android                                                                             |
 | ------------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
 | [Glass](docs/components/glass.md)                                  | `GlassView`, `GlassContainer`, `GlassBackdrop`                  | `expo-glass-effect`             | Refraction shader that bends, blurs and lights what's behind                           |
-| [Tab bar](docs/components/tabs.md)                                 | `NativeTabs`, `TabScrollView`, `useTabBarScroll`                | expo-router's `NativeTabs`      | Floating glass bar with the lens, drag between tabs, minimize                          |
+| [Tab bar](docs/components/tabs.md)                                 | `NativeTabs`, `TabScrollView`, `useTabBarScroll`                | expo-router's `NativeTabs`      | Floating glass bar with the lens, drag between tabs, minimize, bottom accessory        |
 | [Navigation bar](docs/components/stack.md)                         | `Stack`, `useHeaderScroll`, `useHeaderInset`, `useToolbarInset` | expo-router's `Stack`           | Glass bar buttons and bottom toolbar, large title that collapses on scroll, iOS's push |
 | [Search bar](docs/components/search.md)                            | `SearchBar`, `useTabSearch`                                     | expo-router's `Stack.SearchBar` | The search tab morphs into a field that rides the keyboard                             |
 | [Switch](docs/components/switch.md)                                | `Switch`                                                        | `@expo/ui`                      | Toggle whose thumb turns into a glass lens                                             |
