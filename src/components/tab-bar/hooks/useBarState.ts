@@ -116,7 +116,8 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
       setLabelSizes((sizes) => (Math.abs((sizes[name] ?? -1) - width) < 0.5 ? sizes : { ...sizes, [name]: width })),
     [],
   );
-  const contents = tabs.map((tab) => Math.max(labelSizes[tab.name] ?? 0, layout.tabIconSize));
+  // Sized as iOS's labels are: SF Pro sets them about 11% wider than Roboto at the same size.
+  const contents = tabs.map((tab) => Math.max((labelSizes[tab.name] ?? 0) * layout.tabLabelScale, layout.tabIconSize));
   // iOS 27 fits the bar to its tabs (helpers/slots), up to the room it has: the span, or the span less search's circle.
   // Fitted short of it, a bar without the circle sits in the middle. Three tabs or more beside the circle fill the
   // room, so the circle stays `tabBarGap` from the bar; under a bottom accessory, any number of tabs do, as wide as it.

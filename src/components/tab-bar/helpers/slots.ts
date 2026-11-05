@@ -2,13 +2,15 @@
  * Where iOS 27 puts a tab bar's tabs, built as Apple's iOS 27 Figma kit builds the bar and sized as the simulator
  * (iPhone 18 Pro) lays it out. Each tab is an item that keeps `contentPad` around its content (label, or icon) and
  * otherwise wants `ideal` wide; neighbours overlap by `overlap`, and the bar wraps them with `edge` at each end. With
- * too little room, the tabs overlap more, up to `crowdedOverlap`, and then narrow evenly, though never under `min` or
- * their content. The selected tab's bubble is the tab itself, `outset` wider at each side.
+ * too little room, the tabs overlap more, up to `crowdedOverlap`; past that, iOS lays the tabs out at their floors (`min`,
+ * or their content) and scales the whole row, overlaps too, to the room. The selected tab's bubble is the tab itself,
+ * `outset` wider at each side.
  * Asked to `fill`, the tabs widen evenly until the bar fills the room: iOS 27 does this for three tabs or more beside
  * an action's circle, keeping the circle 8pt away (iPhone 18 Pro Max: 328pt for three tabs where they want 300; one
  * tab stays 111 and two 205, far from the circle).
  * Measured: two tabs beside search's circle 205pt; three centred 297; four entries 99 each, bubbles 103; five, Components
- * 101 (bubble 105) and the rest 78 (bubbles 82).
+ * 101 (bubble 105) and the rest 78 (bubbles 82). On the iPhone 18 Pro Max, five entries (or four beside the circle) are
+ * the same row scaled up: Components 114, the rest 87, overlapping 19.
  */
 export interface TabSpacing {
   edge: number;
@@ -50,23 +52,9 @@ export const planSlots = (room: number, contents: number[], spacing: TabSpacing,
     overlap = joins > 0 ? Math.min((edge * 2 + sum(wants) - room) / joins, spacing.crowdedOverlap) : 0;
     const target = room - edge * 2 + overlap * joins;
     if (sum(wants) > target) {
-      if (sum(floors) >= target) {
-        widths = floors.map((floor) => (floor * target) / sum(floors));
-      } else {
-        // Narrow the widest first, down to a common width, no tab under its floor.
-        let low = 0;
-        let high = Math.max(...wants);
-        for (let step = 0; step < 30; step++) {
-          const cap = (low + high) / 2;
-          const total = sum(wants.map((want, index) => Math.max(floors[index], Math.min(want, cap))));
-          if (total > target) {
-            high = cap;
-          } else {
-            low = cap;
-          }
-        }
-        widths = wants.map((want, index) => Math.max(floors[index], Math.min(want, low)));
-      }
+      const scale = (room - edge * 2) / Math.max(sum(floors) - overlap * joins, 1);
+      widths = floors.map((floor) => floor * scale);
+      overlap *= scale;
     }
   } else if (fill) {
     const spare = (room - span(wants, overlap)) / count;

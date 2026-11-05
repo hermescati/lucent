@@ -3,6 +3,9 @@ export const layout = {
   tabBarCompactHeight: 48,
   tabLabelHeight: 14,
   tabLabelSize: 10,
+  // How much wider iOS sets a tab label than Android does (SF Pro against Roboto, measured over the tab labels): the tabs
+  // are sized from labels this much wider, as iOS would size them.
+  tabLabelScale: 1.11,
   tabBarSideInset: 21,
   // Above gesture navigation: 21, as iOS 27 sits it above the home indicator (iPhone 18 Pro Max), as far as its sides.
   tabBarBottomOffsetAndroid: 21,
@@ -10,7 +13,7 @@ export const layout = {
   tabBarInlinePadding: 7,
   // The tabs (helpers/slots), as Apple's iOS 27 Figma kit builds the bar: 4pt of glass and 2pt of padding at each end,
   // tabs overlapping 8pt, the bubble 2pt past its tab; the tabs' widths as the simulator (iPhone 18 Pro) lays them out.
-  tabSpacing: { edge: 6, overlap: 8, crowdedOverlap: 16, ideal: 100.5, min: 72, contentPad: 19, outset: 2 },
+  tabSpacing: { edge: 6, overlap: 8, crowdedOverlap: 16, ideal: 100.5, min: 77, contentPad: 19, outset: 2 },
   bubbleRestWidth: 76,
   bubbleRestHeight: 54,
   tabBarGap: 8,
