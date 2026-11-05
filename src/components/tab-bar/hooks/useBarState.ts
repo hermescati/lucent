@@ -62,7 +62,9 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
   const focusedIndex = underMore
     ? tabs.findIndex((tab) => tab.name === moreName)
     : tabs.findIndex((tab) => getTrigger(tab.name)?.isFocused);
-  const searchFocused = searchTab ? (getTrigger(searchTab.name)?.isFocused ?? false) : false;
+  // The circle's tab chosen: for search, the bar morphs into the field; a prominent tab just shows its screen.
+  const apartFocused = searchTab ? (getTrigger(searchTab.name)?.isFocused ?? false) : false;
+  const searchFocused = apartFocused && (searchTab?.searchRole ?? false);
   const { setQuery, emit, command, setActive: setSearchActive } = useSearchActions();
   const { height: keyboardHeight, progress: keyboardProgress } = useKeyboard();
   const [backIndex, setBackIndex] = useState(Math.max(focusedIndex, 0));
@@ -454,6 +456,7 @@ export const useBarState = ({ tabs, searchTab, tintColor }: FloatingTabBarProps)
     fieldPress,
     searchRaise,
     searchTab,
+    apartFocused,
     setQuery,
     settleAt,
     settleFill,

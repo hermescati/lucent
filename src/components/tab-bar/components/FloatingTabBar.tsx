@@ -119,6 +119,15 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     requestAnimationFrame(() => switchTab(searchTab.name, {}));
   };
 
+  // A prominent tab in the circle opens like any tab; the bar's pill leaves its tabs.
+  const openApart = (name: string) => {
+    if (getTrigger(name)?.isFocused) {
+      return;
+    }
+    tick();
+    switchTab(name, {});
+  };
+
   const leaveSearch = () => {
     tick();
     lensPosition.set(backIndex);
@@ -260,6 +269,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     searchDip,
     searchFillStyle,
     searchFocused,
+    apartFocused,
     searchGlyphStyle,
     searchInkStyle,
     searchMode,
@@ -338,7 +348,15 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
             <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
               <Pressable
                 style={StyleSheet.absoluteFill}
-                onPress={searchFocused ? (searchIdle ? () => command('focus') : closeSearch) : openSearch}
+                onPress={
+                  !circleTab.searchRole
+                    ? () => openApart(circleTab.name)
+                    : searchFocused
+                      ? searchIdle
+                        ? () => command('focus')
+                        : closeSearch
+                      : openSearch
+                }
                 onPressIn={() => searchPress.onPressIn()}
                 onPressOut={searchPress.onPressOut}
                 accessibilityRole="tab"
@@ -348,7 +366,12 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                   <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
                   <Animated.View style={[styles.searchIcon, searchInkStyle]}>
                     <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
-                      <TabIcon icon={circleTab.icon} selected={false} size={layout.searchIconSize} color={color.text} />
+                      <TabIcon
+                        icon={circleTab.icon}
+                        selected={apartFocused && !circleTab.searchRole}
+                        size={layout.searchIconSize}
+                        color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.text) : color.text}
+                      />
                     </Animated.View>
                     <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
                       <Animated.View style={idleGlyphStyle}>
@@ -520,7 +543,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           </Animated.View>
         ) : null}
       </Animated.View>
-      {searchTab ? (
+      {searchTab?.searchRole ? (
         <SearchMode
           active={searchFocused}
           idle={idleFade}

@@ -4,7 +4,7 @@ import { useSettings, type Minimize, type SearchPlacement, type TabCount } from 
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
 export default function TabBarScreen() {
-  const { tint, minimize, accessory, tabs, search, set } = useSettings();
+  const { tint, minimize, accessory, tabs, search, prominent, set } = useSettings();
 
   return (
     <Page>
@@ -41,6 +41,19 @@ export default function TabBarScreen() {
             onChange={(next) =>
               set(next === 'circle' ? { search: next, tabs: Math.min(tabs, 4) as TabCount } : { search: next })
             }
+          />
+        </Row>
+        <Row
+          label="prominent"
+          detail="iOS 27 sets any one tab apart in a circle of its own, as an action. Search then joins the tabs"
+          stacked>
+          <Options<'off' | 'on'>
+            options={[
+              { label: 'None', value: 'off' },
+              { label: 'Profile', value: 'on' },
+            ]}
+            value={prominent ? 'on' : 'off'}
+            onChange={(next) => set({ prominent: next === 'on' })}
           />
         </Row>
         <Row label="BottomAccessory" detail="A now-playing bar above the tabs, beside them once minimized" stacked>

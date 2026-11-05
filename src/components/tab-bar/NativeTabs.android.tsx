@@ -26,7 +26,7 @@ import { TabBarCollapseProvider, useTabBarCollapse } from './context/collapse';
 import { SearchHostProvider, useSearchHost } from './context/search';
 import { barSpanFor, fullHeight } from './helpers/bar';
 import { MoreContext, splitEntries, useMore } from './helpers/more';
-import { hrefFor, parseTriggers, triggerPart } from './helpers/triggers';
+import { hrefFor, parseTriggers, setApart, triggerPart } from './helpers/triggers';
 import { useTabBarOffset } from './hooks/useTabBarOffset';
 import { barPresence, layout } from './tokens';
 import type { LucentNativeTabsProps, LucentNativeTabsTriggerIconProps, LucentNativeTabTriggerProps } from './types';
@@ -177,7 +177,7 @@ const NativeTabsRoot = ({
   badgeTextColor,
 }: LucentNativeTabsProps) => {
   const triggers = parseTriggers(children);
-  const visible = triggers.filter((trigger) => !trigger.hidden);
+  const visible = setApart(triggers.filter((trigger) => !trigger.hidden));
   const {
     barTabs: primary,
     barSearch: search,

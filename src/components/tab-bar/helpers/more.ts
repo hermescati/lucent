@@ -17,6 +17,8 @@ export const moreTab: TabSpec = {
   icon: { md: 'more_horiz' },
   hidden: false,
   search: false,
+  searchRole: false,
+  prominent: false,
   disabled: false,
   disablePopToTop: true,
   disableScrollToTop: true,

@@ -10,7 +10,7 @@ const hasToolbar = (pathname: string) =>
   pathname.startsWith('/components/toolbar/') || pathname === '/components/navigation-bar/search-placements';
 
 export default function TabsLayout() {
-  const { tint, minimize, accessory, tabs, search } = useSettings();
+  const { tint, minimize, accessory, tabs, search, prominent } = useSettings();
   const pathname = usePathname();
   // Search keeps its role: on iOS 27 it sits in its own circle while it activates its field, and among the tabs when it
   // doesn't, so the bar moves it live instead of remounting.
@@ -37,7 +37,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="books.vertical" md="library_books" />
         <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile" hidden={tabs < 5}>
+      <NativeTabs.Trigger name="profile" hidden={tabs < 5 && !prominent} prominent={prominent}>
         <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

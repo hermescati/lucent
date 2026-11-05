@@ -26,6 +26,8 @@ export interface Settings {
   // How many tabs the bar has besides search, and search: none, a circle of its own, or a tab among them.
   tabs: TabCount;
   search: SearchPlacement;
+  // Profile set apart in the circle as iOS 27's prominent tab, as an action would be.
+  prominent: boolean;
 }
 
 const defaults: Settings = {
@@ -36,6 +38,7 @@ const defaults: Settings = {
   accessory: false,
   tabs: 3,
   search: 'circle',
+  prominent: false,
 };
 
 interface SettingsContext extends Settings {
