@@ -1,5 +1,5 @@
 import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
-import { PixelRatio } from 'react-native';
+import { PixelRatio, StyleSheet } from 'react-native';
 
 import { clearPresets } from './presets';
 import { useLucentTheme, type LucentTheme } from '../../theme/LucentProvider';
@@ -70,6 +70,12 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   tint: color.barTint,
   ...levelOf(scheme, level),
   fallback: color.barFallback,
+  fallbackPill: color.barFallbackPill,
+  fallbackShadow: color.barFallbackShadow,
+  fallbackRim: color.barFallbackRim,
+  fallbackRimWidth: StyleSheet.hairlineWidth,
+  fallbackShadowRadius: glass.fallbackShadow.radius,
+  fallbackShadowOffset: glass.fallbackShadow.offset,
   shadow: color.barShadow,
   rimSide: glass.rimSide,
   ...glassEdge(scheme),

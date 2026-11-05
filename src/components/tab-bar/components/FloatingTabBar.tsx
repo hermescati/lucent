@@ -17,6 +17,7 @@ import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
+import { useSolidGlass } from '../../../theme/solid';
 import { glass } from '../../../theme/tokens';
 import {
   clamp01,
@@ -278,6 +279,13 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     setLabelSize,
   } = { ...state, ...search, ...press, ...lens, ...barGlass };
   // Dark, the lens's edge has the bar's soft light band inside it, as iOS 27's does.
+  const solid = useSolidGlass();
+  // Solid, with no lens over it, the row draws every tab itself, the one under the finger tinted and magnified; glass
+  // hides the ones it covers for the lens to refract.
+  const uncovered = useSharedValue<number[]>([]);
+  const noCover = useSharedValue(0);
+  const rowCover = solid ? noCover : iconCover;
+  const rowCovered = solid ? uncovered : coveredIcons;
   const lensEdge = scheme === 'dark' ? { edgeSoft: glass.edgeSoft.dark, softWidth: glass.softWidth } : {};
 
   // Each tab at its place, as iOS 27 spaces them.
@@ -303,6 +311,36 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           ? () => command('focus')
           : closeSearch
         : openSearch;
+
+  // The lifted lens, glass only: solid, the bar's own pill stands in for it (useBarGlass).
+  const lensGlass = (
+    <Animated.View style={[styles.lens, lensGlassStyle, lensWidthStyle]}>
+      <AnimatedNativeGlassView
+        style={styles.lensGlass}
+        animatedProps={lensSideProps}
+        rimOutBand={glass.lensRimOut.band}
+        {...lensEdge}
+        group={tabBarGroup}
+        underlay={screenGroup}
+        inset={glass.lensPad}
+        refractionYScale={glass.lensRefractionYScale}
+        cornerRadius={lensFullHeight / 2}
+        continuous={1}
+        blurRadius={glass.lensBlurRadius}
+        bezel={glass.lensBezel}
+        refraction={glass.lensRefraction}
+        falloff={glass.lensFalloff}
+        dispersion={glass.lensDispersion}
+        magnify={glass.lensMagnify}
+        pinchWidth={glass.lensPinchWidth}
+        sharpWidth={glass.lensShadeWidth}
+        lightAngle={glass.lightAngle}
+        rimSide={glass.lensRimSide[scheme]}
+        shadowRadius={glass.lensShadowRadius}
+        shadowOffset={glass.lensShadowOffset}
+      />
+    </Animated.View>
+  );
 
   const content = (
     <>
@@ -381,7 +419,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                           icon={circleTab.icon}
                           selected={apartFocused && !circleTab.searchRole}
                           size={layout.searchIconSize}
-                          color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.text) : color.text}
+                          color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.tint) : color.tabInk}
                         />
                       </Animated.View>
                       <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
@@ -420,8 +458,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       lift={lift}
                       shine={shine}
                       presence={lensPresence}
-                      cover={iconCover}
-                      covered={coveredIcons}
+                      cover={rowCover}
+                      covered={rowCovered}
                       collapsed={collapsed}
                       collapseX={collapseX}
                       collapseSpread={collapseSpread}
@@ -470,51 +508,28 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               ))}
             </View>
           </NativeGlassBackdrop>
-          <Animated.View style={[styles.lens, lensGlassStyle, lensWidthStyle]}>
-            <AnimatedNativeGlassView
-              style={styles.lensGlass}
-              animatedProps={lensSideProps}
-              rimOutBand={glass.lensRimOut.band}
-              {...lensEdge}
-              group={tabBarGroup}
-              underlay={screenGroup}
-              inset={glass.lensPad}
-              refractionYScale={glass.lensRefractionYScale}
-              cornerRadius={lensFullHeight / 2}
-              continuous={1}
-              blurRadius={glass.lensBlurRadius}
-              bezel={glass.lensBezel}
-              refraction={glass.lensRefraction}
-              falloff={glass.lensFalloff}
-              dispersion={glass.lensDispersion}
-              magnify={glass.lensMagnify}
-              pinchWidth={glass.lensPinchWidth}
-              sharpWidth={glass.lensShadeWidth}
-              lightAngle={glass.lightAngle}
-              rimSide={glass.lensRimSide[scheme]}
-              shadowRadius={glass.lensShadowRadius}
-              shadowOffset={glass.lensShadowOffset}
-            />
-          </Animated.View>
-          <Animated.View style={[styles.lens, lensIconStyle, lensWidthStyle]}>
-            <AnimatedNativeGlassView
-              style={styles.lensGlass}
-              animatedProps={lensIconProps}
-              rimOutBand={glass.lensRimOut.band}
-              group={revealGroup}
-              alphaPass
-              inset={glass.lensPad}
-              refractionYScale={glass.lensRefractionYScale}
-              cornerRadius={lensFullHeight / 2}
-              continuous={1}
-              blurRadius={glass.lensBlurRadius}
-              bezel={glass.lensBezel}
-              refraction={glass.lensRefraction}
-              falloff={glass.lensFalloff}
-              dispersion={glass.lensDispersion}
-              magnify={glass.lensMagnify}
-            />
-          </Animated.View>
+          {solid ? null : lensGlass}
+          {solid ? null : (
+            <Animated.View style={[styles.lens, lensIconStyle, lensWidthStyle]}>
+              <AnimatedNativeGlassView
+                style={styles.lensGlass}
+                animatedProps={lensIconProps}
+                rimOutBand={glass.lensRimOut.band}
+                group={revealGroup}
+                alphaPass
+                inset={glass.lensPad}
+                refractionYScale={glass.lensRefractionYScale}
+                cornerRadius={lensFullHeight / 2}
+                continuous={1}
+                blurRadius={glass.lensBlurRadius}
+                bezel={glass.lensBezel}
+                refraction={glass.lensRefraction}
+                falloff={glass.lensFalloff}
+                dispersion={glass.lensDispersion}
+                magnify={glass.lensMagnify}
+              />
+            </Animated.View>
+          )}
           {hasBadges ? (
             <Animated.View
               style={[styles.rowClip, rowClipStyle]}
@@ -535,8 +550,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                         lift={lift}
                         shine={shine}
                         presence={lensPresence}
-                        cover={iconCover}
-                        covered={coveredIcons}
+                        cover={rowCover}
+                        covered={rowCovered}
                         collapsed={collapsed}
                         collapseX={collapseX}
                         collapseSpread={collapseSpread}

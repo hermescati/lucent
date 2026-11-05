@@ -6,7 +6,14 @@ export interface LucentColors {
   placeholder: string;
   placeholderActive: string;
   barTint: string;
+  // The bar drawn solid (below Android 13, or with high-contrast text): its fill, its selected pill, its shadow, and
+  // the tabs that aren't selected, as One UI 9 paints its own bar.
   barFallback: string;
+  barFallbackPill: string;
+  barFallbackShadow: string;
+  barFallbackRim: string;
+  // A tab that isn't selected: the text colour on glass, a grey on the solid bar.
+  tabInk: string;
   barShadow: string;
   lens: string;
   lensActive: string;
@@ -49,13 +56,19 @@ export const systemTint: Record<LucentScheme, string> = {
   light: '#007AFF',
 };
 
-const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' | 'tabAccentOver' | 'tabActive' | 'tabActiveOver'>> = {
+type Derived = 'tint' | 'tabAccent' | 'tabAccentOver' | 'tabActive' | 'tabActiveOver' | 'tabInk';
+
+const baseColors: Record<LucentScheme, Omit<LucentColors, Derived>> = {
   dark: {
     text: '#FFFFFF',
     placeholder: 'rgba(255, 255, 255, 0.3)',
     placeholderActive: 'rgba(255, 255, 255, 0.38)',
     barTint: 'rgba(90, 90, 90, 0)',
-    barFallback: '#2F2F32',
+    barFallback: '#17171A',
+    barFallbackPill: '#2A2A2E',
+    barFallbackShadow: 'rgba(0, 0, 0, 0.2)',
+    // A light hairline keeps the dark bar apart from dark content, close to it in tone.
+    barFallbackRim: 'rgba(255, 255, 255, 0.08)',
     barShadow: 'rgba(0, 0, 0, 0.03)',
     // iOS 27's selected pill in dark mode is the bar's frost tone (glass.tone.dark.frost*), with no fill over it.
     lens: 'rgba(0, 0, 0, 0)',
@@ -92,7 +105,11 @@ const baseColors: Record<LucentScheme, Omit<LucentColors, 'tint' | 'tabAccent' |
     placeholder: 'rgba(60, 60, 67, 0.6)',
     placeholderActive: '#808080',
     barTint: 'rgba(251, 251, 251, 0.53)',
-    barFallback: '#F4F5F9',
+    barFallback: '#FAFAFA',
+    barFallbackPill: '#E8E8EC',
+    barFallbackShadow: 'rgba(0, 0, 0, 0.1)',
+    // A dark hairline keeps the near-white bar apart from white content, which its soft shadow barely does.
+    barFallbackRim: 'rgba(0, 0, 0, 0.08)',
     barShadow: 'rgba(0, 0, 0, 0.012)',
     lens: 'rgba(0, 0, 0, 0.07)',
     lensActive: 'rgba(255, 255, 255, 0.28)',
@@ -172,20 +189,51 @@ const ink = (hex: string, { scale, lift }: Ink) => {
   return channels ? toHex(channels.map((channel) => channel * scale + 255 * lift)) : hex;
 };
 
+// One UI 9's grey for a tab that isn't selected (a community One UI 9 kit's navigation bar).
+const solidInk: Record<LucentScheme, string> = { dark: '#8A8A8A', light: '#505055' };
+const clear = 'rgba(0, 0, 0, 0)';
+
+/**
+ * The theme's colours. Drawn solid, the selected tab is the tint itself, with nothing for a backdrop to shift, and the
+ * lens draws no tint or outline of its own: its fill is the bar's pill (barFallbackPill).
+ */
 export const resolveColors = (
   scheme: LucentScheme,
   tint: string | undefined,
   overrides: LucentColorOverrides | undefined,
+  solid = false,
 ): LucentColors => {
   const accent = tint ?? systemTint[scheme];
   const ramp = tintRamp[scheme];
+  const base = baseColors[scheme];
   return {
-    ...baseColors[scheme],
+    ...base,
     tint: accent,
+    tabInk: base.text,
     tabAccent: ink(accent, ramp.held),
     tabAccentOver: ink(accent, ramp.heldOver),
     tabActive: ink(accent, ramp.active),
     tabActiveOver: ink(accent, ramp.over),
+    ...(solid
+      ? {
+          tabInk: solidInk[scheme],
+          tabAccent: accent,
+          tabAccentOver: accent,
+          tabActive: accent,
+          tabActiveOver: accent,
+          lens: clear,
+          lensActive: clear,
+          lensRim: clear,
+          lensRimEarly: clear,
+          lensTint: clear,
+          lensTintEarly: clear,
+          lensHeldTint: clear,
+          lensHeldRim: clear,
+          lensShadow: clear,
+          // Not clear black: Android reads a text shadow of 0 as unset and draws its default dark one.
+          legibilityShadow: 'rgba(255, 255, 255, 0)',
+        }
+      : {}),
     ...overrides?.[scheme],
   };
 };

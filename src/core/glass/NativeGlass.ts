@@ -141,6 +141,13 @@ export interface NativeGlassViewProps extends ViewProps {
   tint?: ColorValue;
   rim?: ColorValue;
   fallback?: ColorValue;
+  // Drawn solid: the frost's colour, an outline and a drop shadow in place of the glass's (GlassPlain).
+  fallbackPill?: ColorValue;
+  fallbackRim?: ColorValue;
+  fallbackRimWidth?: number;
+  fallbackShadow?: ColorValue;
+  fallbackShadowRadius?: number;
+  fallbackShadowOffset?: number;
   shadow?: ColorValue;
   plain?: boolean;
   alphaPass?: boolean;

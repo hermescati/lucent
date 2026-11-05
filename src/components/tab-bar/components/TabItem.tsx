@@ -174,7 +174,7 @@ export const TabItem = ({
       <Animated.View style={[styles.item, itemStyle]}>
         <Animated.View style={handoffStyle}>
           <Animated.View style={idleStyle}>
-            <TabIcon icon={tab.icon} selected={false} size={layout.tabIconSize} color={color.text} />
+            <TabIcon icon={tab.icon} selected={false} size={layout.tabIconSize} color={color.tabInk} />
           </Animated.View>
           <Animated.View style={[StyleSheet.absoluteFill, activeRestStyle]}>
             <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabActiveOver} />
@@ -196,7 +196,7 @@ export const TabItem = ({
               styles.legible,
               unmirror,
               {
-                color: color.text,
+                color: color.tabInk,
                 textShadowColor: color.legibilityShadow,
               },
               idleStyle,

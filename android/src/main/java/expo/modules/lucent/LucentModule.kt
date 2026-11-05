@@ -33,6 +33,13 @@ class LucentModule : Module() {
     }
 
     // Draws the solid fallback on this device (0: its own glass; 1: solid), so it can be seen on a newer phone.
+    // A low-memory phone draws solid glass, as GlassEffect does, so the components pick their solid colours too.
+    Function("isLowRamDevice") {
+      val context = appContext.reactContext ?: return@Function false
+      (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager)
+        ?.isLowRamDevice ?: false
+    }
+
     Function("setGlassFallback") { level: Int ->
       android.os.Handler(android.os.Looper.getMainLooper()).post { GlassSupport.setFallback(level) }
     }
@@ -217,6 +224,12 @@ class LucentModule : Module() {
       Prop("rim") { view: GlassView, value: Color? -> view.rim = value ?: TRANSPARENT }
       Prop("fallback") { view: GlassView, value: Color? -> view.fallback = value ?: TRANSPARENT }
       Prop("shadow") { view: GlassView, value: Color? -> view.shadow = value ?: TRANSPARENT }
+      Prop("fallbackPill") { view: GlassView, value: Color? -> view.fallbackPill = value ?: TRANSPARENT }
+      Prop("fallbackRim") { view: GlassView, value: Color? -> view.fallbackRim = value ?: TRANSPARENT }
+      Prop("fallbackRimWidth") { view: GlassView, value: Float? -> view.fallbackRimWidth = value ?: 0f }
+      Prop("fallbackShadow") { view: GlassView, value: Color? -> view.fallbackShadow = value ?: TRANSPARENT }
+      Prop("fallbackShadowRadius") { view: GlassView, value: Float? -> view.fallbackShadowRadius = value ?: 0f }
+      Prop("fallbackShadowOffset") { view: GlassView, value: Float? -> view.fallbackShadowOffset = value ?: 0f }
       Prop("plain") { view: GlassView, value: Boolean? -> view.plain = value ?: false }
       Prop("alphaPass") { view: GlassView, value: Boolean? -> view.alphaPass = value ?: false }
       Prop("lift") { view: GlassView, value: Boolean? -> view.lift = value ?: false }

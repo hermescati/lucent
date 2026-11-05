@@ -153,6 +153,14 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var rim: Color = TRANSPARENT
   var fallback: Color = TRANSPARENT
   var shadow: Color = TRANSPARENT
+  // Drawn solid (GlassPlain), the glass takes these instead of its rim and shadow: One UI 9's paint, no edge and a soft
+  // drop shadow. The pill is the solid frost's colour; without one the frost is a tone of the fill.
+  var fallbackPill: Color = TRANSPARENT
+  var fallbackRim: Color = TRANSPARENT
+  var fallbackRimWidth = 0f
+  var fallbackShadow: Color = TRANSPARENT
+  var fallbackShadowRadius = 0f
+  var fallbackShadowOffset = 0f
   var plain = false
   var alphaPass = false
   var lift = false

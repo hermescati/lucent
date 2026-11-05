@@ -51,22 +51,23 @@ iOS lets people choose how Liquid Glass looks, from Clear to Tinted (Settings â†
 </LucentProvider>
 ```
 
-| Group             | Colours                                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Text              | `text`, `placeholder`, `placeholderActive`                                                                                |
-| Tab bar           | `barTint`, `barFallback`, `barShadow`, `legibilityShadow`                                                                 |
-| Tabs              | `tabAccent`, `tabAccentOver`, `tabActive`, `tabActiveOver` (mixed from `tintColor` unless set)                            |
-| Lens              | `lens`, `lensActive`, `lensRim`, `lensRimEarly`, `lensTint`, `lensTintEarly`, `lensHeldTint`, `lensHeldRim`, `lensShadow` |
-| Press             | `pressFill`, `pressLift`                                                                                                  |
-| Badge and search  | `badge`, `badgeText`, `clearButton`                                                                                       |
-| Switch            | `switchOn`, `switchOff`, `switchThumb`                                                                                    |
-| Slider            | `sliderTrack`, `sliderThumb`, `sliderShadow`                                                                              |
-| Segmented control | `segmentedTrack`, `segmentedThumb`, `segmentedShadow`                                                                     |
-| Button            | `buttonFill`, `buttonDestructive`, `buttonDisabled`                                                                       |
+| Group             | Colours                                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Text              | `text`, `placeholder`, `placeholderActive`                                                                                                      |
+| Tab bar           | `barTint`, `barShadow`, `legibilityShadow`                                                                                                      |
+| Solid fallback    | `barFallback`, `barFallbackPill`, `barFallbackShadow`, `barFallbackRim`: the surface, selected pill, shadow and hairline drawn below Android 13 |
+| Tabs              | `tabInk` (unselected), `tabAccent`, `tabAccentOver`, `tabActive`, `tabActiveOver` (mixed from `tintColor` unless set)                           |
+| Lens              | `lens`, `lensActive`, `lensRim`, `lensRimEarly`, `lensTint`, `lensTintEarly`, `lensHeldTint`, `lensHeldRim`, `lensShadow`                       |
+| Press             | `pressFill`, `pressLift`                                                                                                                        |
+| Badge and search  | `badge`, `badgeText`, `clearButton`                                                                                                             |
+| Switch            | `switchOn`, `switchOff`, `switchThumb`                                                                                                          |
+| Slider            | `sliderTrack`, `sliderThumb`, `sliderShadow`                                                                                                    |
+| Segmented control | `segmentedTrack`, `segmentedThumb`, `segmentedShadow`                                                                                           |
+| Button            | `buttonFill`, `buttonDestructive`, `buttonDisabled`                                                                                             |
 
 ## Reading the theme
 
-`useLucentTheme()` returns the resolved `scheme`, `color` (all of the above) and `glassOpacity`. Use it to match your own UI to Lucent's.
+`useLucentTheme()` returns the resolved `scheme`, `color` (all of the above), `glassOpacity` and `solid`, true where glass draws solid (below Android 13, with high-contrast text, or `setGlassFallback('solid')`). Drawn solid, `color` holds the solid fallback's colours: the selected tab is `tintColor` itself and unselected tabs are grey. Use it to match your own UI to Lucent's.
 
 ```tsx
 const { scheme, color } = useLucentTheme();

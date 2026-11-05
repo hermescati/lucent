@@ -31,6 +31,8 @@ export const colorTint = {
 
 export const glass = {
   pad: 28,
+  // Drawn solid, glass casts One UI 9's soft drop shadow (a community One UI 9 kit: about 10pt), in barFallbackShadow.
+  fallbackShadow: { radius: 10, offset: 2 },
   blend: 8,
   shadowRadius: { dark: 12, light: 8 },
   shadowOffset: { dark: 6, light: 11 },

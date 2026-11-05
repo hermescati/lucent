@@ -1,7 +1,9 @@
 import { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 
 import { barItemMotion } from '../../../core/motion/island';
+import { useSolidGlass } from '../../../theme/solid';
 import { glass } from '../../../theme/tokens';
+import { pillWidthAt, slotCenterAt } from '../helpers/slots';
 import { layout, motion } from '../tokens';
 import type { BarState } from './useBarState';
 import type { LensStyles } from './useLensStyles';
@@ -59,6 +61,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     searchRaise,
     searchScale,
     shine,
+    slotPlan,
     squish,
     tapSlide,
     tapStay,
@@ -67,6 +70,13 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     searchApart,
     wallSide,
   } = bar;
+  // Solid, the pill is the bar's own, kept inside it: no lens lifts out of the bar, and the pill stays as it glides,
+  // stretches and presses, at its resting height (One UI's pill never leaves its bar).
+  const solid = useSolidGlass();
+  // Nor does the bar swell under a finger, or bulge where the lens pushes its end: it keeps its size. (barGrowth is
+  // read in each worklet itself, which a helper's read wouldn't make it track.)
+  // The resting pill's margin inside the bar, above and below it.
+  const solidMargin = (fullHeight - layout.bubbleRestHeight) / 2;
 
   const barGlassProps = useAnimatedProps(() => {
     const width = frameWidth.get();
@@ -97,21 +107,34 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const pad = glass.pad;
     const fit = rowFit.get();
     const ride = modeTarget.get() === 0 ? settled : 0;
-    const frostCenter = inlinePad + lensBase.get() / 2 + lensGeometry.get().translateX;
+    // Solid, the pill keeps its resting shape, its tab's own width at its resting height, and slides from tab to tab
+    // with the lens's position, without the lens's stretch, squash or lean (helpers/slots, as useLensPhysics places it).
+    const plan = slotPlan.get();
+    const position = lensPosition.get();
+    const frostCenter = solid
+      ? barWidth.get() / 2 + pillShiftX.get() + (slotCenterAt(plan, position) - barWidth.get() / 2) * scaleX.get()
+      : inlinePad + lensBase.get() / 2 + lensGeometry.get().translateX;
     const frostRideEnd = modeInset + (modeHeight / width) * frostCenter;
     const frostX = fit.x + frostCenter * fit.scale - (frostRideEnd - modeInset - modeHeight / 2) * ride;
-    const frostY = fullHeight / 2 + lensGeometry.get().translateY;
+    const frostY = fullHeight / 2 + (solid ? 0 : lensGeometry.get().translateY);
     const frostShrink = lerp(1, modeHeight / lensFullHeight, ride);
-    const frostHalfX = ((lensBase.get() * lensGeometry.get().scaleX) / 2) * frostShrink;
-    const frostHalfY = ((lensFullHeight * lensGeometry.get().scaleY) / 2) * frostShrink;
+    const frostHalfX =
+      ((solid
+        ? pillWidthAt(plan, position, layout.tabSpacing.outset) * scaleX.get()
+        : lensBase.get() * lensGeometry.get().scaleX) /
+        2) *
+      frostShrink;
+    const frostHalfY =
+      ((solid ? layout.bubbleRestHeight * scaleY.get() : lensFullHeight * lensGeometry.get().scaleY) / 2) * frostShrink;
 
     // As a tab comes or goes, the bar swells and settles as an island does (BarCapsule's swellBy): 17% taller, and wider
     // by swellX at each end.
     const swelling = swell.get() * (1 - settled);
-    const growX = barGrowth.get() * motion.barGrow.x * (1 - settled) + barItemMotion.swellX * swelling;
+    const growX = (solid ? 0 : barGrowth.get()) * motion.barGrow.x * (1 - settled) + barItemMotion.swellX * swelling;
     const grow =
-      barGrowth.get() * motion.barGrow.y * (1 - settled) + (fullHeight * barItemMotion.swellY * swelling) / 2;
-    const wallBulge = gliding.get() ? 0 : Math.max(0, squish.get()) * motion.squish.barBulge * (1 - settled);
+      (solid ? 0 : barGrowth.get()) * motion.barGrow.y * (1 - settled) +
+      (fullHeight * barItemMotion.swellY * swelling) / 2;
+    const wallBulge = solid || gliding.get() ? 0 : Math.max(0, squish.get()) * motion.squish.barBulge * (1 - settled);
     const pillLeft =
       pillShiftX.get() + (width - width * scaleX.get()) / 2 - growX - (wallSide.get() < 0 ? wallBulge : 0);
     const pillRight =
@@ -175,6 +198,11 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const fieldGrowX = ((fieldRight - fieldLeft) * fieldGrow) / 2;
     const fieldGrowY = ((fieldBottom - fieldTop) * fieldGrow) / 2;
 
+    const solidX = Math.min(
+      Math.max(frostX, backLeft + solidMargin + frostHalfX),
+      Math.max(backLeft + solidMargin + frostHalfX, backRight - solidMargin - frostHalfX),
+    );
+
     return {
       blend: Math.max(
         glass.blend * clamp01(mode * 3),
@@ -197,7 +225,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       frost:
         glass.lensFrost *
         lensPresence.get() *
-        grey.get() *
+        (solid ? 1 : grey.get()) *
         (1 - clamp01(collapsed.get() * motion.labelFadeRate)) *
         (modeTarget.get() === 0
           ? clamp01((motion.searchClose.fillFrom - mode) / (motion.searchClose.fillFrom - motion.searchClose.fillTo))
@@ -205,10 +233,20 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       frostClear: glass.lensFrostClear[scheme],
       frostRadius: glass.lensFrostRadius[scheme],
       frostMagnify: glass.lensFrostMagnify[scheme],
-      frostLeft: frostX - frostHalfX + pad,
-      frostRight: frostX + frostHalfX + pad,
-      frostTop: frostY - frostHalfY + pad,
-      frostBottom: frostY + frostHalfY + pad,
+      ...(solid
+        ? {
+            // Solid, the pill never leaves the bar: carried past an end, it stops at its resting margin there.
+            frostLeft: solidX - frostHalfX + pad,
+            frostRight: solidX + frostHalfX + pad,
+            frostTop: frostY - frostHalfY + pad,
+            frostBottom: frostY + frostHalfY + pad,
+          }
+        : {
+            frostLeft: frostX - frostHalfX + pad,
+            frostRight: frostX + frostHalfX + pad,
+            frostTop: frostY - frostHalfY + pad,
+            frostBottom: frostY + frostHalfY + pad,
+          }),
       ...(held > 0
         ? {
             glowX: (fieldLeft + fieldRight) / 2 + pad,
@@ -261,7 +299,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
 
   const pressScaleStyle = useAnimatedStyle(() => {
     const width = Math.max(barWidth.get(), 1);
-    const growX = barGrowth.get() * motion.barGrow.x * (1 - clamp01(searchMode.get()));
+    const growX = (solid ? 0 : barGrowth.get()) * motion.barGrow.x * (1 - clamp01(searchMode.get()));
     return {
       transform: [
         { translateY: tileSink.get() },
@@ -274,8 +312,8 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
   const pillLiftStyle = useAnimatedStyle(() => {
     const width = Math.max(barWidth.get(), 1);
     const open = 1 - clamp01(searchMode.get());
-    const growX = barGrowth.get() * motion.barGrow.x * open;
-    const growY = barGrowth.get() * motion.barGrow.y * open;
+    const growX = (solid ? 0 : barGrowth.get()) * motion.barGrow.x * open;
+    const growY = (solid ? 0 : barGrowth.get()) * motion.barGrow.y * open;
     return {
       opacity: shine.get() * lerp(1, barPress.get(), tapStay.get()) * open,
       transform: [

@@ -81,8 +81,13 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     if (frostRect.width() <= 0f || frostRect.height() <= 0f) return
     frostPath.reset()
     addContinuous(frostPath, frostRect, min(frostRect.width(), frostRect.height()) * 0.5f)
-    val tone = { c: Float -> (frostBase + frostGain * c).coerceIn(0f, 1f) }
-    frostPaint.color = Color.argb(frost.coerceIn(0f, 1f), tone(base.red()), tone(base.green()), tone(base.blue()))
+    val amount = frost.coerceIn(0f, 1f)
+    frostPaint.color = if (fallbackPill.alpha() > 0f) {
+      Color.argb(amount * fallbackPill.alpha(), fallbackPill.red(), fallbackPill.green(), fallbackPill.blue())
+    } else {
+      val tone = { c: Float -> (frostBase + frostGain * c).coerceIn(0f, 1f) }
+      Color.argb(amount, tone(base.red()), tone(base.green()), tone(base.blue()))
+    }
     canvas.save()
     canvas.clipPath(plainPath)
     canvas.drawPath(frostPath, frostPaint)
@@ -164,11 +169,16 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     val fill = if (fallback.alpha() > 0f) fallback else activeTint
     val solid = Color.valueOf(fill.red(), fill.green(), fill.blue(), 1f)
 
-    if (shadow.alpha() > 0f && shadowRadius > 0f) {
+    // Its own solid shadow if it has one, else the glass's.
+    val ownShadow = fallbackShadow.alpha() > 0f
+    val dropColor = if (ownShadow) fallbackShadow else shadow
+    val dropRadius = if (ownShadow) fallbackShadowRadius else shadowRadius
+    val dropOffset = if (ownShadow) fallbackShadowOffset else shadowOffset
+    if (dropColor.alpha() > 0f && dropRadius > 0f) {
       canvas.save()
       canvas.clipOutPath(plainPath)
       shadowPaint.color = Color.BLACK
-      shadowPaint.setShadowLayer(shadowRadius * density, 0f, shadowOffset * density, shadow.toArgb())
+      shadowPaint.setShadowLayer(dropRadius * density, 0f, dropOffset * density, dropColor.toArgb())
       canvas.drawPath(plainPath, shadowPaint)
       canvas.restore()
     }
@@ -177,11 +187,13 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     canvas.drawPath(plainPath, fillPaint)
     drawPlainFrost(canvas, solid)
 
-    if (rim.alpha() > 0f) {
+    // No glass outline drawn solid, as One UI's bar has none: only a solid rim of its own.
+    if (fallbackRim.alpha() > 0f && fallbackRimWidth > 0f) {
       canvas.save()
-      if (rimOutside) canvas.clipOutPath(plainPath) else canvas.clipPath(plainPath)
-      strokePaint.strokeWidth = rimWidth * 2f
-      strokePaint.color = rim.toArgb()
+      canvas.clipPath(plainPath)
+      // Inside the shape: the clip keeps half the stroke.
+      strokePaint.strokeWidth = fallbackRimWidth * density * 2f
+      strokePaint.color = fallbackRim.toArgb()
       canvas.drawPath(plainPath, strokePaint)
       canvas.restore()
     }

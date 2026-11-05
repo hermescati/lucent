@@ -277,7 +277,7 @@ export const SearchMode = ({
             <Animated.View style={[styles.fill, { backgroundColor: color.pressFill }, backFillStyle]} />
             <Animated.View style={[styles.center, backInkStyle]}>
               <Animated.View style={backOutlineStyle}>
-                <TabIcon icon={backTab.icon} selected={false} size={layout.tabIconSize} color={color.text} />
+                <TabIcon icon={backTab.icon} selected={false} size={layout.tabIconSize} color={color.tabInk} />
               </Animated.View>
               <Animated.View style={[StyleSheet.absoluteFill, styles.center, backFilledStyle]}>
                 <TabIcon icon={backTab.icon} selected size={layout.tabIconSize} color={color.tint} />
