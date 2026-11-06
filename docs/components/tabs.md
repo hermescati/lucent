@@ -129,7 +129,7 @@ The `svg` icon supports `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`,
 - **Glass level:** `LucentProvider`'s `glassOpacity` stands in for iOS 27's Liquid Glass setting, `0` its Clear and `1` its Tinted. See [Theming](../theming.md).
 - **Icons** use `md` (Material Symbol), an image `src` or Lucent's `svg`. `VectorIcon` isn't drawn yet.
 - **`NativeTabs.BottomAccessory`** is drawn as on iOS 26 and 27. See [Bottom accessory](#bottom-accessory).
-- **Older Android:** without refraction (Android 12) the bar, its circle and the accessory are blurred glass; on Android 11 and older, a flat fill. The selected pill, the lens under a finger and search's field keep every state either way, the lens showing the tab under it.
+- **Older Android:** below Android 13, or with high-contrast text, the bar is drawn solid, painted as One UI 9 paints its bar: an opaque surface with a soft shadow and a hairline edge, the selected tab in the tint and the others grey. The bar keeps its size under a finger, and the selected pill slides inside it at its resting shape, with no lens lifting out. Layout, spacing and motion are the glass bar's. `setGlassFallback('solid')` shows it on a newer phone.
 - **Ignored props:** the Material-only props (`indicatorColor`, `rippleColor`, `labelVisibilityMode`, `disableIndicator`) are accepted and ignored, since the bar is iOS-styled. Props that only affected iOS before 26 (`blurEffect`, `shadowColor`, `backgroundColor`) are ignored on both platforms, matching iOS 26.
 
 ## Accessibility
