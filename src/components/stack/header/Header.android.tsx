@@ -30,6 +30,7 @@ import Animated, {
 import { BackButton } from './BackButton.android';
 import { BarSearchButtonContext } from './BarItems.android';
 import { useBarTop } from './barTop.android';
+import { useBarType, useLargeBlock } from './barType.android';
 import { BarMeltContext } from './melt.android';
 import { useHeaderSearchBlock } from './searchBlock.android';
 import { getHeader } from './store.android';
@@ -314,7 +315,8 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const left = options.headerLeft?.({ tintColor: tint, canGoBack: back !== undefined, label: back?.title });
   const right = options.headerRight?.({ tintColor: tint, canGoBack: back !== undefined });
 
-  const height = top + bar.inline + (below ? bar.large : 0) + block;
+  const largeBlock = useLargeBlock();
+  const height = top + bar.inline + (below ? largeBlock : 0) + block;
   // Focused, a field in the bar rises from its block into the row, as on iOS, and the content follows it up. In search
   // mode from the bottom, the bar hides and the content moves up into the part of it that shows.
   useEffect(() => {
@@ -343,7 +345,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   // large one goes in 150ms, the inline one comes in over 300ms, eased out: on iOS 27 it is a third of the way in by 33ms
   // and half by 66ms. Scrolling back reverses both, the inline title slower and eased in and out. On the row, the large
   // title stays where it is and the cross-fade starts as soon as content runs under the bar.
-  const collapsed = useDerivedValue(() => large && offset.get() >= (below ? barMotion.inlineAt : barMotion.rowTitleAt));
+  const collapsed = useDerivedValue(() => large && offset.get() >= (below ? largeBlock : barMotion.rowTitleAt));
   // Each title blurs as it fades, as iOS's do: the large one out of focus as it goes, the inline one into focus.
   const largeGone = useDerivedValue(() => withTiming(collapsed.get() ? 1 : 0, { duration: barMotion.largeFade }));
   const inlineIn = useDerivedValue(() =>
@@ -363,7 +365,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
 
   // The edge comes in once content runs under the row: right away for an inline bar, after the large title's block.
   const under = useDerivedValue(() =>
-    interpolate(offset.get() - (below ? bar.large : 0), [0, barMotion.edgeOver], [0, 1], Extrapolation.CLAMP),
+    interpolate(offset.get() - (below ? largeBlock : 0), [0, barMotion.edgeOver], [0, 1], Extrapolation.CLAMP),
   );
 
   // A pushed screen's inline title doesn't slide in with it on an opaque bar: it fades in where it stands, a beat after
@@ -437,6 +439,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   };
   // The back button's room: the bar less its margins, the trailing side, and the title beside it.
   const margin = barMargin(width);
+  const type = useBarType();
   const backRoom =
     width -
     2 * margin -
@@ -449,7 +452,11 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     custom !== null || (centredLeft >= leftEnd + margin && centredLeft + sides.title <= rightStart - margin);
   // Only a title that cross-fades with a large one blurs: the others go without the blur's layer.
   const inlineText = custom ?? (
-    <Text numberOfLines={1} style={[styles.inlineTitle, centred ? null : styles.inlineLeading, { color: titleColor }]}>
+    <Text
+      numberOfLines={1}
+      allowFontScaling={false}
+      accessibilityRole="header"
+      style={[styles.inlineTitle, type.inline, centred ? null : styles.inlineLeading, { color: titleColor }]}>
       {label}
     </Text>
   );
@@ -477,7 +484,8 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     <Text
       numberOfLines={1}
       onLayout={measure('title')}
-      style={[styles.inlineTitle, styles.measure]}
+      allowFontScaling={false}
+      style={[styles.inlineTitle, type.inline, styles.measure]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       {label}
@@ -525,7 +533,9 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
           <View pointerEvents="none" style={[styles.rowTitle, styles.leading]}>
             <Animated.Text
               numberOfLines={1}
-              style={[styles.largeTitle, styles.largeOnRow, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
+              allowFontScaling={false}
+              accessibilityRole="header"
+              style={[styles.largeTitle, type.large, styles.largeOnRow, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
               {label}
             </Animated.Text>
           </View>
@@ -595,9 +605,13 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         </View>
       ) : null}
       {below ? (
-        <Animated.View pointerEvents="none" style={[styles.largeBlock, rowStyle]}>
+        <Animated.View pointerEvents="none" style={[styles.largeBlock, { height: largeBlock }, rowStyle]}>
           <AnimatedNativeGlassBlur animatedProps={largeBlur} style={styles.leading}>
-            <Animated.Text numberOfLines={1} style={[styles.largeTitle, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
+            <Animated.Text
+              numberOfLines={1}
+              allowFontScaling={false}
+              accessibilityRole="header"
+              style={[styles.largeTitle, type.large, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
               {label}
             </Animated.Text>
           </AnimatedNativeGlassBlur>

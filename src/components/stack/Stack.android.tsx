@@ -24,6 +24,7 @@ import { AnimatedScreenEnter } from './enter.android';
 import { isTransparent, largeTitlePlacement, opaqueBar, showsBack } from './header/Header.android';
 import { HeaderOverlay, HeaderSpacer } from './header/HeaderSlot.android';
 import { useBarTop } from './header/barTop.android';
+import { useLargeBlock } from './header/barType.android';
 import { MenuHost } from './menu/Menu.android';
 import { SearchBar, searchPlacement } from './search/SearchBar.android';
 import { BottomSearch, BottomSearchButton, FocusedSearch } from './search/SearchField.android';
@@ -278,6 +279,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const closeFocus = useCallback(() => setFocusShown(false), []);
   const bottomBar = Boolean(bottomToolbar) || placement === 'bottom' || placement === 'button';
   const { colors } = useTheme();
+  const largeBlock = useLargeBlock();
 
   // The stack's swipe is one gesture for all its screens, so the screen on top sets it.
   const { setTop, lastTop, shown, driver } = useContext(SwipeBackContext);
@@ -392,7 +394,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
       // A search field in the bar scrolls away before the title, so its stack doesn't snap.
       snap={
         largeTitlePlacement(options, showsBack(options, state.index > 0)) === 'below' && placement !== 'header'
-          ? bar.large
+          ? largeBlock
           : 0
       }>
       {/* Bar menus open over the bars, so their glass draws last. */}

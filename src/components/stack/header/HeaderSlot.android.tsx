@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Header, largeTitlePlacement, showsBack } from './Header.android';
 import { useBarTop } from './barTop.android';
+import { useLargeBlock } from './barType.android';
 import { useHeaderSearchBlock } from './searchBlock.android';
 import { setHeader, useHeader } from './store.android';
 import { bar } from '../tokens';
@@ -21,7 +22,8 @@ export const HeaderSpacer = (props: NativeStackHeaderProps) => {
   useLayoutEffect(() => () => setHeader(key, undefined), [key]);
   const { block } = useHeaderSearchBlock(key);
   const below = largeTitlePlacement(props.options, showsBack(props.options, props.back !== undefined)) === 'below';
-  const height = top + bar.inline + (below ? bar.large : 0) + block;
+  const largeBlock = useLargeBlock();
+  const height = top + bar.inline + (below ? largeBlock : 0) + block;
   return <View pointerEvents="none" style={{ height }} />;
 };
 

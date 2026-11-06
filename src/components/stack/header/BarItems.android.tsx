@@ -36,6 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { BarCapsule, BarGlassRow, maxBridged, resize, useBarGlassRow } from './BarCapsule.android';
+import { useBarType } from './barType.android';
 import { BarMeltContext, meltLook } from './melt.android';
 import { AnimatedNativeGlassBlur, NativeGlassView } from '../../../core/glass/NativeGlass';
 import { useLucentTheme } from '../../../theme/LucentProvider';
@@ -307,6 +308,7 @@ const ItemButton = ({
   const shown = useSharedValue(item.hidden ? 0 : 1);
   const swell = useContext(SwellContext);
   const melt = useContext(BarMeltContext);
+  const type = useBarType();
   // A row's shared glass follows the slot's layout while it resizes.
   const row = useBarGlassRow();
   const first = useRef(true);
@@ -361,7 +363,10 @@ const ItemButton = ({
   ) : item.image ? (
     <Image source={item.image} style={[styles.image, { tintColor: ink }]} />
   ) : (
-    <Text numberOfLines={1} style={[styles.label, bottom && styles.labelBottom, { color: ink }]}>
+    <Text
+      numberOfLines={1}
+      allowFontScaling={false}
+      style={[styles.label, type.item, bottom && styles.labelBottom, { color: ink }]}>
       {item.label}
     </Text>
   );

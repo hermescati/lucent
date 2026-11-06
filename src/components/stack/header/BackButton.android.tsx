@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react
 
 import { BarCapsule } from './BarCapsule.android';
 import { Chevron } from './Chevron';
+import { useBarType } from './barType.android';
 import { useOpenMenu } from '../menu/Menu.android';
 import type { MenuTree } from '../menu/items';
 import { backButton, barItem } from '../tokens';
@@ -46,6 +47,7 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
           ? 'Back'
           : undefined;
   const openMenu = useOpenMenu();
+  const type = useBarType();
   const ref = useRef<ComponentRef<typeof Pressable>>(null);
   const onLongPress =
     history && openMenu
@@ -62,7 +64,7 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
         style={[styles.body, text ? styles.withLabel : styles.alone]}>
         <Chevron color={color} />
         {text ? (
-          <Text numberOfLines={1} style={[styles.label, { color }]}>
+          <Text numberOfLines={1} allowFontScaling={false} style={[styles.label, type.item, { color }]}>
             {text}
           </Text>
         ) : null}
@@ -73,10 +75,10 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
           style={styles.measure}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants">
-          <Text style={styles.label} onLayout={measure('label')}>
+          <Text allowFontScaling={false} style={[styles.label, type.item]} onLayout={measure('label')}>
             {label}
           </Text>
-          <Text style={styles.label} onLayout={measure('back')}>
+          <Text allowFontScaling={false} style={[styles.label, type.item]} onLayout={measure('back')}>
             Back
           </Text>
         </View>

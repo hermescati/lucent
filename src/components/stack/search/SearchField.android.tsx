@@ -36,6 +36,7 @@ import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
 import { BarCapsule, BarGlassRow, useBarGlassRow } from '../header/BarCapsule.android';
+import { useBarType } from '../header/barType.android';
 import { meltLook } from '../header/melt.android';
 import { barItem, barMargin, search, searchMotion, toolbar } from '../tokens';
 import { useToolbarOffset } from '../toolbar/offset.android';
@@ -104,10 +105,12 @@ const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => 
     hitSlop: 8,
   });
   const showIcon = props.shouldShowHintSearchIcon !== false;
+  const type = useBarType();
   return (
     <>
       <Magnifier color={colors.icon} show={showIcon} />
       <TextInput
+        allowFontScaling={false}
         ref={(input) => setSearchInput(routeKey, input)}
         value={state.text}
         autoFocus={autoFocus ?? props.autoFocus}
@@ -136,7 +139,7 @@ const SearchInput = ({ routeKey, state, autoFocus, tint }: SearchInputProps) => 
           }
         }}
         onSubmitEditing={() => props.onSearchButtonPress?.({ nativeEvent: { text: state.text } } as never)}
-        style={[styles.input, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
+        style={[styles.input, type.search, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
       />
       <GestureDetector gesture={clear.gesture}>
         <View
@@ -172,6 +175,7 @@ const SearchDisplayBody = ({ routeKey, state }: { routeKey: string; state: Searc
   const colors = useFieldColors(state.props);
   const showIcon = state.props.shouldShowHintSearchIcon !== false;
   const ref = useRef<ComponentRef<typeof View>>(null);
+  const type = useBarType();
   return (
     <Pressable
       ref={ref}
@@ -187,8 +191,10 @@ const SearchDisplayBody = ({ routeKey, state }: { routeKey: string; state: Searc
       <Magnifier color={colors.icon} show={showIcon} />
       <Text
         numberOfLines={1}
+        allowFontScaling={false}
         style={[
           styles.input,
+          type.search,
           styles.displayText,
           { left: showIcon ? search.text : search.trailing, color: state.text ? colors.text : colors.placeholder },
         ]}>

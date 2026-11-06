@@ -117,9 +117,8 @@ export const title = {
 } as const;
 
 export const barMotion = {
-  // How far the scroll has to go before the titles cross-fade: the large title's block, scrolled away. A large title on
-  // the bar's row (`headerLargeTitleInline`) has no block: it goes once content runs about 6pt under the bar.
-  inlineAt: bar.large,
+  // The titles cross-fade once the large title's block (`useLargeBlock`) has scrolled away. A large title on the bar's
+  // row (`headerLargeTitleInline`) has no block: it goes once content runs about 6pt under the bar.
   rowTitleAt: 6,
   // The cross-fade's durations: the large title goes quickly, the inline one comes in more slowly.
   largeFade: 150,
