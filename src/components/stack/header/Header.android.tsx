@@ -43,7 +43,7 @@ import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.and
 import { getSearch, updateSearch } from '../search/store.android';
 import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
-import { bar, barMotion, search as searchMetrics, searchMotion, title } from '../tokens';
+import { bar, barMargin, barMotion, search as searchMetrics, searchMotion, title } from '../tokens';
 import type { LucentStackScreenOptions } from '../types';
 
 const colorString = (value: ColorValue | undefined) => (typeof value === 'string' ? value : undefined);
@@ -433,16 +433,17 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     setSides((current) => (current[key] === value ? current : { ...current, [key]: value }));
   };
   // The back button's room: the bar less its margins, the trailing side, and the title beside it.
+  const margin = barMargin(width);
   const backRoom =
     width -
-    2 * bar.margin -
+    2 * margin -
     (sides.right > 0 ? sides.right + bar.groupGap : 0) -
     (custom === null && label ? sides.title + bar.groupGap : 0);
-  const leftEnd = bar.margin + sides.left + (sides.left > 0 ? bar.groupGap : 0);
-  const rightStart = width - bar.margin - sides.right - (sides.right > 0 ? bar.groupGap : 0);
+  const leftEnd = margin + sides.left + (sides.left > 0 ? bar.groupGap : 0);
+  const rightStart = width - margin - sides.right - (sides.right > 0 ? bar.groupGap : 0);
   const centredLeft = (width - sides.title) / 2;
   const centred =
-    custom !== null || (centredLeft >= leftEnd + bar.margin && centredLeft + sides.title <= rightStart - bar.margin);
+    custom !== null || (centredLeft >= leftEnd + margin && centredLeft + sides.title <= rightStart - margin);
   // Only a title that cross-fades with a large one blurs: the others go without the blur's layer.
   const inlineText = custom ?? (
     <Text numberOfLines={1} style={[styles.inlineTitle, centred ? null : styles.inlineLeading, { color: titleColor }]}>
@@ -515,13 +516,13 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
           )}
         </ScrollEdge>
       ) : null}
-      <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, rowStyle]}>
+      <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, { paddingHorizontal: margin }, rowStyle]}>
         {titleMeasure}
         {placement === 'row' ? (
           <View pointerEvents="none" style={styles.rowTitle}>
             <Animated.Text
               numberOfLines={1}
-              style={[styles.largeTitle, styles.largeOnRow, { color: titleColor }, largeStyle]}>
+              style={[styles.largeTitle, styles.largeOnRow, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
               {label}
             </Animated.Text>
           </View>
@@ -586,14 +587,14 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         </AnimatedNativeGlassBlur>
       </Animated.View>
       {barSearchShown ? (
-        <View pointerEvents="box-none" style={[styles.barSearch, { top }]}>
+        <View pointerEvents="box-none" style={[styles.barSearch, { top, left: margin, right: margin }]}>
           <BarSearch routeKey={route.key} from={sides.right} open={barFocused} onClosed={closeBarSearch} />
         </View>
       ) : null}
       {below ? (
         <Animated.View pointerEvents="none" style={[styles.largeBlock, rowStyle]}>
           <AnimatedNativeGlassBlur animatedProps={largeBlur}>
-            <Animated.Text numberOfLines={1} style={[styles.largeTitle, { color: titleColor }, largeStyle]}>
+            <Animated.Text numberOfLines={1} style={[styles.largeTitle, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
               {label}
             </Animated.Text>
           </AnimatedNativeGlassBlur>
@@ -620,7 +621,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: bar.margin,
   },
   side: { flexDirection: 'row', alignItems: 'center', gap: bar.groupGap },
   inline: {
@@ -641,8 +641,6 @@ const styles = StyleSheet.create({
   searchBlock: { overflow: 'hidden' },
   barSearch: {
     position: 'absolute',
-    left: bar.margin,
-    right: bar.margin,
     height: bar.row,
     flexDirection: 'row',
     alignItems: 'center',
@@ -655,7 +653,6 @@ const styles = StyleSheet.create({
     lineHeight: title.large.lineHeight,
     fontWeight: title.large.fontWeight,
     marginTop: title.large.top,
-    paddingHorizontal: bar.margin,
     includeFontPadding: false,
   },
   // On the row, centred on its buttons (iOS 27 simulator: the letters span the row's middle).

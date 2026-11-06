@@ -37,7 +37,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
 import { BarCapsule, BarGlassRow, useBarGlassRow } from '../header/BarCapsule.android';
 import { meltLook } from '../header/melt.android';
-import { bar, barItem, search, searchMotion, toolbar } from '../tokens';
+import { barItem, barMargin, search, searchMotion, toolbar } from '../tokens';
 import { useToolbarOffset } from '../toolbar/offset.android';
 import type { LucentSearchBarProps } from '../types';
 
@@ -436,7 +436,7 @@ const BarSearchBody = ({ routeKey, state, from, open, onClosed }: BarSearchProps
   useSearchBack(routeKey, open);
   const row = useBarGlassRow();
   const { width } = useWindowDimensions();
-  const span = width - bar.margin * 2;
+  const span = width - barMargin(width) * 2;
   const stretch = useSharedValue(0);
   const bud = useSharedValue(0);
   const shown = useSharedValue(0);
@@ -510,6 +510,7 @@ export const HeaderSearch = ({ routeKey, progress }: HeaderSearchProps) => {
 const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { state: SearchState }) => {
   useSearchBack(routeKey, state.focused);
   const { scheme } = useLucentTheme();
+  const margin = barMargin(useWindowDimensions().width);
   const barTint = colorString(state.props.barTintColor);
   // A field that scrolls away is a flat pill at rest, and turns to glass as it rises; one that stays is glass throughout.
   const flat = state.props.hideWhenScrolling !== false;
@@ -519,10 +520,10 @@ const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { s
   const fieldStyle = useAnimatedStyle(() => ({ marginRight: progress.get() * room }));
   const closeStyle = useAnimatedStyle(() => ({
     opacity: progress.get() > 0.001 ? 1 : 0,
-    transform: [{ translateX: (1 - progress.get()) * (barItem.height + search.header.margin) }],
+    transform: [{ translateX: (1 - progress.get()) * (barItem.height + margin) }],
   }));
   return (
-    <View style={styles.headerRow}>
+    <View style={[styles.headerRow, { marginHorizontal: margin }]}>
       <Animated.View style={[styles.headerField, fieldStyle]}>
         {flat ? (
           <Animated.View
@@ -551,6 +552,7 @@ const styles = StyleSheet.create({
     bottom: -search.textNudge,
     right: search.clearTrailing + search.clearSize + 8,
     fontSize: search.fontSize,
+    fontWeight: search.fontWeight,
     padding: 0,
     includeFontPadding: false,
   },
@@ -601,7 +603,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRow: { height: search.header.height, marginHorizontal: search.header.margin, justifyContent: 'center' },
+  headerRow: { height: search.header.height, justifyContent: 'center' },
   headerField: { height: search.header.height },
   barRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   barField: { flex: 1, flexDirection: 'row' },

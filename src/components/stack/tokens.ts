@@ -10,7 +10,11 @@ export const bar = {
   row: 44,
   inline: 54,
   large: 52,
+  // UIKit's layout margin: 16pt on most phones, 20pt from 414pt wide (the Plus and Pro Max phones). The iPhone 18 Pro
+  // (402pt) and Pro Max (440pt) simulators put the capsules, the large title and the search field this far in.
   margin: 16,
+  wideMargin: 20,
+  wideFrom: 414,
   // Between a camera cutout's bottom and the row, as iOS leaves under the Dynamic Island (its bottom at about 48pt, the
   // row at 62pt).
   cutoutGap: 14,
@@ -20,6 +24,9 @@ export const bar = {
   // and on iOS a neck of glass about 19pt tall joins them; at rest, 12pt apart, they stay apart.
   bridge: 13,
 } as const;
+
+/** The bar's side margin on a window this wide. */
+export const barMargin = (width: number) => (width >= bar.wideFrom ? bar.wideMargin : bar.margin);
 
 export { barItemMotion } from '../../core/motion/island';
 
@@ -52,6 +59,9 @@ export const toolbar = {
   groupIcon: 54,
   // As in the bar, between the cases measured: plus and trash 103.7pt wide, share, heart and trash 162pt.
   groupPadding: -1,
+  // A text button's label: medium here, where the bar's is regular (iOS 27 simulator: 5px stems against 4px at 3x, the
+  // same cap height).
+  labelWeight: '500',
   margin: 28,
   // Above the screen's bottom edge over gesture navigation; over a taller inset (three-button navigation), this far above
   // it instead. The same as the floating tab bar.
@@ -289,6 +299,8 @@ export const search = {
   iconNudge: { x: 2.4, y: -2 },
   text: 42,
   fontSize: 17,
+  // Placeholder and typed text alike (iOS 27 simulator and kit).
+  fontWeight: '500',
   // Android's text box puts the text this much lower in the field than UIKit does.
   textNudge: -1.1,
   // The resting field's label, drawn as text rather than a text box, sits this much lower than the box would put it:
@@ -302,7 +314,7 @@ export const search = {
   clearTrailing: 16,
   trailing: 12,
   // In the navigation bar: below the bar's row, and the room it takes, with the gap under it.
-  header: { height: 44, block: 52, margin: 16 },
+  header: { height: 44, block: 52 },
   // A field that scrolls away under the title is no glass at rest on iOS 27, but a flat pill of UIKit's tertiary fill
   // (simulator): it turns to glass as it rises, focused, by `glassBy` of the way.
   fill: { light: 'rgba(118, 118, 128, 0.12)', dark: 'rgba(118, 118, 128, 0.24)' },

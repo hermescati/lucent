@@ -342,7 +342,7 @@ const ItemButton = ({
   ) : item.image ? (
     <Image source={item.image} style={[styles.image, { tintColor: ink }]} />
   ) : (
-    <Text numberOfLines={1} style={[styles.label, { color: ink }]}>
+    <Text numberOfLines={1} style={[styles.label, bottom && styles.labelBottom, { color: ink }]}>
       {item.label}
     </Text>
   );
@@ -597,6 +597,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   image: { width: barItem.iconSize, height: barItem.iconSize, resizeMode: 'contain' },
   label: { fontSize: barItem.fontSize, lineHeight: barItem.lineHeight, includeFontPadding: false },
+  labelBottom: { fontWeight: toolbar.labelWeight },
   badge: {
     position: 'absolute',
     top: badgeMetrics.top,
