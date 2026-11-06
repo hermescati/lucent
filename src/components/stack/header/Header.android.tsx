@@ -340,14 +340,17 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const collapsible = below;
   // Measured from finger drags recorded on the simulator: the large title rides up with the content, into the bar's row,
   // until the content has scrolled its block away. Then the two titles cross-fade on a clock, not with the scroll: the
-  // large one goes in 150ms, the inline one comes in over 300ms. Scrolling back reverses both. On the row, the large
+  // large one goes in 150ms, the inline one comes in over 300ms, eased out: on iOS 27 it is a third of the way in by 33ms
+  // and half by 66ms. Scrolling back reverses both, the inline title slower and eased in and out. On the row, the large
   // title stays where it is and the cross-fade starts as soon as content runs under the bar.
   const collapsed = useDerivedValue(() => large && offset.get() >= (below ? barMotion.inlineAt : barMotion.rowTitleAt));
   // Each title blurs as it fades, as iOS's do: the large one out of focus as it goes, the inline one into focus.
   const largeGone = useDerivedValue(() => withTiming(collapsed.get() ? 1 : 0, { duration: barMotion.largeFade }));
   const inlineIn = useDerivedValue(() =>
     large
-      ? withTiming(collapsed.get() ? 1 : 0, { duration: barMotion.inlineFade, easing: Easing.inOut(Easing.quad) })
+      ? collapsed.get()
+        ? withTiming(1, { duration: barMotion.inlineFade, easing: Easing.out(Easing.quad) })
+        : withTiming(0, { duration: barMotion.inlineFadeOut, easing: Easing.inOut(Easing.quad) })
       : 1,
   );
   const largeStyle = useAnimatedStyle(() => {

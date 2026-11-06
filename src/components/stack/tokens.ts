@@ -124,6 +124,9 @@ export const barMotion = {
   // The cross-fade's durations: the large title goes quickly, the inline one comes in more slowly.
   largeFade: 150,
   inlineFade: 300,
+  // Scrolled back, the inline title goes slowly at first, eased in and out over longer than it came (iOS 27 simulator:
+  // 6% gone by 66ms, half by 200ms, 80% by 300ms); the large one is back about 130ms in, as `largeFade` gives it.
+  inlineFadeOut: 400,
   // Each title blurs as it fades, to about this radius out of focus (iOS 27 simulator: the inline title arrives soft and
   // sharpens, the large one goes soft as it goes).
   titleBlur: 8,
