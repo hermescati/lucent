@@ -213,6 +213,19 @@ export const modes: NavigationBarMode[] = [
     support: 'both',
   },
   {
+    slug: 'selected',
+    group: 'buttons',
+    name: 'Selected buttons',
+    summary: 'A button that stays on, filled with the tint, like Mail’s filter',
+    apple: 'Mail (filter), Photos (select)',
+    uikit: 'UIBarButtonItem.isSelected',
+    code: `<Stack.Toolbar placement="right">
+  <Stack.Toolbar.Button icon="line.3.horizontal.decrease" md="filter_list" selected={filtering} />
+  <Stack.Toolbar.Button icon="ellipsis" md="more_horiz" />
+</Stack.Toolbar>`,
+    support: 'both',
+  },
+  {
     slug: 'back-button',
     group: 'buttons',
     name: 'Back button styles',

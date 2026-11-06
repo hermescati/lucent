@@ -78,6 +78,7 @@ interface ButtonItem {
   badge?: { text: string; style?: StyleProp<TextStyle> };
   // Kept in its group while hidden, so it can grow out of its neighbour when it shows, as on iOS.
   hidden?: boolean;
+  selected?: boolean;
 }
 
 interface ViewItem {
@@ -145,6 +146,7 @@ const buttonItem = (
     accessibilityLabel: props.accessibilityLabel ?? label,
     menu: menu ? (props as LucentToolbarMenuProps) : undefined,
     badge: badgePart ? { text: text(badgePart.children), style: badgePart.style } : undefined,
+    selected: menu ? undefined : Boolean((props as LucentToolbarButtonProps).selected),
   };
 };
 
@@ -263,8 +265,17 @@ const ItemButton = ({
   edge?: 'start' | 'end' | 'center';
 }) => {
   const bottom = metrics === toolbar;
-  const { color: theme } = useLucentTheme(item.tintColor);
-  const ink = item.disabled ? theme.buttonDisabled : item.prominent ? onAccent : (item.tintColor ?? color);
+  const { color: theme, scheme, solid } = useLucentTheme(item.tintColor);
+  const selected = item.selected && !item.prominent;
+  const ink = item.disabled
+    ? theme.buttonDisabled
+    : item.prominent
+      ? onAccent
+      : selected
+        ? solid
+          ? theme.barFallback
+          : barItem.selected.ink[scheme]
+        : (item.tintColor ?? color);
   const icon = item.md || item.image;
   const openMenu = useOpenMenu();
   const ref = useRef<ComponentRef<typeof Pressable>>(null);
@@ -359,13 +370,28 @@ const ItemButton = ({
         disabled={item.disabled || item.hidden}
         accessibilityRole="button"
         accessibilityLabel={item.accessibilityLabel}
-        accessibilityState={{ disabled: item.disabled }}
+        accessibilityState={{ disabled: item.disabled, selected: item.selected }}
         style={({ pressed }) => [
           styles.item,
           { height: metrics.height },
           slot !== undefined ? { width: slot } : styles.textItem,
           pressed && styles.pressed,
         ]}>
+        {selected ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.selected,
+              {
+                top: (metrics.height - barItem.selected.height) / 2,
+                backgroundColor: item.tintColor ?? barItem.selected.fill[scheme],
+              },
+              icon
+                ? { width: grouped ? barItem.selected.groupWidth : barItem.selected.height }
+                : { left: (metrics.height - barItem.selected.height) / 2, right: (metrics.height - barItem.selected.height) / 2 },
+            ]}
+          />
+        ) : null}
         {icon ? (
           <AnimatedNativeGlassBlur animatedProps={glyphBlur} style={[styles.glyphBlur, glyphStyle]}>
             {glyph}
@@ -597,6 +623,11 @@ const styles = StyleSheet.create({
   glyphBlur: { padding: barItemMotion.blur * 2, margin: -barItemMotion.blur * 2 },
   textItem: { paddingHorizontal: barItem.textPadding },
   pressed: { opacity: 0.6 },
+  selected: {
+    position: 'absolute',
+    height: barItem.selected.height,
+    borderRadius: barItem.selected.height / 2,
+  },
   image: { width: barItem.iconSize, height: barItem.iconSize, resizeMode: 'contain' },
   label: { fontSize: barItem.fontSize, lineHeight: barItem.lineHeight, includeFontPadding: false },
   labelBottom: { fontWeight: toolbar.labelWeight },

@@ -47,6 +47,16 @@ export const barItem = {
   textPadding: 17,
   fontSize: 17,
   lineHeight: 22,
+  // A `selected` button (iOS 27 simulator): a fill 36pt tall in its capsule, a circle for a lone icon, 38pt wide for an
+  // icon among others (iOS widens it with the glyph, 41pt for a shipping box), and the capsule less 4pt each side for a
+  // label. Its glyph shows the glass through it. In light mode the fill is the system blue; in dark mode iOS draws
+  // it lighter than the prominent button's #0A84FF.
+  selected: {
+    height: 36,
+    groupWidth: 38,
+    fill: { light: '#007AFF', dark: '#1D97FF' },
+    ink: { light: '#F7F7FC', dark: '#202020' },
+  },
 } as const;
 
 /**

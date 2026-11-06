@@ -294,6 +294,42 @@ const BackButtonStyles = ({ mode }: ScreenProps) => {
 // Mail › Mailboxes: Edit on the leading side. A left item replaces the back button unless the screen asks to keep both,
 // as UIKit's leftItemsSupplementBackButton does.
 // ClickFlare's header: screen actions, a bell with the unread count, and the organisation's avatar as a bare circle.
+// Mail's filter: a button that stays on while it applies, and a text button that does the same.
+const Selected = ({ mode }: ScreenProps) => {
+  const [filtering, setFiltering] = useState(true);
+  const [selecting, setSelecting] = useState(false);
+  return (
+    <Body mode={mode}>
+      <Stack.Screen options={{ title: 'Inbox', headerLargeTitle: true }} />
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.Button selected={selecting} onPress={() => setSelecting(!selecting)}>
+          Select
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="line.3.horizontal.decrease"
+          md="filter_list"
+          accessibilityLabel="Filter"
+          selected={filtering}
+          onPress={() => setFiltering(!filtering)}
+        />
+        <Stack.Toolbar.Button icon="ellipsis" md="more_horiz" accessibilityLabel="More" onPress={() => {}} />
+      </Stack.Toolbar>
+      <Section title="Selected">
+        <Choice
+          labels={['Filter', 'Select', 'Both', 'None']}
+          selectedIndex={filtering && selecting ? 2 : filtering ? 0 : selecting ? 1 : 3}
+          onSelect={(index) => {
+            setFiltering(index === 0 || index === 2);
+            setSelecting(index === 1 || index === 2);
+          }}
+        />
+      </Section>
+    </Body>
+  );
+};
+
 const Badges = ({ mode }: ScreenProps) => {
   const [unread, setUnread] = useState(3);
   return (
@@ -415,6 +451,7 @@ const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   grouping: Grouping,
   'scroll-edge': ScrollEdge,
   done: Done,
+  selected: Selected,
   'back-button': BackButtonStyles,
   'left-items': LeftItems,
   badges: Badges,
