@@ -38,6 +38,7 @@ import Animated, {
 import { BarCapsule, BarGlassRow, maxBridged, resize, useBarGlassRow } from './BarCapsule.android';
 import { AnimatedNativeGlassBlur, NativeGlassView } from '../../../core/glass/NativeGlass';
 import { useLucentTheme } from '../../../theme/LucentProvider';
+import { systemTint } from '../../../theme/colors';
 import { createLucentContext } from '../../../theme/context';
 import { useOpenMenu } from '../menu/Menu.android';
 import { menuTree } from '../menu/items';
@@ -430,7 +431,7 @@ export const BarSearchButtonContext = createLucentContext<{ open: () => void; la
 
 /** A `Stack.Toolbar`'s items for one side of the bar, grouped onto glass capsules as iOS 26 does. */
 export const BarItems = ({ children, color, bottom = false, routeKey }: Props) => {
-  const { color: theme } = useLucentTheme();
+  const { scheme } = useLucentTheme();
   const metrics = bottom ? toolbar : barItem;
   const searchButton = useContext(BarSearchButtonContext);
   // As iOS does, the magnifier joins the trailing items, on their capsule when it can share one.
@@ -533,8 +534,9 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
       <CapsuleSwell key={index} hiddenKey={hiddenKey} showing={showing.length}>
         {(swell) => (
           <BarCapsule
-            // In the item's own colour, as iOS fills it, or the app's tint.
-            tint={prominent ? (group[0].kind === 'button' && group[0].tintColor) || theme.tint : undefined}
+            // In the item's own colour, as iOS fills it, or the system's blue: UIKit's bar takes the window's tint, not
+            // the app's accent (iOS 27 simulator, with an orange accent on its tab bar).
+            tint={prominent ? (group[0].kind === 'button' && group[0].tintColor) || systemTint[scheme] : undefined}
             height={metrics.height}
             grow={searching}
             swell={swell}>

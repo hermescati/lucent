@@ -150,6 +150,9 @@ export const BarGlassRow = ({ children, style, height }: RowProps) => {
   const rects = visible.flatMap((shape) => [shape.x, shape.y, shape.x + shape.width, shape.y + shape.height]);
   const views = visible.map((shape) => tracked[shape.id] ?? null);
   const glass = useAnimatedRef<Animated.View>();
+  // The glass's own width, unscaled: `measure` gives frames as drawn, swollen by the melt the row sits in (and a frame
+  // late), so they're scaled back by how much bigger than this the glass itself measures, in the same frame.
+  const laidOut = useSharedValue(0);
 
   // Each capsule's shape, read from its layout on the UI thread as it animates there, so no frame waits on React; and
   // swollen about its middle as an item on it shows or hides. React's layout is the start and the fallback.
@@ -166,10 +169,11 @@ export const BarGlassRow = ({ children, style, height }: RowProps) => {
       let right = rects[i * 4 + 2];
       let bottom = rects[i * 4 + 3];
       if (origin && frame) {
-        left = frame.pageX - origin.pageX;
-        top = frame.pageY - origin.pageY;
-        right = left + frame.width;
-        bottom = top + frame.height;
+        const scale = laidOut.get() > 0 && origin.width > 0 ? origin.width / laidOut.get() : 1;
+        left = (frame.pageX - origin.pageX) / scale;
+        top = (frame.pageY - origin.pageY) / scale;
+        right = left + frame.width / scale;
+        bottom = top + frame.height / scale;
       }
       const amount = view?.swell.get() ?? 0;
       const { wider, taller } = swellBy(right - left, bottom - top, amount);
@@ -195,6 +199,7 @@ export const BarGlassRow = ({ children, style, height }: RowProps) => {
         pressGrow={glassPress.grow}
         pressGlowSpread={glassPress.glowSpread}
         pressShapes={visible.map((shape) => (shape.interactive ? glowFor(shape.width, false) : 0))}
+        onLayout={(event) => laidOut.set(event.nativeEvent.layout.width)}
         style={style}>
         {children}
       </AnimatedNativeGlassView>

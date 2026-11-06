@@ -184,9 +184,9 @@ export const barMotion = {
   // wash holds until `washTo` and is gone, with the blur, at `reach`.
   untitledEdge: { wash: 0.92, washTo: 0.65, reach: 0.82 },
   edgeOver: 12,
-  // An opaque bar (`headerTransparent: false`) without a colour of its own: iOS's system background, as
-  // `configureWithOpaqueBackground` gives it, with no line under it (iOS 27 simulator).
-  opaqueFill: { light: '#FFFFFF', dark: '#000000' },
+  // An opaque bar (`headerTransparent: false`) without a colour of its own, with no line under it: on the iOS 27
+  // simulator, grouped grey in light mode over a white page and a grey one alike, and black in dark mode.
+  opaqueFill: { light: '#F2F2F7', dark: '#000000' },
   // The hard edge (`scrollEdgeEffects: { top: 'hard' }`): the same reach, but blurred until the content under it is
   // a smear, and washed further. Over an orange block on iOS 27, it washes about half way, to white in light mode
   // (green 65 → 161) and to black in dark (65 → 31), and blurs so a block's top edge still reads under it.
