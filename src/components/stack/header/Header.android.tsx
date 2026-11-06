@@ -1,4 +1,4 @@
-import { useIsFocused } from 'expo-router';
+import { useIsFocused, useTheme } from 'expo-router';
 import type { NativeStackHeaderProps } from 'expo-router/native-stack';
 import { useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
@@ -32,6 +32,7 @@ import { BarSearchButtonContext } from './BarItems.android';
 import { useBarTop } from './barTop.android';
 import { useBarType, useLargeBlock } from './barType.android';
 import { BarMeltContext } from './melt.android';
+import { backgroundOf } from '../page.android';
 import { useHeaderSearchBlock } from './searchBlock.android';
 import { getHeader } from './store.android';
 import { useSwipeMelt } from './swipeMelt.android';
@@ -103,6 +104,8 @@ interface ScrollEdgeProps {
   tail?: { height: number; blur: number };
   // How much it saturates what's under it before washing it, once fully in.
   saturation?: number;
+  // Drawn solid (no blur), what it covers what scrolls under it with: the page's own colour, as One UI's bar does.
+  fallback?: ColorValue;
   children: ReactNode;
 }
 
@@ -116,6 +119,7 @@ const ScrollEdge = ({
   fade,
   tail,
   saturation = 1,
+  fallback,
   children,
 }: ScrollEdgeProps) => {
   const [r, g, b] = channels(color);
@@ -141,6 +145,7 @@ const ScrollEdge = ({
       ) : null}
       <AnimatedNativeGlassView
         {...edgeGlass}
+        fallback={fallback}
         fadeTo={fade?.to}
         lift
         animatedProps={animatedProps}
@@ -257,7 +262,8 @@ const backHistory = (navigation: Navigation, backTitle: string | undefined): Men
  */
 export const Header = ({ options, route, navigation, back }: NativeStackHeaderProps) => {
   const top = useBarTop();
-  const { color, scheme } = useLucentTheme();
+  const { color, scheme, solid } = useLucentTheme();
+  const { colors } = useTheme();
   const scrolled = headerOffset(route.key);
   const { block, hidden: searchHides, collapses, button, focusedInBar, barFocused } = useHeaderSearchBlock(route.key);
   // The tab bar's search tab, in search mode, hides its root screen's bar, as iOS 27 does.
@@ -520,7 +526,10 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
                   ? { blur: barMotion.softFade, to: top + bar.row }
                   : { blur: barMotion.edgeFade, to: top + bar.row * barMotion.edgeFadeTo }
           }
-          tail={soft && !untitled ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur } : undefined}
+          tail={
+            soft && !untitled && !solid ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur } : undefined
+          }
+          fallback={solid ? backgroundOf(options, colors.background) : undefined}
           under={under}>
           {untitled ? null : (
             <Animated.View style={[styles.titleRow, { marginTop: top }, rowStyle]}>{inlineTitle}</Animated.View>

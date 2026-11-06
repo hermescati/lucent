@@ -254,6 +254,8 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     // Opaque: a tinted glass's own tint (a prominent button), else the component's fallback surface, else its tint,
     // each with the see-through taken out.
     val fill = if (effectTint.alpha() > 0f) effectTint else if (fallback.alpha() > 0f) fallback else activeTint
+    // Nothing to fill with (a scroll edge with nothing under it): it draws nothing, not its colour made opaque.
+    if (fill.alpha() <= 0f) return
     val solid = Color.valueOf(fill.red(), fill.green(), fill.blue(), 1f)
 
     // Its own solid shadow if it has one, else the glass's.

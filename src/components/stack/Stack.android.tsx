@@ -26,6 +26,7 @@ import { HeaderOverlay, HeaderSpacer } from './header/HeaderSlot.android';
 import { useBarTop } from './header/barTop.android';
 import { useLargeBlock } from './header/barType.android';
 import { MenuHost } from './menu/Menu.android';
+import { backgroundOf, pageBackground } from './page.android';
 import { SearchBar, searchPlacement } from './search/SearchBar.android';
 import { BottomSearch, BottomSearchButton, FocusedSearch } from './search/SearchField.android';
 import { useSearch } from './search/store.android';
@@ -92,9 +93,6 @@ const lucentPush = (options: Options): Options => {
   return { ...options, animation: 'fade_from_bottom', [pushed]: true } as Options;
 };
 
-// Lucent's frame draws the page's background, so it can round it; native-stack's under it is cleared. A
-// `contentStyle` background set for one screen alone passes Lucent by, and that screen keeps square corners.
-const pageBackground = 'lucentPageBackground';
 // Lucent's bar draws in the page, so native-stack always lays the page out under a transparent header; whether the app
 // asked for an opaque bar goes to Lucent's bar on the side. Options without `headerTransparent` pass as they are.
 const barOptions = (options: Options): Options => {
@@ -210,17 +208,6 @@ const swipeFor = (options: Options) =>
   options.gestureEnabled !== false &&
   options.fullScreenGestureEnabled !== false &&
   (options.presentation ?? 'card') === 'card';
-
-// What native-stack paints behind a page: the app's `contentStyle` background, or the theme's, except under a
-// transparent modal. Lucent's frame paints it instead, so it can round it.
-const backgroundOf = (options: Options, fallback: ColorValue) => {
-  if (options.presentation === 'transparentModal' || options.presentation === 'containedTransparentModal') {
-    return undefined;
-  }
-  const kept = (options as Record<string, unknown>)[pageBackground] as ColorValue | undefined;
-  const own = StyleSheet.flatten(options.contentStyle)?.backgroundColor;
-  return kept ?? (own === 'transparent' || own === undefined ? fallback : own);
-};
 
 // The page, on its background. Swiped back, the screen rounds its corners to the display's, as iOS 26's does: they
 // match the screen's own at the start, so they show only as the page slides away. The bar isn't in it, since its
