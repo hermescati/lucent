@@ -522,7 +522,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, { paddingHorizontal: margin }, rowStyle]}>
         {titleMeasure}
         {placement === 'row' ? (
-          <View pointerEvents="none" style={styles.rowTitle}>
+          <View pointerEvents="none" style={[styles.rowTitle, styles.leading]}>
             <Animated.Text
               numberOfLines={1}
               style={[styles.largeTitle, styles.largeOnRow, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
@@ -596,7 +596,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       ) : null}
       {below ? (
         <Animated.View pointerEvents="none" style={[styles.largeBlock, rowStyle]}>
-          <AnimatedNativeGlassBlur animatedProps={largeBlur}>
+          <AnimatedNativeGlassBlur animatedProps={largeBlur} style={styles.leading}>
             <Animated.Text numberOfLines={1} style={[styles.largeTitle, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
               {label}
             </Animated.Text>
@@ -661,4 +661,6 @@ const styles = StyleSheet.create({
   // On the row, centred on its buttons (iOS 27 simulator: the letters span the row's middle).
   rowTitle: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center' },
   largeOnRow: { marginTop: 0 },
+  // A large title at the leading edge whatever its script: the right, right to left.
+  leading: { alignItems: 'flex-start' },
 });

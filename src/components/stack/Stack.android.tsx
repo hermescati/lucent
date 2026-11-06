@@ -29,6 +29,7 @@ import { SearchBar, searchPlacement } from './search/SearchBar.android';
 import { BottomSearch, BottomSearchButton, FocusedSearch } from './search/SearchField.android';
 import { useSearch } from './search/store.android';
 import {
+  ahead,
   dimAt,
   SwipeBackProvider,
   SwipeProgressContext,
@@ -244,7 +245,7 @@ const SwipeDim = () => {
     if (progress < 0) return { opacity: 0, transform: [{ translateX: 0 }] };
     // The top screen's edge, in this screen's coordinates: it sits 30% of the way back, sliding in.
     const edge = progress * width - (progress * width - width) * swipeMotion.parallax;
-    return { opacity: 1, transform: [{ translateX: edge }] };
+    return { opacity: 1, transform: [{ translateX: ahead * edge }] };
   });
   return (
     <>

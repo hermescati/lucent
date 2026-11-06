@@ -8,7 +8,7 @@
  * up as iOS 26's, which starts anywhere on the screen once a drag goes right and leaves vertical scrolls alone.
  */
 import { useContext, useEffect, useLayoutEffect, useMemo, type RefObject, type ReactNode } from 'react';
-import { findNodeHandle, StyleSheet, useWindowDimensions } from 'react-native';
+import { findNodeHandle, I18nManager, StyleSheet, useWindowDimensions } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { measure, startScreenTransition, useEvent, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { GHContext } from 'react-native-screens/src/contexts';
@@ -166,16 +166,32 @@ const settleAt = ({ omega, damping }: Spring, from: number, velocity: number, t:
 // stack, and the next push expects it there.
 const settledBack = -1;
 
-// iOS's slide: the top screen with the finger, the one below starting 30% of the width to the left.
+// Right to left, back is a swipe to the left, from the right: the swipe works forwards, in the reading direction, and
+// the screens move the mirror way.
+export const ahead = I18nManager.isRTL ? -1 : 1;
+
+/** A pointer as if the screen read left to right. */
+const forwards = (pointer: PanEvent, width: number): PanEvent => {
+  'worklet';
+  if (ahead > 0) return pointer;
+  return {
+    ...pointer,
+    absoluteX: width - pointer.absoluteX,
+    translationX: -pointer.translationX,
+    velocityX: -pointer.velocityX,
+  };
+};
+
+// iOS's slide: the top screen with the finger, the one below starting 30% of the width behind.
 const slide = {
   topScreenStyle: (event: PanEvent) => {
     'worklet';
-    return { transform: [{ translateX: event.translationX }] };
+    return { transform: [{ translateX: ahead * event.translationX }] };
   },
   belowTopScreenStyle: (event: PanEvent, screen: { width: number }) => {
     'worklet';
     if (event.pointerType === settledBack) return { transform: [{ translateX: 0 }] };
-    return { transform: [{ translateX: (event.translationX - screen.width) * swipeMotion.parallax }] };
+    return { transform: [{ translateX: ahead * (event.translationX - screen.width) * swipeMotion.parallax }] };
   },
 };
 
@@ -422,7 +438,7 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
     activeOffsetX: [-swipeMotion.activateAfter, swipeMotion.activateAfter],
     failOffsetY: [-swipeMotion.verticalSlack, swipeMotion.verticalSlack],
     onActivate: (payload) => {
-      const pointer = payload as unknown as PanEvent;
+      const pointer = forwards(payload as unknown as PanEvent, screenWidth.get());
       // A drag to the left isn't a way back, and Android's back gesture owns the screen's edges: a drag from there is
       // Android's, which takes it over, and the swipe would be left halfway.
       const from = pointer.absoluteX - pointer.translationX;
@@ -440,11 +456,14 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
       begin(pointer);
     },
     onUpdate: (payload) => {
-      follow({ ...(payload as unknown as PanEvent) });
+      follow(forwards({ ...(payload as unknown as PanEvent) }, screenWidth.get()));
     },
     onDeactivate: (payload) => {
       if (!updating.get()) return;
-      const pointer = payload as unknown as PanEvent & { canceled?: boolean };
+      const pointer = {
+        ...forwards(payload as unknown as PanEvent, screenWidth.get()),
+        canceled: (payload as unknown as { canceled?: boolean }).canceled,
+      };
       // A drag taken away (Android's back gesture, a dialog) goes back into place.
       if (pointer.canceled) {
         release(true, 0, swipeMotion.settle);

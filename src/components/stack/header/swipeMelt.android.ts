@@ -11,7 +11,7 @@ import {
 } from 'react-native-reanimated';
 
 import { meltLook } from './melt.android';
-import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
+import { ahead, SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, SwipeRoleContext } from '../swipe/role.android';
 import { barMotion, swipeMotion } from '../tokens';
 
@@ -63,7 +63,9 @@ export const useSwipeMelt = (pushed: boolean) => {
     if (!role || phase === swipePhase.idle) return { transform: [{ translateX: 0 }] };
     const progress = Math.max(swipe?.progress.get() ?? 0, 0);
     return {
-      transform: [{ translateX: role === 'top' ? -progress * width : (1 - progress) * width * swipeMotion.parallax }],
+      transform: [
+        { translateX: ahead * (role === 'top' ? -progress * width : (1 - progress) * width * swipeMotion.parallax) },
+      ],
     };
   });
   const meltStyle = useAnimatedStyle(() => {
