@@ -93,7 +93,11 @@ export const BottomToolbar = ({
     if (searching) return interpolate(Math.max(progress.get(), clock.get()), going, [0, 1], Extrapolation.CLAMP);
     return returning ? interpolate(progress.get(), toolbarBack, [0, 1], Extrapolation.CLAMP) : 0;
   });
-  const melt = useDerivedValue(() => Math.max(swipeMelt.get(), away.get()));
+  // The swipe's melt runs below 0 as its items come back (see `BarMeltContext`): the further gone of the two wins.
+  const melt = useDerivedValue(() => {
+    const swipe = swipeMelt.get();
+    return Math.abs(swipe) >= away.get() ? swipe : away.get();
+  });
   const meltBlur = useAnimatedProps(() => ({ radius: meltLook(melt.get()).blur }));
   // Faded and blurred, not swollen: grown about the middle of a row the screen's width, its ends would fly apart.
   const fade = useAnimatedStyle(() => ({ opacity: meltLook(melt.get()).opacity }));

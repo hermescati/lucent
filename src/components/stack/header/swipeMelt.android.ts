@@ -38,6 +38,7 @@ export const useSwipeMelt = (pushed: boolean) => {
       if (now !== 0 || before === 0) return;
       // Slid in, its buttons pop in as the push starts, as iOS's do.
       const delay = before != null ? 0 : barMotion.itemsDelay;
+      melt.set(-Math.abs(melt.get()));
       melt.set(withDelay(delay, withTiming(0, meltIn)));
     },
   );
@@ -46,8 +47,10 @@ export const useSwipeMelt = (pushed: boolean) => {
     (phase, previous) => {
       if (phase === previous || !role) return;
       if ((role === 'top' && phase === swipePhase.going) || (role === 'below' && phase === swipePhase.pushing)) {
+        melt.set(Math.abs(melt.get()));
         melt.set(withTiming(1, { duration: barMotion.meltOut }));
       } else if (role === 'below' && phase === swipePhase.going) {
+        melt.set(-Math.abs(melt.get()));
         melt.set(withTiming(0, meltIn));
       } else if (role === 'below') {
         // Uncovered by a drag, it waits gone; back at rest, it's whole for the next time it shows.

@@ -142,6 +142,9 @@ export const barMotion = {
   meltOut: 220,
   meltIn: 260,
   meltGrow: 0.12,
+  // Coming, the capsules' scale from where they start, to their peak, reached `at` of the way back (the melt eased out
+  // over `meltIn`, so about 60ms in).
+  meltCome: { from: 0.55, peak: 1.08, at: 0.45 },
   // How much further the capsules' glass blends, melted: a shared group's capsules, 12pt apart, neck together as they
   // swell, as iOS's do.
   meltBridge: 10,

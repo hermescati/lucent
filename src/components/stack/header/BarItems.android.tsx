@@ -36,6 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { BarCapsule, BarGlassRow, maxBridged, resize, useBarGlassRow } from './BarCapsule.android';
+import { BarMeltContext, meltLook } from './melt.android';
 import { AnimatedNativeGlassBlur, NativeGlassView } from '../../../core/glass/NativeGlass';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
@@ -305,6 +306,7 @@ const ItemButton = ({
   const progress = useSharedValue(1);
   const shown = useSharedValue(item.hidden ? 0 : 1);
   const swell = useContext(SwellContext);
+  const melt = useContext(BarMeltContext);
   // A row's shared glass follows the slot's layout while it resizes.
   const row = useBarGlassRow();
   const first = useRef(true);
@@ -338,15 +340,20 @@ const ItemButton = ({
     // A glyph coming or going grows out of, or shrinks into, a small blur as it rides the capsule's edge; and every
     // glyph on the capsule swells with it.
     const shrink = barItemMotion.leaveScale + (1 - barItemMotion.leaveScale) * shown.get();
+    // Popping in with its screen, it comes after its glass (`meltLook`).
+    const popping = meltLook(melt?.get() ?? 0).glyphOpacity;
     // Faint early as it leaves and late as it comes, as iOS's soft grey blob is by the halfway point.
     return {
-      opacity: shown.get() * shown.get(),
+      opacity: shown.get() * shown.get() * popping,
       transform: [{ scale: shrink * (1 + barItemMotion.glyphSwell * (swell?.get() ?? 0)) }],
     };
   });
   // Soft early: fully blurred a little way into leaving, so its edges don't linger, and sharp only at the end of coming.
   const glyphBlur = useAnimatedProps(() => ({
-    radius: Math.min((1 - shown.get()) / barItemMotion.blurBy, 1) * barItemMotion.blur,
+    radius: Math.max(
+      Math.min((1 - shown.get()) / barItemMotion.blurBy, 1) * barItemMotion.blur,
+      meltLook(melt?.get() ?? 0).glyphBlur,
+    ),
   }));
 
   const glyph = item.md ? (
