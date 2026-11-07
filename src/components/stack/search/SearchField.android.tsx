@@ -49,7 +49,7 @@ import {
 } from './store.android';
 import { useBackClaim } from '../../../core/back/claims';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
-import { useClearButton } from '../../../core/search/clearFade';
+import { clearFade, useClearButton } from '../../../core/search/clearFade';
 import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
@@ -142,9 +142,11 @@ interface SearchInputProps {
   tint?: string;
   // How big its magnifier is, as in a circle it grows out of, whose magnifier is drawn bigger.
   iconScale?: SharedValue<number>;
+  // 1 from the close button's press: the clear button fades from then, not once the text's cleared as the field lands.
+  closing?: SharedValue<number>;
 }
 
-const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale }: SearchInputProps) => {
+const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing }: SearchInputProps) => {
   const { props } = state;
   // Registered for the search bar's ref and for focusing; taken away only while it's still the one registered.
   const mine = useRef<ComponentRef<typeof TextInput> | null>(null);
@@ -167,6 +169,15 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale }: SearchInpu
     },
     hitSlop: 8,
   });
+  const closeStyle = useAnimatedStyle(() => ({
+    opacity:
+      closing?.get() === 1
+        ? withDelay(
+            clearFade.out.delay,
+            withTiming(0, { duration: clearFade.out.duration, easing: Easing.inOut(Easing.ease) }),
+          )
+        : 1,
+  }));
   const showIcon = props.shouldShowHintSearchIcon !== false;
   const type = useBarType();
   return (
@@ -214,8 +225,10 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale }: SearchInpu
           accessibilityActions={[{ name: 'activate' }]}
           onAccessibilityAction={clear.onClear}>
           <Animated.View style={clear.fadeStyle}>
-            <Animated.View style={clear.dimStyle}>
-              <ClearGlyph fill={colors.clear} cross={colors.clearCross} />
+            <Animated.View style={closeStyle}>
+              <Animated.View style={clear.dimStyle}>
+                <ClearGlyph fill={colors.clear} cross={colors.clearCross} />
+              </Animated.View>
             </Animated.View>
           </Animated.View>
         </View>
@@ -942,6 +955,7 @@ const SearchMorph = ({
         autoFocus={focus === 'mount'}
         tint={tint}
         iconScale={clip ? iconScale : undefined}
+        closing={closing}
       />
     </AnimatedNativeGlassBlur>
   );

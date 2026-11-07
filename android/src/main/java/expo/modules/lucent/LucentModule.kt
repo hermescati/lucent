@@ -95,6 +95,7 @@ class LucentModule : Module() {
       Prop("overlay") { view: GlassView, overlay: String? -> view.overlay = overlay }
 
       Prop("shapes") { view: GlassView, value: FloatArray? -> view.shapes = value }
+      Prop("shapePull") { view: GlassView, value: FloatArray? -> view.shapePull = value }
       Prop("inset") { view: GlassView, value: Float? -> view.inset = value ?: 0f }
       Prop("cornerRadius") { view: GlassView, value: Float? -> view.cornerRadius = value ?: 0f }
       Prop("blend") { view: GlassView, value: Float? -> view.blend = value ?: 0f }
@@ -227,6 +228,7 @@ class LucentModule : Module() {
       Prop("fallbackPill") { view: GlassView, value: Color? -> view.fallbackPill = value ?: TRANSPARENT }
       Prop("fallbackRim") { view: GlassView, value: Color? -> view.fallbackRim = value ?: TRANSPARENT }
       Prop("fallbackRimWidth") { view: GlassView, value: Float? -> view.fallbackRimWidth = value ?: 0f }
+      Prop("fallbackFade") { view: GlassView, value: Float? -> view.fallbackFade = value ?: 0f }
       Prop("fallbackShadow") { view: GlassView, value: Color? -> view.fallbackShadow = value ?: TRANSPARENT }
       Prop("fallbackShadowRadius") { view: GlassView, value: Float? -> view.fallbackShadowRadius = value ?: 0f }
       Prop("fallbackShadowOffset") { view: GlassView, value: Float? -> view.fallbackShadowOffset = value ?: 0f }

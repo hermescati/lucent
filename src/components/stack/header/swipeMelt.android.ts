@@ -68,10 +68,23 @@ export const useSwipeMelt = (pushed: boolean) => {
       ],
     };
   });
+  // Held the same way, and crossing over with the swipe rather than popping: going as its screen goes, coming as it
+  // comes. iOS 27 does this with a search field that stays under the bar's row.
+  const crossStyle = useAnimatedStyle(() => {
+    const phase = swipe?.phase.get() ?? swipePhase.idle;
+    if (!role || phase === swipePhase.idle) return { opacity: 1, transform: [{ translateX: 0 }] };
+    const progress = Math.min(Math.max(swipe?.progress.get() ?? 0, 0), 1);
+    return {
+      opacity: role === 'top' ? 1 - progress : progress,
+      transform: [
+        { translateX: ahead * (role === 'top' ? -progress * width : (1 - progress) * width * swipeMotion.parallax) },
+      ],
+    };
+  });
   const meltStyle = useAnimatedStyle(() => {
     const look = meltLook(melt.get());
     return { opacity: look.opacity, transform: [{ scale: look.scale }] };
   });
   const meltBlur = useAnimatedProps(() => ({ radius: meltLook(melt.get()).blur }));
-  return { melt, holdStyle, meltStyle, meltBlur };
+  return { melt, holdStyle, crossStyle, meltStyle, meltBlur };
 };

@@ -57,6 +57,9 @@ export const glassPress = {
   wideGlow: 0.11,
   wideFrom: 118,
   glowSpread: 68,
+  // On a bar capsule holding several buttons, the light keeps to the one pressed: iOS 27's is down to about a third 73pt
+  // from it (simulator, dark mode), where a 68pt spread left half and lit the whole capsule.
+  groupGlowSpread: 51,
   blend: 0.88,
   // Tinted glass glows less than clear glass under the finger, as on iOS.
   tintedGlow: 0.7,

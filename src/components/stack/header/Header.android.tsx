@@ -34,6 +34,7 @@ import { Split } from './Split.android';
 import { useBarTop } from './barTop.android';
 import { useBarType, useLargeBlock } from './barType.android';
 import { BarMeltContext } from './melt.android';
+import { displayCornerRadius } from '../../../core/display/corner.android';
 import { useTabSearchActive } from '../../../core/tabs/TabBarReach';
 import { backgroundOf } from '../page.android';
 import { useHeaderSearchBlock } from './searchBlock.android';
@@ -45,7 +46,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
 import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
 import { getSearch, searchFocusDrive, updateSearch } from '../search/store.android';
-import { SwipeProgressContext, ahead, swipePhase } from '../swipe/SwipeBack.android';
+import { SwipeProgressContext, ahead, dimAt, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
 import {
   bar,
@@ -106,6 +107,8 @@ interface ScrollEdgeProps {
   wash: number;
   // How far the content has scrolled under the row, from 0 at rest to 1 once the edge is fully in.
   under: SharedValue<number>;
+  // How much further down it reaches, over a field that stays under the row.
+  reach?: SharedValue<number>;
   // The hairline iOS draws along the edge's bottom, one device pixel tall, or none.
   line?: string;
   // More blur at the top, easing off to none at `to` (dp from the edge's top), as iOS's soft edge does, or none.
@@ -117,6 +120,8 @@ interface ScrollEdgeProps {
   saturation?: number;
   // Drawn solid (no blur), what it covers what scrolls under it with: the page's own colour, as One UI's bar does.
   fallback?: ColorValue;
+  // Drawn solid, how far it fades out over at its bottom (barMotion.solidFade).
+  fallbackFade?: number;
   children: ReactNode;
 }
 
@@ -131,19 +136,34 @@ const ScrollEdge = ({
   tail,
   saturation = 1,
   fallback,
+  fallbackFade,
+  reach,
   children,
 }: ScrollEdgeProps) => {
   const [r, g, b] = channels(color);
+  // Through a swipe back or a push, the top screen's edge keeps to its rounded corners, as the screen does; the
+  // uncovered screen's dims with the rest of it.
+  const role = useContext(SwipeRoleContext);
+  const swipe = useContext(SwipeProgressContext);
+  const corner = useMemo(() => displayCornerRadius(), []);
+  const { height: screenHeight } = useWindowDimensions();
   const animatedProps = useAnimatedProps(() => ({
     blurRadius: under.get() * blur,
     fadeBlur: fade ? under.get() * fade.blur : 0,
     tint: `rgba(${r}, ${g}, ${b}, ${under.get() * wash})`,
     saturation: 1 + under.get() * (saturation - 1),
+    dim: role === 'below' && swipe ? dimAt(swipe.progress.get()) : 0,
   }));
+  const cornerStyle = useAnimatedStyle(() => {
+    const radius = role === 'top' && swipe && swipe.phase.get() !== swipePhase.idle ? corner : 0;
+    return { borderTopLeftRadius: radius, borderTopRightRadius: radius };
+  });
   const lineStyle = useAnimatedStyle(() => ({ opacity: under.get() }));
   const tailProps = useAnimatedProps(() => ({ fadeBlur: tail ? under.get() * tail.blur : 0 }));
+  const edgeStyle = useAnimatedStyle(() => ({ height: height + (reach?.get() ?? 0) }));
+  const tailStyle = useAnimatedStyle(() => ({ top: height + (reach?.get() ?? 0) }));
   return (
-    <>
+    <Animated.View pointerEvents="none" style={[styles.edgeClip, { height: screenHeight }, cornerStyle]}>
       {tail ? (
         <AnimatedNativeGlassView
           {...edgeGlass}
@@ -151,21 +171,22 @@ const ScrollEdge = ({
           lift
           animatedProps={tailProps}
           pointerEvents="none"
-          style={[styles.edge, { top: height, height: tail.height }]}
+          style={[styles.edge, { height: tail.height }, tailStyle]}
         />
       ) : null}
       <AnimatedNativeGlassView
         {...edgeGlass}
         fallback={fallback}
+        fallbackFade={fallbackFade}
         fadeTo={fade?.to}
         lift
         animatedProps={animatedProps}
         pointerEvents="none"
-        style={[styles.edge, { height }]}>
+        style={[styles.edge, edgeStyle]}>
         {children}
         {line ? <Animated.View style={[styles.edgeLine, { backgroundColor: line }, lineStyle]} /> : null}
       </AnimatedNativeGlassView>
-    </>
+    </Animated.View>
   );
 };
 
@@ -530,9 +551,10 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     transform: [{ translateY: -Math.max(collapsible ? offset.get() : 0, 0) }],
   }));
   const largeEdgeFade = useAnimatedStyle(() => ({ opacity: 1 - largeGone.get() }));
-  // Rising into the row as it comes, sinking as it goes.
+  // Rising into the row as it comes, sinking as it goes, from a large title under the row; one beside the buttons, on
+  // the row already, cross-fades with it where it stands, as iOS 27's does.
   const inlineUp = useDerivedValue(() =>
-    large
+    large && below
       ? collapsed.get()
         ? withTiming(1, { duration: barMotion.inlineRiseIn, easing: Easing.out(Easing.cubic) })
         : withTiming(0, { duration: barMotion.inlineRiseOut, easing: Easing.inOut(Easing.quad) })
@@ -568,7 +590,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const { width } = useWindowDimensions();
   // Both screens have a back button when there's a screen below the one below.
   const backStays = navigation.getState().index >= 2;
-  const { melt, holdStyle, meltStyle, meltBlur } = useSwipeMelt(Boolean(back));
+  const { melt, holdStyle, crossStyle, meltStyle, meltBlur } = useSwipeMelt(Boolean(back));
   // The title comes in once the screen does: as a push slides it in, or, for a screen shown another way, once the bar
   // is up.
   const screenHidden = useContext(ScreenHiddenContext);
@@ -604,10 +626,17 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const hard = options.scrollEdgeEffects?.top === 'hard';
   // iOS's soft edge, asked for by name, fades out below the bar; left to the system, the edge is a flat band with a
   // hairline along its bottom.
-  const soft = options.scrollEdgeEffects?.top === 'soft';
+  // A field that stays under the row gets the soft one unless the screen asks otherwise: no line, and what runs behind
+  // the row stays readable through it (iOS 27 simulator).
+  const pinned = block > 0 && !collapses;
+  const soft = options.scrollEdgeEffects?.top === 'soft' || (pinned && options.scrollEdgeEffects?.top === undefined);
   // With no title, iOS's edge only covers the status bar, fading out well above the buttons, with no line.
   // A view in the title's place counts as none: iOS draws a titleView's bar as a bare one (iOS 27 simulator).
   const untitled = !hard && !large && (custom !== null || !label);
+  // A field that stays under the row is in the edge too, down to its bottom (iOS 27 simulator). One that scrolls away is
+  // gone before the edge comes in. Rising into the row, focused, it takes the edge back up with it.
+  const pinnedReach = pinned ? bar.inline + searchMetrics.header.height - bar.row - barMotion.edgeReach : 0;
+  const edgeReach = useDerivedValue(() => pinnedReach * (1 - Math.min(Math.max(searchProgress.get(), 0), 1)));
   const rowMiddle = top + bar.row / 2;
   const washStops: [number, number][] | null = untitled
     ? [
@@ -624,10 +653,26 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   // back button. It needs the bar's 12pt gap from each side's buttons and no more (iOS 27 simulator: "Wallet ID" centres
   // 13.7pt from three icons, "Wallet IDs", which would come 9.2pt from them, starts after the back button).
   const [sides, setSides] = useState({ left: 0, right: 0, title: 0 });
+  // The trailing side widens for a moment as a button melts into or splits off its capsule, the old and new both there:
+  // the title waits that out before it moves for a wider side, and takes a narrower one at once.
   const measure = (key: keyof typeof sides) => (event: LayoutChangeEvent) => {
     const value = event.nativeEvent.layout.width;
     setSides((current) => (current[key] === value ? current : { ...current, [key]: value }));
   };
+  const widening = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightNow = useRef(0);
+  useEffect(() => () => clearTimeout(widening.current ?? undefined), []);
+  const measureRight = useCallback((event: LayoutChangeEvent) => {
+    const value = event.nativeEvent.layout.width;
+    const apply = () => {
+      rightNow.current = value;
+      setSides((current) => (current.right === value ? current : { ...current, right: value }));
+    };
+    clearTimeout(widening.current ?? undefined);
+    widening.current = null;
+    if (rightNow.current > 0 && value > rightNow.current) widening.current = setTimeout(apply, barMotion.sideSettle);
+    else apply();
+  }, []);
   const margin = barMargin(width);
   // The trailing capsule becomes the field: its glass goes at once, the field's taking its place (lifted glass is drawn
   // by the backdrop, which an opacity around it doesn't reach), and its items ride the field's start as it grows,
@@ -698,6 +743,25 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       {label}
     </Text>
   );
+  // The large title on the buttons' row. With the edge's glass, it's drawn in it, as the inline title is: the glass is
+  // drawn over the row, and the solid fallback paints it in the page's colour from the start.
+  const rowLarge = (
+    <View pointerEvents="none" style={[styles.rowTitle, styles.leading]}>
+      <Animated.Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        accessibilityRole="header"
+        style={[
+          styles.largeTitle,
+          type.large,
+          styles.largeOnRow,
+          { paddingHorizontal: margin, color: titleColor },
+          largeStyle,
+        ]}>
+        {label}
+      </Animated.Text>
+    </View>
+  );
   const inlineTitle = (
     <Animated.View
       pointerEvents="none"
@@ -763,11 +827,16 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       {transparent ? (
         <ScrollEdge
           color={background ?? wash}
-          height={untitled ? top * barMotion.untitledEdge.reach : top + bar.row + barMotion.edgeReach}
+          height={
+            untitled
+              ? top * barMotion.untitledEdge.reach
+              : top + bar.row + (solid ? barMotion.solidFade : barMotion.edgeReach)
+          }
+          reach={untitled ? undefined : edgeReach}
           blur={hard ? barMotion.hardBlur : soft || untitled ? barMotion.softBlur : barMotion.edgeBlur[scheme]}
           wash={hard ? barMotion.hardTint[scheme] : washStops ? 0 : barMotion.edgeTint}
           saturation={hard ? barMotion.hardSaturation[scheme] : 1}
-          line={hard || washStops ? undefined : barMotion.edgeLine[scheme]}
+          line={hard || washStops || solid ? undefined : barMotion.edgeLine[scheme]}
           fade={
             hard
               ? undefined
@@ -783,10 +852,18 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
               : undefined
           }
           fallback={solid ? backgroundOf(options, colors.background) : undefined}
+          fallbackFade={
+            untitled ? top * (barMotion.untitledEdge.reach - barMotion.untitledEdge.washTo) : barMotion.solidFade
+          }
           under={under}>
           {untitled ? null : (
             <Animated.View style={[styles.titleRow, { marginTop: top }, rowStyle]}>{inlineTitle}</Animated.View>
           )}
+          {placement === 'row' ? (
+            <View pointerEvents="none" style={[styles.largeOnEdge, { top }]}>
+              {rowLarge}
+            </View>
+          ) : null}
           {below ? (
             <Animated.View
               pointerEvents="none"
@@ -819,23 +896,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       ) : null}
       <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, { paddingHorizontal: margin }]}>
         {titleMeasure}
-        {placement === 'row' ? (
-          <View pointerEvents="none" style={[styles.rowTitle, styles.leading]}>
-            <Animated.Text
-              numberOfLines={1}
-              allowFontScaling={false}
-              accessibilityRole="header"
-              style={[
-                styles.largeTitle,
-                type.large,
-                styles.largeOnRow,
-                { paddingHorizontal: margin, color: titleColor },
-                largeStyle,
-              ]}>
-              {label}
-            </Animated.Text>
-          </View>
-        ) : null}
+        {placement === 'row' && !transparent ? rowLarge : null}
         {/* Without the edge's glass to draw in: an opaque bar's title, or a view in a bare bar's, which draws whole. */}
         {transparent && !untitled ? null : (
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, itemsStyle]}>
@@ -873,7 +934,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
           pointerEvents="box-none"
           style={[styles.side, holdStyle]}
           animatedProps={meltBlur}
-          onLayout={measure('right')}>
+          onLayout={measureRight}>
           <Animated.View pointerEvents="box-none" style={[styles.side, meltStyle]}>
             <Animated.View
               pointerEvents="box-none"
@@ -899,10 +960,14 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         </Animated.View>
       ) : null}
       {block ? (
+        // A field that stays under the row is the bar's, not the page's: it holds still as the pages slide and fades
+        // with the swipe, as iOS 27's does. One under a large title scrolls with the page, and slides with it.
         <Animated.View
-          style={[styles.searchBlock, focusedInBar && styles.searchOpen, !below && styles.searchBelowRow, searchStyle]}
+          style={[styles.searchHold, !below && styles.searchBelowRow, pinned && !below && crossStyle]}
           onLayout={(event) => setBlockTop(event.nativeEvent.layout.y)}>
-          <HeaderSearch routeKey={route.key} progress={searchProgress} />
+          <Animated.View style={[styles.searchBlock, focusedInBar && styles.searchOpen, searchStyle]}>
+            <HeaderSearch routeKey={route.key} progress={searchProgress} />
+          </Animated.View>
         </Animated.View>
       ) : null}
     </Animated.View>
@@ -912,6 +977,8 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
 const styles = StyleSheet.create({
   header: {},
   edge: { position: 'absolute', top: 0, left: 0, right: 0 },
+  // Clips the lifted edge to its screen's rounded corners while it moves.
+  edgeClip: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
   edgeLine: { position: 'absolute', left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth },
   titleRow: { height: bar.row },
   row: {
@@ -936,6 +1003,7 @@ const styles = StyleSheet.create({
   titleBlur: { padding: barMotion.titleBlur * 2, margin: -barMotion.titleBlur * 2, alignItems: 'center' },
   titleBlurLeading: { alignItems: 'flex-start', maxWidth: '100%' },
   measure: { position: 'absolute', opacity: 0, maxWidth: undefined },
+  searchHold: { overflow: 'visible' },
   searchBlock: { overflow: 'hidden' },
   // Focused, it stays whole: the close button swells and grows under the finger past the block's edges.
   searchOpen: { overflow: 'visible' },
@@ -959,6 +1027,7 @@ const styles = StyleSheet.create({
   // On the row, centred on its buttons (iOS 27 simulator: the letters span the row's middle).
   rowTitle: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center' },
   largeOnRow: { marginTop: 0 },
+  largeOnEdge: { position: 'absolute', left: 0, right: 0, height: bar.row },
   // A large title at the leading edge whatever its script: the right, right to left.
   leading: { alignItems: 'flex-start' },
 });

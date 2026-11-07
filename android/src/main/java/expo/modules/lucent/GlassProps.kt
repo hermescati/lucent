@@ -11,6 +11,9 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var underlay: String? = null
   var overlay: String? = null
   var shapes: FloatArray? = null
+  // One of `shapes` stretched as a whole about its middle, toward a finger dragged off it: its index, then how much
+  // across and down; the shape stays at its unstretched size in `shapes`.
+  var shapePull: FloatArray? = null
   var inset = 0f
   var cornerRadius = 0f
   var blend = 0f
@@ -158,6 +161,8 @@ abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(c
   var fallbackPill: Color = TRANSPARENT
   var fallbackRim: Color = TRANSPARENT
   var fallbackRimWidth = 0f
+  // Drawn solid, how many points at its bottom it fades out over, to clear.
+  var fallbackFade = 0f
   var fallbackShadow: Color = TRANSPARENT
   var fallbackShadowRadius = 0f
   var fallbackShadowOffset = 0f

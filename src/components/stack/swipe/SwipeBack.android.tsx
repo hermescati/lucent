@@ -229,8 +229,9 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
     };
   }, [gestureDetectorBridge, goBackGesture, stackTag]);
 
-  // The native side names screens by tag; the transition moves them by their shadow nodes.
-  useEffect(() => {
+  // The native side names screens by tag; the transition moves them by their shadow nodes. Known before the new screen
+  // draws, where possible: its push starts on its first native frame.
+  useLayoutEffect(() => {
     if (!goBackGesture || !screensRefs) return;
     const nodes: Record<number, unknown> = {};
     for (const key in screensRefs.current) {
@@ -261,8 +262,9 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
     };
   };
 
-  // The swipe's three steps, whichever gesture drives them: begin with the screens, follow the finger, let go.
-  const begin = (pointer: PanEvent) => {
+  // The swipe's three steps, whichever gesture drives them: begin with the screens, follow the finger, let go. Says
+  // `later` when the top screen isn't known here yet, a screen just pushed whose node hasn't come over from JavaScript.
+  const begin = (pointer: PanEvent): 'later' | undefined => {
     'worklet';
     event.set(pointer);
     const tag = stackTag.get();
@@ -272,6 +274,11 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
       return;
     }
     const top = screenNodes.get()[data.topScreenTag];
+    if (top == null) {
+      updating.set(false);
+      turbo().finishTransition(tag, true);
+      return 'later';
+    }
     // Reanimated 4 measures an animated ref by its value, the view's shadow node.
     const size = measure({ value: top } as never);
     if (size == null) {
@@ -373,14 +380,24 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
       hidden.set(0);
       return;
     }
-    begin(restingEvent);
-    if (updating.get()) {
-      // Off-screen to the right, then shown: the same frame, so it never shows where it was put.
-      place(transition.get().screenDimensions.width);
-      phase?.set(swipePhase.pushing);
-    }
-    hidden.set(0);
-    release(true, 0, swipeMotion.tap, swipePhase.pushing);
+    // The push starts on the screen's first native frame, which can come before its node does: it waits for it, held
+    // unseen, rather than showing the screen in place without its slide.
+    const waited = { frames: 0 };
+    const run = () => {
+      if (begin(restingEvent) === 'later' && waited.frames < swipeMotion.pushWait) {
+        waited.frames += 1;
+        requestAnimationFrame(run);
+        return;
+      }
+      if (updating.get()) {
+        // Off-screen to the right, then shown: the same frame, so it never shows where it was put.
+        place(transition.get().screenDimensions.width);
+        phase?.set(swipePhase.pushing);
+      }
+      hidden.set(0);
+      release(true, 0, swipeMotion.tap, swipePhase.pushing);
+    };
+    run();
   };
   const setDriver = swipe?.setDriver;
   useEffect(() => {
@@ -431,7 +448,9 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
   // The same object while the bars stay put: a new one sets the gesture up again.
   const hitSlop = useMemo(() => ({ top: -barTop, bottom: -barBottom }), [barTop, barBottom]);
   const pan = usePanGesture({
-    enabled: Boolean(goBackGesture),
+    // Only with a screen to go back to: otherwise it would take sideways drags from everything under it for nothing, a
+    // stack around tabs from every screen in them, their bars' buttons too.
+    enabled: Boolean(goBackGesture) && swipe?.back === true,
     // A drag that starts on a bar is its buttons', which hold the touch as the finger moves over them; the swipe
     // starts below the bar and above a bottom toolbar.
     hitSlop,
@@ -472,8 +491,9 @@ function GHWrapper({ children, gestureDetectorBridge, goBackGesture, screensRefs
       // A flick counts for its speed, as on iOS: far enough, or fast enough, goes back.
       const moved = Math.max(pointer.translationX - start.get().translationX, 0);
       const distance = moved + Math.min(pointer.velocityX * swipeMotion.velocityFactor, swipeMotion.velocityCap);
+      const flicked = pointer.velocityX > swipeMotion.flick;
       release(
-        distance < transition.get().screenDimensions.width * swipeMotion.commit,
+        !flicked && distance < transition.get().screenDimensions.width * swipeMotion.commit,
         pointer.velocityX,
         swipeMotion.settle,
       );

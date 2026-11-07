@@ -5,9 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.os.Build
 import expo.modules.kotlin.AppContext
 import kotlin.math.abs
@@ -30,6 +32,7 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
   private val clipPath = Path()
   private val shapeRect = RectF()
   private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val fadeBounds = RectF()
   private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
   private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val frostPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -256,7 +259,9 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     val fill = if (effectTint.alpha() > 0f) effectTint else if (fallback.alpha() > 0f) fallback else activeTint
     // Nothing to fill with (a scroll edge with nothing under it): it draws nothing, not its colour made opaque.
     if (fill.alpha() <= 0f) return
-    val solid = Color.valueOf(fill.red(), fill.green(), fill.blue(), 1f)
+    // Darkened as glass is by `dim` (the screen a swipe back uncovers).
+    val lit = 1f - dim
+    val solid = Color.valueOf(fill.red() * lit, fill.green() * lit, fill.blue() * lit, 1f)
 
     // Its own solid shadow if it has one, else the glass's.
     val ownShadow = fallbackShadow.alpha() > 0f
@@ -275,7 +280,19 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     }
 
     fillPaint.color = solid.toArgb()
+    // Fading out over its last `fallbackFade` points (a bar's edge), so what scrolls under it dissolves into it rather
+    // than meeting a hard line.
+    if (fallbackFade > 0f) {
+      plainPath.computeBounds(fadeBounds, true)
+      val fadeTop = max(fadeBounds.top, fadeBounds.bottom - fallbackFade * density)
+      fillPaint.shader = LinearGradient(
+        0f, fadeTop, 0f, fadeBounds.bottom,
+        solid.toArgb(), Color.argb(0f, solid.red(), solid.green(), solid.blue()),
+        Shader.TileMode.CLAMP,
+      )
+    }
     canvas.drawPath(plainPath, fillPaint)
+    fillPaint.shader = null
     drawPlainFrost(canvas, solid)
 
     drawPressShade(canvas, solid)

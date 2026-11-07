@@ -276,7 +276,7 @@ export const BarGlassRow = ({ children, style, height, presence: own, pressable 
         cornerRadius={height}
         continuous={1}
         pressGrow={glassPress.grow}
-        pressGlowSpread={glassPress.glowSpread}
+        pressGlowSpread={glassPress.groupGlowSpread}
         pressShapes={visible.map((shape) => (pressable && shape.interactive ? glowFor(shape.width, false) : 0))}
         onLayout={(event) => laidOut.set(event.nativeEvent.layout.height)}
         style={style}>

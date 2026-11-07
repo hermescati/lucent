@@ -4,16 +4,13 @@ import {
   isValidElement,
   useCallback,
   useContext,
-  useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ComponentProps,
   type ComponentRef,
   type ReactElement,
   type ReactNode,
-  type RefObject,
 } from 'react';
 import {
   Image,
@@ -42,7 +39,7 @@ import { BarCapsule, BarGlassRow, maxBridged, resize, useBarGlassRow } from './B
 import { Split } from './Split.android';
 import { useBarType } from './barType.android';
 import { BarMeltContext, meltLook } from './melt.android';
-import { AnimatedNativeGlassBlur, NativeGlassView } from '../../../core/glass/NativeGlass';
+import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
 import { createLucentContext } from '../../../theme/context';
@@ -249,22 +246,6 @@ const SplitOff = ({
 
 type Metrics = typeof barItem | typeof toolbar;
 
-interface Frame {
-  x: number;
-  y: number;
-  width: number;
-  badge: NonNullable<ButtonItem['badge']>;
-}
-
-// Glass clips what it holds, and iOS's badge stands out over the capsule's corner. So a badged button tells the row
-// where it is, and the row draws the badge over all its glass.
-const BadgeHost = createLucentContext<{
-  row: RefObject<ComponentRef<typeof View> | null>;
-  // Bumped when the row lays out again, so the buttons measure again.
-  version: number;
-  report: (key: string, frame: Frame | null) => void;
-} | null>('BarBadgeHost', null);
-
 // A capsule's swell as an item on it shows or hides, 0 at rest: its glyphs swell with it.
 const SwellContext = createLucentContext<SharedValue<number> | null>('BarSwell', null);
 
@@ -329,17 +310,8 @@ const ItemButton = ({
   const icon = item.md || item.image;
   const openMenu = useOpenMenu();
   const ref = useRef<ComponentRef<typeof Pressable>>(null);
-  const host = useContext(BadgeHost);
+  // iOS draws badges in the navigation bar only, as expo-router notes; the bottom toolbar leaves them out.
   const badge = bottom ? undefined : item.badge;
-  const measure = useCallback(() => {
-    const row = host?.row.current;
-    if (!host || !row || !ref.current || !badge) return;
-    ref.current.measureLayout(row, (x, y, width) => host.report(item.key, { x, y, width, badge }));
-  }, [host, badge, item.key]);
-  useEffect(() => {
-    measure();
-  }, [measure, host?.version]);
-  useEffect(() => (host && badge ? () => host.report(item.key, null) : undefined), [host, badge, item.key]);
   const { menu } = item;
   const onPress = menu
     ? () => ref.current?.measureInWindow((x, y, width, height) => openMenu?.(menuTree(menu), { x, y, width, height }))
@@ -348,6 +320,18 @@ const ItemButton = ({
   // An icon's slot, and how far it's in: a hidden icon has none. Shown, its slot eases open as the capsule swells (see
   // `CapsuleSwell`) and the glyph comes out of a blur; hidden, the glyph blurs away and the slot closes, as on iOS 27.
   const slot = icon ? (grouped ? metrics.groupIcon : metrics.icon) : undefined;
+  // An icon's fill is centred on its glyph, but kept as far from the capsule's end as from its top and bottom, as iOS
+  // 27's is: the capsule ends inside the outer icons' slots, by less than the fill's centring leaves.
+  const fillWidth = grouped ? barItem.selected.groupWidth : barItem.selected.height;
+  const fillInset = (metrics.height - barItem.selected.height) / 2;
+  const capsuleEnd = grouped ? -metrics.groupPadding : 0;
+  const fillCentred = ((slot ?? 0) - fillWidth) / 2;
+  const fillStart =
+    edge === 'start'
+      ? Math.max(fillCentred, capsuleEnd + fillInset)
+      : edge === 'end'
+        ? Math.min(fillCentred, (slot ?? 0) - capsuleEnd - fillInset - fillWidth)
+        : fillCentred;
   const target = item.hidden ? 0 : slot;
   // The slot goes from one width to the other as `progress` runs 0 to 1, a little past and back.
   const fromWidth = useSharedValue(target ?? 0);
@@ -465,7 +449,6 @@ const ItemButton = ({
       style={[styles.slot, edgeStyles[edge], { height: metrics.height }, slotStyle]}>
       <Pressable
         ref={ref}
-        onLayout={badge ? measure : undefined}
         onPress={onPress}
         disabled={item.disabled || item.hidden}
         accessibilityRole="button"
@@ -487,7 +470,7 @@ const ItemButton = ({
                 backgroundColor: item.tintColor ?? barItem.selected.fill[scheme],
               },
               icon
-                ? { width: grouped ? barItem.selected.groupWidth : barItem.selected.height }
+                ? { width: fillWidth, start: fillStart }
                 : {
                     left: (metrics.height - barItem.selected.height) / 2,
                     right: (metrics.height - barItem.selected.height) / 2,
@@ -503,6 +486,13 @@ const ItemButton = ({
           glyph
         )}
       </Pressable>
+      {/* On its button, drawn over the capsule's glass, which draws what it holds over itself: it grows and leans with
+          the capsule as it's pressed, as iOS's does, and doesn't dim with the button. */}
+      {badge && !item.hidden ? (
+        <View pointerEvents="none" style={styles.badgeAnchor}>
+          <Badge {...badge} />
+        </View>
+      ) : null}
     </Animated.View>
   );
 };
@@ -510,16 +500,8 @@ const ItemButton = ({
 const Badge = ({ text: label, style }: { text: string; style?: StyleProp<TextStyle> }) => {
   const { color } = useLucentTheme();
   const flat = StyleSheet.flatten(style) ?? {};
-  // In a glass view of its own, lifted as the capsules are and after them, so it draws over their glass: a plain view
-  // would go under it. Its fill covers the glass, which brings no rim or shadow.
   return (
-    <NativeGlassView
-      lift
-      pointerEvents="none"
-      cornerRadius={badgeMetrics.size / 2}
-      rimWidth={0}
-      shadowRadius={0}
-      style={styles.badge}>
+    <View style={styles.badge}>
       <View style={[styles.badgeFill, { backgroundColor: flat.backgroundColor ?? color.buttonDestructive }]}>
         <Text
           numberOfLines={1}
@@ -535,7 +517,7 @@ const Badge = ({ text: label, style }: { text: string; style?: StyleProp<TextSty
           {label}
         </Text>
       </View>
-    </NativeGlassView>
+    </View>
   );
 };
 
@@ -598,26 +580,6 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
       : []),
   ];
   const groups = toGroups(items, bottom);
-  // iOS draws badges in the navigation bar only, as expo-router notes; the bottom toolbar leaves them out.
-  const badged = !bottom && items.some((item) => item.kind === 'button' && item.badge);
-  const rowRef = useRef<ComponentRef<typeof View>>(null);
-  const [version, setVersion] = useState(0);
-  const [frames, setFrames] = useState<Record<string, Frame>>({});
-  const report = useCallback((key: string, frame: Frame | null) => {
-    setFrames((current) => {
-      if (!frame) {
-        if (!(key in current)) return current;
-        const { [key]: _gone, ...others } = current;
-        return others;
-      }
-      const old = current[key];
-      if (old && old.x === frame.x && old.y === frame.y && old.width === frame.width && old.badge === frame.badge) {
-        return current;
-      }
-      return { ...current, [key]: frame };
-    });
-  }, []);
-  const host = useMemo(() => ({ row: rowRef, version, report }), [version, report]);
   // Plain capsules share one piece of glass, so a held one can bridge to its neighbour. A tinted or search capsule keeps
   // its own glass, and with one there the row's others do too: glass isn't drawn inside glass.
   const capsules = groups.filter(
@@ -771,22 +733,7 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
   ) : (
     <View style={rowStyle}>{content}</View>
   );
-  if (!badged) return row;
-  return (
-    <BadgeHost value={host}>
-      <View ref={rowRef} style={styles.badgeRow} onLayout={() => setVersion((value) => value + 1)}>
-        {row}
-        {Object.entries(frames).map(([key, frame]) => (
-          <View
-            key={key}
-            pointerEvents="none"
-            style={[styles.badgeAnchor, { left: frame.x, top: frame.y, width: frame.width }]}>
-            <Badge {...frame.badge} />
-          </View>
-        ))}
-      </View>
-    </BadgeHost>
-  );
+  return row;
 };
 
 const edgeStyles = StyleSheet.create({
@@ -835,6 +782,5 @@ const styles = StyleSheet.create({
   },
   badgeText: { lineHeight: badgeMetrics.size, includeFontPadding: false },
   view: { alignItems: 'center', justifyContent: 'center' },
-  badgeRow: { flexDirection: 'row' },
-  badgeAnchor: { position: 'absolute', height: 0 },
+  badgeAnchor: { position: 'absolute', top: 0, left: 0, right: 0, height: 0 },
 });

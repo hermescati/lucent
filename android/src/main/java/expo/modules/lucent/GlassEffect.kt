@@ -113,8 +113,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     }
     if (pressedShape in 0 until count && press != 0f) {
       val (sx, sy) = shapeScale()
-      val cx = (pressedRect.centerX() + shapeLeanX * PRESS_LEAN) * density + outPx
-      val cy = (pressedRect.centerY() + shapeLeanY * PRESS_LEAN) * density + outPx
+      val cx = (pressedRect.centerX() + shapeLeanX * PRESS_LEAN + shapePullX * PULL_SHIFT) * density + outPx
+      val cy = (pressedRect.centerY() + shapeLeanY * PRESS_LEAN + shapePullY * PULL_SHIFT) * density + outPx
       val hw = pressedRect.width() * 0.5f * sx * density
       val hh = pressedRect.height() * 0.5f * sy * density
       val k = pressedShape * 4
@@ -246,7 +246,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = sharpWidth * density
     state[i++] = softWidth * density
     val shapePress = pressedShape >= 0
-    state[i++] = (if (shapePress) shapeLight(glowFollowX, pressedRect.centerX()) else if (interactive) lightOf(glowFollowX, width.toFloat()) else glowX) * density + outPx
+    state[i++] = (if (shapePress) shapeLightX(glowFollowX) else if (interactive) lightOf(glowFollowX, width.toFloat()) else glowX) * density + outPx
     state[i++] = (if (shapePress) shapeLight(glowFollowY, pressedRect.centerY()) else if (interactive) lightOf(glowFollowY, height.toFloat()) else glowY) * density + outPx
     state[i++] = (if (interactive || shapePress) pressGlowSpread else glowSpread) * density
     state[i++] = if (shapePress) (pressShapes?.getOrNull(pressedShape) ?: 0f) * glowLevel else if (interactive) pressGlow * glowLevel else glowStrength
@@ -357,6 +357,15 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     state[i++] = toneBow
     state[i++] = frostBow
     state[i++] = if (tonePre && toneOn > 0f) 1f else 0f
+    val pressPullAt = i
+    val (pullX, pullY) = shapePullScale()
+    val pressPulls = pressedShape >= 0 && press != 0f && (pullX != 1f || pullY != 1f)
+    // A pull JS drives (the tab bar's search circle) where no press of this view's own is pulling.
+    val given = shapePull
+    val givenPulls = !pressPulls && given != null && given.size >= 3 && given[0] >= 0f && (given[1] != 1f || given[2] != 1f)
+    state[i++] = if (pressPulls) pressedShape.toFloat() else if (givenPulls) given!![0] else -1f
+    state[i++] = if (pressPulls) pullX else if (givenPulls) given!![1] else 1f
+    state[i++] = if (pressPulls) pullY else if (givenPulls) given!![2] else 1f
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -466,6 +475,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
     glassShader.setFloatUniform("toneBow", state[opticAt + 4], state[opticAt + 5])
     val pre = state[opticAt + 6] > 0f
     glassShader.setFloatUniform("tonePre", if (pre) 1f else 0f)
+    glassShader.setFloatUniform("pressPull", state[pressPullAt], state[pressPullAt + 1], state[pressPullAt + 2])
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
     val toneStage = toneShader?.takeIf { pre }?.let {

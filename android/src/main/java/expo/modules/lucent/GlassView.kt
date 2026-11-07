@@ -22,13 +22,23 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.Window
+import com.facebook.react.uimanager.BackgroundStyleApplicator
 import com.facebook.react.uimanager.ReactOverflowView
+import com.facebook.react.uimanager.style.BorderRadiusProp
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+
+// The physical corners, clockwise from the top left, as `Path.addRoundRect` takes their radii.
+private val CORNERS = listOf(
+  BorderRadiusProp.BORDER_TOP_LEFT_RADIUS,
+  BorderRadiusProp.BORDER_TOP_RIGHT_RADIUS,
+  BorderRadiusProp.BORDER_BOTTOM_RIGHT_RADIUS,
+  BorderRadiusProp.BORDER_BOTTOM_LEFT_RADIUS,
+)
 
 class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, appContext) {
   private val onBackdropLuma by EventDispatcher()
@@ -46,8 +56,15 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
   private val liftMatrix = Matrix()
   private val ancestorMatrix = Matrix()
   private val liftClip = RectF()
+  // A rounded ancestor that clips (a screen sliding in or swiped back, rounded as the display is): lifted glass keeps
+  // to its corners too, where the rectangle let a scrolled bar's edge show square past them.
+  private val roundClip = RectF()
+  private var rounded = false
+  private val roundRadii = FloatArray(8)
+  private val roundPath = Path()
 
   private val ancestorRect = RectF()
+  private val ownRect = RectF()
 
   private val wideNode: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassWide") else null
@@ -61,6 +78,9 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     if (lifted && !interactive && !pressesShapes && usesShader) updateEffect()
     val moved = poseChanged()
     if (moved || !pressResting) invalidate()
+    // A press still settling needs the next frame too: an invalidate here, before this frame's draw, asks for nothing
+    // more, and glass pressing as a whole (a prominent button) froze where it was let go once no touch drew frames.
+    if (!pressResting) postInvalidateOnAnimation()
     true
   }
 
@@ -150,6 +170,10 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
 
   init {
     setWillNotDraw(false)
+    // What it holds can draw past it: a pressed capsule's contents grow and lean with its glass, which draws past its
+    // bounds too, and a selected button's fill would be cut off at the row's edge.
+    clipChildren = false
+    clipToPadding = false
   }
 
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
@@ -321,11 +345,12 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     return child
   }
 
-  // What of `area` a screen over it leaves showing: screens slide sideways or up, so it's one edge moved.
-  private fun uncover(area: RectF, cover: RectF) {
+  // What of `area` a screen over it leaves showing: screens slide sideways or up, so it's one edge moved. Whether the
+  // screen spans the glass is what counts, not the whole backdrop: a screen in tabs stops short of the window.
+  private fun uncover(area: RectF, cover: RectF, glass: RectF) {
     if (!RectF.intersects(area, cover)) return
-    val spansHeight = cover.top <= area.top && cover.bottom >= area.bottom
-    val spansWidth = cover.left <= area.left && cover.right >= area.right
+    val spansHeight = cover.top <= glass.top && cover.bottom >= glass.bottom
+    val spansWidth = cover.left <= glass.left && cover.right >= glass.right
     when {
       spansHeight && spansWidth -> area.setEmpty()
       spansHeight && cover.left > area.left -> area.right = min(area.right, cover.left)
@@ -333,6 +358,20 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
       spansWidth && cover.top > area.top -> area.bottom = min(area.bottom, cover.top)
       spansWidth -> area.top = maxOf(area.top, cover.bottom)
     }
+  }
+
+  // A view's corner radii, in pixels, into `roundRadii`, clockwise from the top left; false when it has none.
+  private fun cornersOf(view: View): Boolean {
+    val all = BackgroundStyleApplicator.getBorderRadius(view, BorderRadiusProp.BORDER_RADIUS)
+    val reference = min(view.width, view.height) / density
+    var any = false
+    CORNERS.forEachIndexed { i, corner ->
+      val radius = ((BackgroundStyleApplicator.getBorderRadius(view, corner) ?: all)?.resolve(reference) ?: 0f) * density
+      roundRadii[i * 2] = radius
+      roundRadii[i * 2 + 1] = radius
+      if (radius > 0f) any = true
+    }
+    return any
   }
 
   override fun recordLifted(owner: GlassBackdropView, hostInverse: Matrix) {
@@ -351,6 +390,7 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     var alpha = 1f
     var blur = 0f
     var clipped = false
+    rounded = false
     var view: View = this
     while (view !== owner) {
       alpha *= view.alpha
@@ -362,6 +402,8 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
       if (parent is ViewGroup && parent.javaClass.name in SCREEN_CONTAINERS) {
         if (!clipped) {
           liftClip.set(0f, 0f, owner.width.toFloat(), owner.height.toFloat())
+          ownRect.set(0f, 0f, width.toFloat(), height.toFloat())
+          liftMatrix.mapRect(ownRect)
           clipped = true
         }
         for (i in parent.indexOfChild(view) + 1 until parent.childCount) {
@@ -372,7 +414,7 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
           ancestorMatrix.postConcat(hostInverse)
           ancestorRect.set(0f, 0f, above.width.toFloat(), above.height.toFloat())
           ancestorMatrix.mapRect(ancestorRect)
-          uncover(liftClip, ancestorRect)
+          uncover(liftClip, ancestorRect, ownRect)
         }
       }
       if (parent !== owner && parent is ReactOverflowView && parent.overflow != null && parent.overflow != "visible") {
@@ -381,6 +423,10 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
         ancestorMatrix.postConcat(hostInverse)
         ancestorRect.set(0f, 0f, parent.width.toFloat(), parent.height.toFloat())
         ancestorMatrix.mapRect(ancestorRect)
+        if (!rounded && cornersOf(parent)) {
+          roundClip.set(ancestorRect)
+          rounded = true
+        }
         if (clipped) {
           if (!liftClip.intersect(ancestorRect)) liftClip.setEmpty()
         } else {
@@ -424,6 +470,11 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     val out = clip.beginRecording(owner.width, owner.height)
     try {
       if (clipped) out.clipRect(liftClip)
+      if (rounded) {
+        roundPath.reset()
+        roundPath.addRoundRect(roundClip, roundRadii, Path.Direction.CW)
+        out.clipPath(roundPath)
+      }
       out.concat(liftMatrix)
       out.drawRenderNode(node)
     } finally {

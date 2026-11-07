@@ -50,13 +50,13 @@ export const barItem = {
   // iOS draws a text button's label and the back button's in SF Regular, which Roboto Regular is lighter than beside it;
   // Roboto Medium looks as heavy.
   labelWeight: '500',
-  // A `selected` button (iOS 27 simulator): a fill 36pt tall in its capsule, a circle for a lone icon, 38pt wide for an
-  // icon among others (iOS widens it with the glyph, 41pt for a shipping box), and the capsule less 4pt each side for a
-  // label. Its glyph shows the glass through it. In light mode the fill is the system blue; in dark mode iOS draws
+  // A `selected` button (iOS 27 simulator): a fill 36pt tall in its capsule, a circle for a lone icon, 41pt wide and
+  // centred on the glyph for an icon among others (41.3pt for a filter, 41 for a shipping box), and the capsule less 4pt
+  // each side for a label. Its glyph shows the glass through it. In light mode the fill is the system blue; in dark mode iOS draws
   // it lighter than the prominent button's #0A84FF.
   selected: {
     height: 36,
-    groupWidth: 38,
+    groupWidth: 41,
     fill: { light: '#007AFF', dark: '#1D97FF' },
     ink: { light: '#F7F7FC', dark: '#202020' },
   },
@@ -136,6 +136,9 @@ export const barMotion = {
   // sinks back as it goes over `inlineRiseOut`; going, it's soft by `inlineBlurBy` of the way (iOS 27 simulator: 14pt
   // below at first, half way by 120ms, settled by 430ms; going, down 13.6pt over 420ms, soft within 70ms).
   inlineRise: 14,
+  // A side's buttons widening for longer than a split or melt takes (islandSplit's spring): only then does the inline
+  // title move for it.
+  sideSettle: 450,
   inlineRiseIn: 430,
   inlineRiseOut: 420,
   inlineBlurBy: 0.2,
@@ -210,6 +213,11 @@ export const barMotion = {
   // blurred to about 40pt down, and sharp again by 52pt, well above the buttons. As fractions of the top inset: the
   // wash holds until `washTo` and is gone, with the blur, at `reach`.
   untitledEdge: { wash: 0.92, washTo: 0.65, reach: 0.82 },
+  // Drawn solid (the fallback), the edge is the page's colour down to the row's bottom, then fades to clear over this
+  // much, to where iOS's soft edge wash is gone (70pt below the row's middle, edgeWash), so what scrolls under it
+  // dissolves rather than meeting a hard line. With no title, it fades over the stretch where iOS's wash eases off
+  // (untitledEdge washTo to reach).
+  solidFade: 48,
   edgeOver: 12,
   // An opaque bar (`headerTransparent: false`) without a colour of its own, with no line under it: on the iOS 27
   // simulator, grouped grey in light mode over a white page and a grey one alike, and black in dark mode.
@@ -471,13 +479,18 @@ export const searchMotion = {
  * far up or down first, and goes back past half the screen's width, counting a flick's speed as iOS does.
  */
 export const swipeMotion = {
-  activateAfter: 20,
+  // Before a page's scroll takes a drag that leans down (Android's touch slop, 8dp), so a swipe back can lean too.
+  activateAfter: 10,
   // Android's back gesture takes drags that start this close to either side; the swipe leaves them to it.
   systemEdge: 32,
   verticalSlack: 15,
   commit: 0.5,
   velocityFactor: 0.3,
   velocityCap: 100,
+  // A flick to the right this fast, in points a second, goes back however short, as on iOS.
+  flick: 500,
+  // Frames a push waits for its screen to be known to the swipe before it gives up on the slide and shows it in place.
+  pushWait: 30,
   // The screen below's slide and dim, the springs' push and pop, and the top screen's shadow: UIKit's (core/motion/push).
   parallax: pushMotion.parallax,
   dim: pushMotion.dim,

@@ -7,6 +7,9 @@ export interface NativeGlassViewProps extends ViewProps {
   underlay?: string;
   overlay?: string;
   shapes?: number[];
+  // One of `shapes` stretched as a whole about its middle (a circle into an ellipse), toward a finger dragged off it:
+  // [index, across, down]; `shapes` keeps its unstretched size.
+  shapePull?: number[];
   inset?: number;
   cornerRadius?: number;
   blend?: number;
@@ -145,6 +148,8 @@ export interface NativeGlassViewProps extends ViewProps {
   fallbackPill?: ColorValue;
   fallbackRim?: ColorValue;
   fallbackRimWidth?: number;
+  // Drawn solid, how many points at its bottom it fades out over, to clear.
+  fallbackFade?: number;
   fallbackShadow?: ColorValue;
   fallbackShadowRadius?: number;
   fallbackShadowOffset?: number;

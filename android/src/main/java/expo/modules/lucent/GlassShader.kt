@@ -7,6 +7,9 @@ uniform shader content;
 uniform float2 size;
 uniform float4 shapes[4];
 uniform float shapeCount;
+// The pressed shape pulled toward a finger dragged off it: its index (-1 for none) and how much it's stretched across
+// and down. It's stretched as a whole, as iOS 27's is, a circle into an ellipse, rather than drawn anew at the new size.
+uniform float3 pressPull;
 uniform float radius;
 uniform float blend;
 uniform float bezel;
@@ -200,12 +203,20 @@ float field(float2 pos) {
       float2 p = i == 0 && (droplet.x != 0.0 || droplet.y != 0.0 || droplet.z != 0.0)
         ? dropletWarp(pos, shapes[i])
         : pos;
+      bool pulled = float(i) == pressPull.x;
+      if (pulled) {
+        float2 middle = (shapes[i].xy + shapes[i].zw) * 0.5;
+        p = middle + (p - middle) / pressPull.yz;
+      }
       float shape = i == 0 && wall.x != 0.0 ? wallCapsule(p, shapes[i]) : capsule(p, shapes[i]);
       if (continuous > 0.0) {
         shape = mix(shape, continuousCapsule(p, shapes[i]), continuous);
       }
       if (i == 0 && ellipse > 0.0) {
         shape = mix(shape, oval(p, shapes[i]), ellipse);
+      }
+      if (pulled) {
+        shape *= min(pressPull.y, pressPull.z);
       }
       d = smoothUnion(d, shape, blend);
     }
@@ -516,7 +527,15 @@ half4 main(float2 coord) {
   col *= 1.0 - dim;
   if (glowStrength > 0.0) {
     float2 gd = (coord - glowCenter) / max(glowSpread, 1.0);
-    float glowMask = glowShape.z > glowShape.x ? clamp(0.5 - capsule(coord, glowShape), 0.0, 1.0) : shapeCount > 1.5 ? clamp(0.5 - capsule(coord, shapes[0]), 0.0, 1.0) : 1.0;
+    // A pulled press lights its whole stretched shape, not the outline it had before the pull.
+    float2 glowAt = coord;
+    float glowScale = 1.0;
+    if (pressPull.x >= 0.0) {
+      float2 middle = (glowShape.xy + glowShape.zw) * 0.5;
+      glowAt = middle + (coord - middle) / pressPull.yz;
+      glowScale = min(pressPull.y, pressPull.z);
+    }
+    float glowMask = glowShape.z > glowShape.x ? clamp(0.5 - capsule(glowAt, glowShape) * glowScale, 0.0, 1.0) : shapeCount > 1.5 ? clamp(0.5 - capsule(coord, shapes[0]), 0.0, 1.0) : 1.0;
     col += float3(glowStrength * exp(-0.5 * dot(gd, gd)) * glowMask);
   }
 

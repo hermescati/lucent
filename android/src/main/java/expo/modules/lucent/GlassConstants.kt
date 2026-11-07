@@ -50,6 +50,14 @@ internal const val OUTSIDE_REACH = 28f
 internal const val LIGHT_FOLLOW = 0.35f
 internal const val PRESS_LEAN = 1.5f
 internal const val PRESS_STRETCH = 0.01f
+// A finger dragged off pressed glass pulls it along (iOS 27 simulator, held 8 to 578pt below a bar capsule): it grows
+// this much longer toward the finger per point beyond its edge, and as much narrower across, its centre moving this far
+// toward it per point, without letting up, to this far.
+internal const val PULL_STRETCH = 0.000256f
+internal const val PULL_SHIFT = 0.014f
+internal const val PULL_REACH = 700f
+// A pressed shape this many times as wide as it's tall holds more than one button: its light follows the finger along it.
+internal const val WIDE_SHAPE = 1.5f
 internal const val FOLLOW_TIME = 0.05f
 internal const val MAX_STEP = 0.05f
 internal const val IDLE_GAP = 0.1f
