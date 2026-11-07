@@ -113,7 +113,7 @@ export const modes: NavigationBarMode[] = [
 </Stack.Toolbar>
 <Stack.SearchBar placement="integratedButton" placeholder="Search" />`,
     support: 'both',
-    gap: "The folder and grid buttons at the bottom are the screen's bottom toolbar: with it there, search goes up into the navigation bar as a magnifier on the trailing buttons' capsule. integratedCentered draws the same on iPhone. The tab bar hides on this screen, as in Apple's apps, so the toolbar has the bottom. The magnifier opens the field in the bar: its capsule stretches left into it, and the close button buds off at its end.",
+    gap: "The folder and grid buttons at the bottom are the screen's bottom toolbar: with it there, search goes up into the navigation bar as a magnifier on the trailing buttons' capsule. integratedCentered draws the same on iPhone. The tab bar hides on this screen, as in Apple's apps, so the toolbar has the bottom. The magnifier opens the field in the bar: its capsule stretches left into it, and the close button splits off its end.",
   },
   {
     slug: 'search-bottom',

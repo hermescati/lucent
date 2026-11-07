@@ -53,12 +53,6 @@ const screens: Entry[] = [
     href: '/components/tab-bar',
     group: 'navigation',
   },
-  {
-    name: 'Search',
-    summary: 'SearchBar: the search tab that morphs into a field',
-    href: '/search',
-    group: 'navigation',
-  },
 ];
 
 /** Every entry, in no particular order: what search looks through. */

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
@@ -19,6 +19,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import { BarItems } from '../header/BarItems.android';
 import { BarMeltContext, meltLook } from '../header/melt.android';
 import { useSwipeMelt } from '../header/swipeMelt.android';
+import { SearchBubbleContext } from '../search/SearchField.android';
 import { searchMotion, toolbar } from '../tokens';
 import type { LucentToolbarProps } from '../types';
 
@@ -83,6 +84,7 @@ export const BottomToolbar = ({
   const row = useAnimatedStyle(() => ({ marginHorizontal: side - inset.get() }));
   const { melt: swipeMelt, holdStyle } = useSwipeMelt(pushed);
   // In search mode its items go as the keyboard comes up (a clock standing in without one), and come back as it goes.
+  const bubble = useContext(SearchBubbleContext);
   const clock = useSharedValue(0);
   useEffect(() => {
     const { fallback, fallbackOver } = searchMotion.bottom;
@@ -90,6 +92,14 @@ export const BottomToolbar = ({
   }, [searching, clock]);
   const away = useDerivedValue(() => {
     const { melt: going, toolbarBack } = searchMotion.bottom;
+    // Out of the stack's field up ahead of time, they go as it grows out of their slot, and come back as its glass fades
+    // or as the keyboard goes, whichever's later.
+    if (bubble) {
+      const field =
+        interpolate(bubble.stretch.get(), going, [0, 1], Extrapolation.CLAMP) * Math.min(bubble.up.get(), 1);
+      const typing = searching || returning ? interpolate(progress.get(), toolbarBack, [0, 1], Extrapolation.CLAMP) : 0;
+      return Math.max(field, typing);
+    }
     if (searching) return interpolate(Math.max(progress.get(), clock.get()), going, [0, 1], Extrapolation.CLAMP);
     return returning ? interpolate(progress.get(), toolbarBack, [0, 1], Extrapolation.CLAMP) : 0;
   });

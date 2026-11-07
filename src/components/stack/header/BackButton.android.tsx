@@ -1,12 +1,20 @@
-import { useRef, useState, type ComponentRef } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useLayoutEffect, useRef, useState, type ComponentRef } from 'react';
+import { I18nManager, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { BarCapsule } from './BarCapsule.android';
+import { BarCapsule, resize } from './BarCapsule.android';
 import { Chevron } from './Chevron';
 import { useBarType } from './barType.android';
 import { useOpenMenu } from '../menu/Menu.android';
 import type { MenuTree } from '../menu/items';
-import { backButton, barItem } from '../tokens';
+import { backButton, barItem, barItemMotion } from '../tokens';
 
 interface Props {
   label?: string;
@@ -30,6 +38,7 @@ const capsuleFor = (labelWidth: number) =>
 /**
  * iOS 26's back button: a glass capsule with the chevron and the previous screen's title, or a circle with the chevron.
  * As UIKit does, it never cuts the title short: a title that doesn't fit gives way to "Back", and that to the chevron.
+ * Its label coming or going, the capsule opens or closes about it as the bar's island does as an item shows or hides.
  */
 export const BackButton = ({ label, displayMode = 'default', color, onPress, history, room }: Props) => {
   const [widths, setWidths] = useState({ label: 0, back: 0 });
@@ -46,6 +55,9 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
         : fits(widths.back)
           ? 'Back'
           : undefined;
+  // The label last shown, kept while it goes.
+  const [shownText, setShownText] = useState(text);
+  if (text !== undefined && text !== shownText) setShownText(text);
   const openMenu = useOpenMenu();
   const type = useBarType();
   const ref = useRef<ComponentRef<typeof Pressable>>(null);
@@ -53,22 +65,82 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
     history && openMenu
       ? () => ref.current?.measureInWindow((x, y, width, height) => openMenu(history, { x, y, width, height }))
       : undefined;
+
+  const labelled = text !== undefined;
+  const target = labelled ? capsuleFor(text === label ? widths.label : widths.back) : barItem.icon;
+  const fromWidth = useSharedValue(target);
+  const toWidth = useSharedValue(target);
+  const progress = useSharedValue(1);
+  const shown = useSharedValue(labelled ? 1 : 0);
+  const swell = useSharedValue(0);
+  const was = useRef(labelled);
+  useLayoutEffect(() => {
+    const now = fromWidth.get() + (toWidth.get() - fromWidth.get()) * progress.get();
+    fromWidth.set(now);
+    toWidth.set(target);
+    if (was.current === labelled) {
+      // The same label, measured again or swapped for "Back": no show, it just takes its width.
+      if (progress.get() >= 1) fromWidth.set(target);
+      return;
+    }
+    was.current = labelled;
+    const { show, hide } = barItemMotion;
+    const { swellUp, swellDown } = labelled ? show : hide;
+    progress.set(0);
+    progress.set(resize(labelled));
+    swell.set(
+      withSequence(
+        withTiming(1, { duration: swellUp, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: swellDown, easing: Easing.inOut(Easing.quad) }),
+      ),
+    );
+    shown.set(
+      labelled
+        ? withDelay(show.glyphDelay, withTiming(1, { duration: show.glyph }))
+        : withTiming(0, { duration: hide.glyph }),
+    );
+  }, [target, labelled, fromWidth, toWidth, progress, shown, swell]);
+  const bodyStyle = useAnimatedStyle(() => {
+    const width = fromWidth.get() + (toWidth.get() - fromWidth.get()) * progress.get();
+    // The chevron moves from the circle's middle to its place before a label.
+    const alone = (barItem.icon - backButton.chevronWidth) / 2 - backButton.aloneShift;
+    return {
+      width: Math.max(width, 0),
+      paddingStart: alone + (backButton.leading - alone) * shown.get(),
+    };
+  });
+  const labelStyle = useAnimatedStyle(() => ({
+    opacity: shown.get() * shown.get(),
+    transform: [{ scale: barItemMotion.leaveScale + (1 - barItemMotion.leaveScale) * shown.get() }],
+  }));
   return (
-    <BarCapsule>
-      <Pressable
-        ref={ref}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        accessibilityRole="button"
-        accessibilityLabel={label ? `Back to ${label}` : 'Back'}
-        style={[styles.body, text ? styles.withLabel : styles.alone]}>
-        <Chevron color={color} />
-        {text ? (
-          <Text numberOfLines={1} allowFontScaling={false} style={[styles.label, type.item, { color }]}>
-            {text}
-          </Text>
-        ) : null}
-      </Pressable>
+    <BarCapsule swell={swell}>
+      <Animated.View style={[styles.body, bodyStyle]}>
+        <Pressable
+          ref={ref}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          accessibilityRole="button"
+          accessibilityLabel={label ? `Back to ${label}` : 'Back'}
+          style={styles.press}>
+          <Chevron color={color} />
+          {shownText !== undefined ? (
+            <Animated.Text
+              numberOfLines={1}
+              allowFontScaling={false}
+              importantForAccessibility={labelled ? 'auto' : 'no-hide-descendants'}
+              style={[
+                styles.label,
+                type.item,
+                { color, width: Math.ceil(shownText === label ? widths.label : widths.back) + 1 },
+                styles.labelAfter,
+                labelStyle,
+              ]}>
+              {shownText}
+            </Animated.Text>
+          ) : null}
+        </Pressable>
+      </Animated.View>
       {displayMode === 'default' && label ? (
         <View
           pointerEvents="none"
@@ -88,15 +160,18 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
 };
 
 const styles = StyleSheet.create({
-  body: { height: barItem.height, flexDirection: 'row', alignItems: 'center' },
-  withLabel: { paddingLeft: backButton.leading, paddingRight: backButton.trailing, gap: backButton.gap },
-  // iOS sits the chevron 1.5pt left of the circle's centre, so it looks centred.
-  alone: { width: barItem.icon, justifyContent: 'center', paddingRight: backButton.aloneShift * 2 },
+  // Clipped, so the label goes as the capsule closes over it. Alone, iOS sits the chevron 1.5pt left of the circle's
+  // centre, so it looks centred.
+  body: { height: barItem.height, overflow: 'hidden' },
+  press: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  // Whole as the capsule closes over it, never cut short.
+  labelAfter: { marginStart: backButton.gap, flexShrink: 0, transformOrigin: I18nManager.isRTL ? 'right' : 'left' },
   // The labels at their own widths, unseen, to decide which fits.
   measure: { position: 'absolute', opacity: 0, alignItems: 'flex-start', width: 1000 },
   label: {
     fontSize: barItem.fontSize,
     lineHeight: barItem.lineHeight,
+    fontWeight: barItem.labelWeight,
     includeFontPadding: false,
   },
 });

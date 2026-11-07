@@ -57,6 +57,13 @@ abstract class GlassPress(context: Context, appContext: AppContext) : GlassProps
     val elapsed = if (lastFrame == 0L) 0f else (now - lastFrame) / 1000f
     lastFrame = now
     if (elapsed <= 0f) return
+    // The pressed shape where it is now, not where it was when pressed: a press can start it moving or melting away, as a
+    // close button's does, and its glow goes with it rather than staying behind at its old size.
+    val source = shapes
+    if (pressedShape >= 0 && source != null && pressedShape * 4 + 3 < source.size) {
+      val k = pressedShape * 4
+      pressedRect.set(source[k], source[k + 1], source[k + 2], source[k + 3])
+    }
     val dt = if (elapsed > IDLE_GAP) FRAME_STEP else elapsed.coerceAtMost(MAX_STEP)
     val pressing = pressTarget > 0.5f
     val omega = if (pressing) PRESS_IN_OMEGA else PRESS_OUT_OMEGA

@@ -20,8 +20,9 @@ export const useHeaderSearchBlock = (routeKey: string) => {
     collapses: inBar && state?.props.hideWhenScrolling !== false && !state?.focused,
     // Focused in the bar, the field rises into the row, and the row's items and title step aside.
     focusedInBar: inBar && Boolean(state?.focused),
-    // A magnifier among the bar's items, which opens the field.
-    button: placement === 'barButton' && !state?.focused,
+    // A magnifier among the bar's items, which opens the field. It stays while the field is open, hidden with the row's
+    // trailing capsule under it, so the capsule is whole as the field stretches out of it and comes back whole.
+    button: placement === 'barButton',
     // Opened from that magnifier, the field takes the bar's row.
     barFocused: placement === 'barButton' && Boolean(state?.focused),
   };

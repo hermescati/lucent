@@ -1,6 +1,6 @@
 import { useIsFocused, useTheme } from 'expo-router';
 import type { NativeStackHeaderProps } from 'expo-router/native-stack';
-import { useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Platform,
   processColor,
@@ -28,24 +28,35 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { BackButton } from './BackButton.android';
-import { BarSearchButtonContext } from './BarItems.android';
+import { BarGlassPresenceContext, BarReturnContext } from './BarCapsule.android';
+import { BarBackButtonContext, BarSearchButtonContext } from './BarItems.android';
+import { Split } from './Split.android';
 import { useBarTop } from './barTop.android';
 import { useBarType, useLargeBlock } from './barType.android';
 import { BarMeltContext } from './melt.android';
+import { useTabSearchActive } from '../../../core/tabs/TabBarReach';
 import { backgroundOf } from '../page.android';
 import { useHeaderSearchBlock } from './searchBlock.android';
 import { getHeader } from './store.android';
 import { useSwipeMelt } from './swipeMelt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { headerOffset, searchLift } from '../../../core/header/scroll.android';
-import { useTabSearchActive } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
 import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
-import { getSearch, updateSearch } from '../search/store.android';
+import { getSearch, searchFocusDrive, updateSearch } from '../search/store.android';
 import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
-import { bar, barMargin, barMotion, search as searchMetrics, searchMotion, title } from '../tokens';
+import {
+  bar,
+  barItem,
+  barMargin,
+  barMotion,
+  islandReturn,
+  search as searchMetrics,
+  searchMotion,
+  title,
+} from '../tokens';
 import type { LucentStackScreenOptions } from '../types';
 
 const colorString = (value: ColorValue | undefined) => (typeof value === 'string' ? value : undefined);
@@ -193,6 +204,18 @@ const liftEasing = (t: number) => {
   return (1 - Math.exp(-k * t)) / (1 - Math.exp(-k));
 };
 
+// Rising into the row, past it and settling back; or going back down.
+const liftTo = (risen: boolean, rise: number) => {
+  'worklet';
+  const { duration, overshoot, back } = searchMotion.lift;
+  return risen
+    ? withSequence(
+        withTiming(rise + overshoot, { duration, easing: liftEasing }),
+        withTiming(rise, { duration: back, easing: Easing.inOut(Easing.quad) }),
+      )
+    : withSpring(0, { ...searchMotion.drop, mass: 1, overshootClamping: true });
+};
+
 // The magnifier among the trailing items: it opens search, as the field does.
 const searchButtonFor = (routeKey: string) => ({
   label: getSearch(routeKey)?.props.placeholder ?? 'Search',
@@ -260,6 +283,29 @@ const backHistory = (navigation: Navigation, backTitle: string | undefined): Men
  * iOS 26's navigation bar on Android: glass items in a row at the top, the title centred between them or large below,
  * collapsing into the bar as the content scrolls. native-stack renders it for each screen through `header`.
  */
+/**
+ * The back button beside leading items that aren't `Stack.Toolbar`'s, as `headerBackVisible` brings it or takes it
+ * away: it splits off them or melts back in (`Split`), on its own glass, so with no neck. Without leading items, it just
+ * shows or goes.
+ */
+const BackSplit = ({ shown, beside, children }: { shown: boolean; beside: boolean; children: ReactNode }) => {
+  const [mounted, setMounted] = useState(shown);
+  // There with the screen, it just shows; brought later, it splits off.
+  const [appear, setAppear] = useState(false);
+  if (shown && !mounted) {
+    setMounted(true);
+    setAppear(true);
+  }
+  const gone = useCallback(() => setMounted(false), []);
+  if (!beside) return shown ? children : null;
+  if (!mounted) return null;
+  return (
+    <Split shown={shown} appear={appear} toward="end" size={bar.row} onGone={gone}>
+      {children}
+    </Split>
+  );
+};
+
 export const Header = ({ options, route, navigation, back }: NativeStackHeaderProps) => {
   const top = useBarTop();
   const { color, scheme, solid } = useLucentTheme();
@@ -282,11 +328,113 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const lift = searchLift(route.key);
   const searchProgress = useDerivedValue(() => (rise > 0 ? lift.get() / rise : 0));
   // The row's title and buttons step aside as it comes.
-  const rowStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(rowAside ? 0 : 1, {
-      duration: rowAside ? searchMotion.rowOut : searchMotion.rowIn,
-    }),
-  }));
+  // How far the field opening from the magnifier has stretched out of the trailing capsule, 0 to 1: the row's title,
+  // the magnifier and the capsule's glass go the frame it starts, as iOS 27's do.
+  const fieldStretch = useSharedValue(0);
+  // 1 from the moment it starts closing, at the close button's press, until it next opens; everything that comes back
+  // with it follows its stretch from then, on the UI thread, rather than this render.
+  const fieldClosing = useSharedValue(0);
+  // 1 from the magnifier's press, or search mode starting, until it starts closing: the row's title and buttons go with
+  // it, on the UI thread.
+  const fieldOpen = useSharedValue(0);
+  const opening = useDerivedValue(() => fieldOpen.get() === 1 && fieldStretch.get() > 0);
+  // The field's opening, which the magnifier starts at its press.
+  const startField = useRef<(() => void) | null>(null);
+  // Landing back in the trailing capsule, the field swells as it nears it and the capsule takes the swell over and
+  // deflates, as iOS 27's island does taking the field back in: one piece of glass, not one swapped for another.
+  const landSwell = useSharedValue(0);
+  useAnimatedReaction(
+    () => fieldStretch.get(),
+    (now, was) => {
+      if (fieldClosing.get() !== 1 || was === null) return;
+      const { from, at, peak, settle } = searchMotion.bar.land;
+      // Swelling as it nears, and deflating once it's arrived, as the last of its stretch eases out.
+      if (now > at) landSwell.set(interpolate(now, [at, from], [peak, 0], 'clamp'));
+      else if (was > at) landSwell.set(withTiming(0, { duration: settle, easing: Easing.inOut(Easing.quad) }));
+    },
+  );
+  // Closing, it comes back last, once the field is back in its capsule.
+  const magnifierBack = useSharedValue(1);
+  const magnifierShows = useDerivedValue<number>(() =>
+    fieldOpen.get() === 1 ? (opening.get() ? 0 : 1) : magnifierBack.get(),
+  );
+  // The same from one render to the next, so opening search doesn't redraw the bar's items.
+  const placeholder = getSearch(route.key)?.props.placeholder;
+  const searchButton = useMemo(() => {
+    const plain = searchButtonFor(route.key);
+    const open = () => {
+      if (!startField.current) return plain.open();
+      getSearch(route.key)?.props.onOpen?.();
+      startField.current();
+    };
+    return { ...plain, open, label: placeholder ?? 'Search', shows: magnifierShows, land: landSwell };
+  }, [route.key, placeholder, magnifierShows, landSwell]);
+  const rowStyle = useAnimatedStyle(() => {
+    // Opening from the magnifier, iOS has them gone at once.
+    if (fieldOpen.get() === 1) return { opacity: opening.get() ? 0 : 1 };
+    // Closing from the magnifier, the title comes back as the field draws away from it.
+    if (fieldClosing.get() === 1) {
+      const { from, to } = searchMotion.bar.titleIn;
+      return { opacity: interpolate(fieldStretch.get(), [to, from], [1, 0], 'clamp') };
+    }
+    if (!rowAside) {
+      return { opacity: withTiming(1, { duration: searchMotion.rowIn }) };
+    }
+    // Opening from the magnifier, iOS has them gone at once.
+    if (barFocused) return { opacity: opening.get() ? 0 : 1 };
+    return { opacity: withTiming(0, { duration: searchMotion.rowOut }) };
+  });
+  const returnScale = useSharedValue(1);
+  const returnDip = useSharedValue(0);
+  // The leading side the same, but back at once closing from the magnifier: its back button buds off the field's start.
+  const leadStyle = useAnimatedStyle(() => {
+    if (fieldOpen.get() === 1) return { opacity: opening.get() ? 0 : 1 };
+    // Shown with its return under way, not the frame before it, when it'd be whole under the field.
+    if (fieldClosing.get() === 1) return { opacity: returnScale.get() !== 1 || fieldStretch.get() === 0 ? 1 : 0 };
+    if (!rowAside) {
+      return { opacity: withTiming(1, { duration: searchMotion.rowIn }) };
+    }
+    if (barFocused) return { opacity: opening.get() ? 0 : 1 };
+    return { opacity: withTiming(0, { duration: searchMotion.rowOut }) };
+  });
+  // Back from search, the leading capsules grow back and sink a little as the field closes up beside them, as iOS 27's
+  // back button does.
+  const returning = useMemo(() => ({ scale: returnScale, dip: returnDip }), [returnScale, returnDip]);
+  const comeBack = useCallback(() => {
+    returnScale.set(islandReturn.from);
+    returnScale.set(withSpring(1, islandReturn.spring));
+    returnDip.set(withSequence(withSpring(islandReturn.dip, islandReturn.dipIn), withSpring(0, islandReturn.dipOut)));
+  }, [returnScale, returnDip]);
+  // As a field that rose into the row goes back down out of its way, or as one opened from the magnifier draws back
+  // into the trailing capsule, its back button budding off its start; the magnifier comes back last.
+  const wasRisen = useRef(focusedInBar);
+  useEffect(() => {
+    if (wasRisen.current && !focusedInBar) comeBack();
+    wasRisen.current = focusedInBar;
+  }, [focusedInBar, comeBack]);
+  // Before the commit paints, so the back button shows small on its first frame rather than whole and then shrinking.
+  useAnimatedReaction(
+    () => fieldOpen.get(),
+    (now, was) => {
+      if (now === 1 && was === 0) {
+        magnifierBack.set(0);
+        landSwell.set(0);
+      }
+    },
+  );
+  useAnimatedReaction(
+    () => fieldClosing.get(),
+    (now, was) => {
+      if (now !== 1 || was !== 0) return;
+      // Slower than beside a field going back down: it buds off the field's start and grows with it as it draws away.
+      const { from, spring } = searchMotion.bar.backReturn;
+      returnScale.set(from);
+      returnScale.set(withSpring(1, spring));
+      returnDip.set(withSequence(withSpring(islandReturn.dip, islandReturn.dipIn), withSpring(0, islandReturn.dipOut)));
+      const { delay, duration } = searchMotion.bar.magnifierIn;
+      magnifierBack.set(withDelay(delay, withTiming(1, { duration })));
+    },
+  );
   // A search field in the bar scrolls away first; the rest of the bar follows the scroll that's left.
   const offset = useDerivedValue(() =>
     collapses ? scrolled.get() - Math.min(Math.max(scrolled.get(), 0), block) : scrolled.get(),
@@ -325,22 +473,32 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const height = top + bar.inline + (below ? largeBlock : 0) + block;
   // Focused, a field in the bar rises from its block into the row, as on iOS, and the content follows it up. In search
   // mode from the bottom, the bar hides and the content moves up into the part of it that shows.
+  // A field in the bar's block rises, or goes back down, on the frame after search mode changes, before the render that
+  // follows, which leaves `lifted` saying so.
+  const focusDrive = useMemo(() => searchFocusDrive(route.key), [route.key]);
+  const lifted = useSharedValue(-1);
+  const inBlock = block > 0;
+  useAnimatedReaction(
+    () => focusDrive.get(),
+    (now, was) => {
+      if (was === null || now === was || !inBlock || hidden) return;
+      lift.set(liftTo(now === 1, rise));
+      lifted.set(now);
+    },
+  );
   useEffect(() => {
-    const { duration, overshoot, back } = searchMotion.lift;
     if (hidden) {
       const shows = bar.inline + Math.max(height - top - bar.inline - Math.max(scrolled.get(), 0), 0);
       lift.set(withSpring(shows, { ...searchMotion.hide, mass: 1, overshootClamping: true }));
       return;
     }
-    lift.set(
-      focusedInBar
-        ? withSequence(
-            withTiming(rise + overshoot, { duration, easing: liftEasing }),
-            withTiming(rise, { duration: back, easing: Easing.inOut(Easing.quad) }),
-          )
-        : withSpring(0, { ...searchMotion.drop, mass: 1, overshootClamping: true }),
-    );
-  }, [lift, focusedInBar, rise, hidden, height, top, scrolled]);
+    // Already on its way.
+    if (lifted.get() === (focusedInBar ? 1 : 0)) {
+      lifted.set(-1);
+      return;
+    }
+    lift.set(liftTo(focusedInBar, rise));
+  }, [lift, lifted, focusedInBar, rise, hidden, height, top, scrolled]);
   // An opaque bar covers what's under it, down to its bottom, which rides up with the content until only the row's left.
   const fillStyle = useAnimatedStyle(() => ({
     height: Math.max(top + bar.inline, height - Math.max(scrolled.get(), 0)),
@@ -366,8 +524,31 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     return { transform: [{ translateY: -Math.max(y, 0) }], opacity: 1 - largeGone.get() };
   });
   const largeBlur = useAnimatedProps(() => ({ radius: largeGone.get() * barMotion.titleBlur }));
-  const inlineStyle = useAnimatedStyle(() => ({ opacity: inlineIn.get() }));
-  const inlineBlur = useAnimatedProps(() => ({ radius: (1 - inlineIn.get()) * barMotion.titleBlur }));
+  // The copy in the edge's glass rises as a whole: Android doesn't draw a view whose box is outside its parent's, what
+  // it holds included, and it starts just below the edge.
+  const largeEdgeRise = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.max(collapsible ? offset.get() : 0, 0) }],
+  }));
+  const largeEdgeFade = useAnimatedStyle(() => ({ opacity: 1 - largeGone.get() }));
+  // Rising into the row as it comes, sinking as it goes.
+  const inlineUp = useDerivedValue(() =>
+    large
+      ? collapsed.get()
+        ? withTiming(1, { duration: barMotion.inlineRiseIn, easing: Easing.out(Easing.cubic) })
+        : withTiming(0, { duration: barMotion.inlineRiseOut, easing: Easing.inOut(Easing.quad) })
+      : 1,
+  );
+  const inlineStyle = useAnimatedStyle(() => ({
+    opacity: inlineIn.get(),
+    transform: [{ translateY: (1 - inlineUp.get()) * barMotion.inlineRise }],
+  }));
+  // Coming, it sharpens as it fades in; going, it's soft almost at once.
+  const inlineBlur = useAnimatedProps(() => {
+    const out = 1 - inlineIn.get();
+    return {
+      radius: (collapsed.get() ? out : Math.min(out / barMotion.inlineBlurBy, 1)) * barMotion.titleBlur,
+    };
+  });
 
   // The edge comes in once content runs under the row: right away for an inline bar, after the large title's block.
   const under = useDerivedValue(() =>
@@ -404,6 +585,9 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     },
   );
   // The back button both screens have: the one going hides as the other shows, the same button in the same place.
+  // Beside `Stack.Toolbar`'s leading items, the back button goes on their glass, to split off it and melt back into it.
+  const backOnBar =
+    back !== undefined && Boolean((options.headerLeft as { lucentBarItems?: boolean } | undefined)?.lucentBarItems);
   const backStyle = useAnimatedStyle(() => {
     const phase = swipe?.phase.get() ?? swipePhase.idle;
     if (!role || phase === swipePhase.idle) return { opacity: 1 };
@@ -437,25 +621,73 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const wash = scheme === 'dark' ? (hard ? '#000000' : barMotion.edgeWash.dark) : '#FFFFFF';
   // UIKit centres the inline title when it fits between the bar's two sides with room to spare, and otherwise starts it
   // after the leading side, the bar's gap from it, cut short before the trailing side: Wallet's title sits beside its
-  // back button. The room asked for is the bar's margin on each side, so a title never centres up against a button.
+  // back button. It needs the bar's 12pt gap from each side's buttons and no more (iOS 27 simulator: "Wallet ID" centres
+  // 13.7pt from three icons, "Wallet IDs", which would come 9.2pt from them, starts after the back button).
   const [sides, setSides] = useState({ left: 0, right: 0, title: 0 });
   const measure = (key: keyof typeof sides) => (event: LayoutChangeEvent) => {
     const value = event.nativeEvent.layout.width;
     setSides((current) => (current[key] === value ? current : { ...current, [key]: value }));
   };
-  // The back button's room: the bar less its margins, the trailing side, and the title beside it.
   const margin = barMargin(width);
+  // The trailing capsule becomes the field: its glass goes at once, the field's taking its place (lifted glass is drawn
+  // by the backdrop, which an opacity around it doesn't reach), and its items ride the field's start as it grows,
+  // fading out, as iOS 27's do. Its glass is back once the field has drawn back into it.
+  // On the UI thread, from the field's own stretch, so the capsule's glass is back the frame the field's goes.
+  const trailGlass = useDerivedValue<number>(() => (fieldOpen.get() === 1 || fieldStretch.get() > 0 ? 0 : 1));
+  // How far that takes the field's start, which the trailing capsule's items ride.
+  const fieldReach = Math.max(width - margin * 2 - Math.max(sides.right, barItem.height), 0);
+  const trailStyle = useAnimatedStyle(() => {
+    if (opening.get()) {
+      return {
+        opacity: withTiming(0, { duration: searchMotion.bar.itemsOut }),
+        transform: [{ translateX: -fieldStretch.get() * fieldReach }],
+      };
+    }
+    // Closing from the magnifier, its items ride the field's start back into the capsule, the open run backwards,
+    // showing as it nears the capsule.
+    if (fieldClosing.get() === 1) {
+      const stretch = fieldStretch.get();
+      return {
+        opacity: interpolate(stretch, [0, searchMotion.bar.itemsIn], [1, 0], 'clamp'),
+        transform: [{ translateX: -stretch * fieldReach }],
+      };
+    }
+    if (!rowAside) {
+      return { opacity: withTiming(1, { duration: searchMotion.rowIn }), transform: [{ translateX: 0 }] };
+    }
+    if (barFocused) {
+      return {
+        opacity: withTiming(0, { duration: searchMotion.bar.itemsOut }),
+        transform: [{ translateX: -fieldStretch.get() * fieldReach }],
+      };
+    }
+    return { opacity: withTiming(0, { duration: searchMotion.rowOut }) };
+  });
   const type = useBarType();
+  // The back button's room: the bar less its margins, the trailing side, and the title beside it.
   const backRoom =
     width -
     2 * margin -
     (sides.right > 0 ? sides.right + bar.groupGap : 0) -
     (custom === null && label ? sides.title + bar.groupGap : 0);
+  const backButton = (
+    <BackButton
+      label={options.headerBackTitle ?? back?.title}
+      displayMode={options.headerBackButtonDisplayMode}
+      room={backRoom}
+      color={tint}
+      onPress={() => (goBack ? goBack() : navigation.goBack())}
+      history={
+        options.headerBackButtonMenuEnabled === false
+          ? undefined
+          : backHistory(navigation, options.headerBackTitle ?? back?.title)
+      }
+    />
+  );
   const leftEnd = margin + sides.left + (sides.left > 0 ? bar.groupGap : 0);
   const rightStart = width - margin - sides.right - (sides.right > 0 ? bar.groupGap : 0);
   const centredLeft = (width - sides.title) / 2;
-  const centred =
-    custom !== null || (centredLeft >= leftEnd + margin && centredLeft + sides.title <= rightStart - margin);
+  const centred = custom !== null || (centredLeft >= leftEnd && centredLeft + sides.title <= rightStart);
   // Only a title that cross-fades with a large one blurs: the others go without the blur's layer.
   const inlineText = custom ?? (
     <Text
@@ -484,6 +716,25 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         inlineText
       )}
     </Animated.View>
+  );
+  // The large title below the row. The edge's glass is drawn over everything, so as the title rides up under it and
+  // fades, a copy drawn in the glass shows it there, as iOS's stays in view as it goes (one for screen readers).
+  const largeText = (heading: boolean) => (
+    <AnimatedNativeGlassBlur animatedProps={largeBlur} style={styles.leading}>
+      <Animated.Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        accessibilityRole={heading ? 'header' : undefined}
+        importantForAccessibility={heading ? 'auto' : 'no-hide-descendants'}
+        style={[
+          styles.largeTitle,
+          type.large,
+          { paddingHorizontal: margin, color: titleColor },
+          heading ? largeStyle : largeEdgeFade,
+        ]}>
+        {label}
+      </Animated.Text>
+    </AnimatedNativeGlassBlur>
   );
   // The title's own width, unclipped, to decide where it goes.
   const titleMeasure = custom ? null : (
@@ -527,16 +778,46 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
                   : { blur: barMotion.edgeFade, to: top + bar.row * barMotion.edgeFadeTo }
           }
           tail={
-            soft && !untitled && !solid ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur } : undefined
+            soft && !untitled && !solid
+              ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur }
+              : undefined
           }
           fallback={solid ? backgroundOf(options, colors.background) : undefined}
           under={under}>
           {untitled ? null : (
             <Animated.View style={[styles.titleRow, { marginTop: top }, rowStyle]}>{inlineTitle}</Animated.View>
           )}
+          {below ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.largeInEdge, { top: top + bar.inline, height: largeBlock }, rowStyle, largeEdgeRise]}>
+              {largeText(false)}
+            </Animated.View>
+          ) : null}
         </ScrollEdge>
       ) : null}
-      <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, { paddingHorizontal: margin }, rowStyle]}>
+      {/* Up ahead of time, out of sight, so it opens on the first frame; under the row, whose trailing items fade out
+      over it as it grows out of their capsule. */}
+      {button || barSearchShown ? (
+        <View
+          // Up ahead of time, out of sight, it lets touches through to the row under it (the glass view in it doesn't
+          // take a pointerEvents of its own).
+          pointerEvents={barFocused ? 'box-none' : 'none'}
+          style={[styles.barSearch, { top, left: margin, right: margin }]}>
+          <BarSearch
+            routeKey={route.key}
+            from={sides.right}
+            open={barFocused}
+            stretch={fieldStretch}
+            closing={fieldClosing}
+            land={landSwell}
+            opened={fieldOpen}
+            starterRef={startField}
+            onClosed={closeBarSearch}
+          />
+        </View>
+      ) : null}
+      <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, { paddingHorizontal: margin }]}>
         {titleMeasure}
         {placement === 'row' ? (
           <View pointerEvents="none" style={[styles.rowTitle, styles.leading]}>
@@ -544,7 +825,13 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
               numberOfLines={1}
               allowFontScaling={false}
               accessibilityRole="header"
-              style={[styles.largeTitle, type.large, styles.largeOnRow, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
+              style={[
+                styles.largeTitle,
+                type.large,
+                styles.largeOnRow,
+                { paddingHorizontal: margin, color: titleColor },
+                largeStyle,
+              ]}>
               {label}
             </Animated.Text>
           </View>
@@ -552,43 +839,35 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         {/* Without the edge's glass to draw in: an opaque bar's title, or a view in a bare bar's, which draws whole. */}
         {transparent && !untitled ? null : (
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, itemsStyle]}>
-            {inlineTitle}
+            <Animated.View style={[StyleSheet.absoluteFill, rowStyle]}>{inlineTitle}</Animated.View>
           </Animated.View>
         )}
-        <Animated.View pointerEvents="box-none" style={[styles.side, holdStyle]} onLayout={measure('left')}>
-          {showBack && backStays ? (
-            <Animated.View pointerEvents="box-none" style={backStyle}>
-              <BackButton
-                label={options.headerBackTitle ?? back?.title}
-                displayMode={options.headerBackButtonDisplayMode}
-                room={backRoom}
-                color={tint}
-                onPress={() => (goBack ? goBack() : navigation.goBack())}
-                history={
-                  options.headerBackButtonMenuEnabled === false
-                    ? undefined
-                    : backHistory(navigation, options.headerBackTitle ?? back?.title)
-                }
-              />
-            </Animated.View>
-          ) : null}
-          <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.side, meltStyle]} animatedProps={meltBlur}>
-            {showBack && !backStays ? (
-              <BackButton
-                label={options.headerBackTitle ?? back?.title}
-                displayMode={options.headerBackButtonDisplayMode}
-                room={backRoom}
-                color={tint}
-                onPress={() => (goBack ? goBack() : navigation.goBack())}
-                history={
-                  options.headerBackButtonMenuEnabled === false
-                    ? undefined
-                    : backHistory(navigation, options.headerBackTitle ?? back?.title)
-                }
-              />
+        <Animated.View pointerEvents="box-none" style={[styles.side, holdStyle, leadStyle]} onLayout={measure('left')}>
+          <BarReturnContext value={returning}>
+            {back && backStays && !backOnBar ? (
+              <BackSplit shown={showBack} beside={Boolean(left)}>
+                <Animated.View pointerEvents="box-none" style={backStyle}>
+                  {backButton}
+                </Animated.View>
+              </BackSplit>
             ) : null}
-            {left}
-          </AnimatedNativeGlassBlur>
+            {/* Only with something in it: an empty one would count the side's gap after a back button that stays. */}
+            {(showBack && !backStays) || left ? (
+              <AnimatedNativeGlassBlur
+                pointerEvents="box-none"
+                style={[styles.side, meltStyle]}
+                animatedProps={meltBlur}>
+                {back && !backStays && !backOnBar ? (
+                  <BackSplit shown={showBack} beside={Boolean(left)}>
+                    {backButton}
+                  </BackSplit>
+                ) : null}
+                <BarBackButtonContext value={backOnBar ? { element: backButton, shown: showBack } : null}>
+                  {left}
+                </BarBackButtonContext>
+              </AnimatedNativeGlassBlur>
+            ) : null}
+          </BarReturnContext>
         </Animated.View>
         <AnimatedNativeGlassBlur
           pointerEvents="box-none"
@@ -596,39 +875,32 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
           animatedProps={meltBlur}
           onLayout={measure('right')}>
           <Animated.View pointerEvents="box-none" style={[styles.side, meltStyle]}>
-            <BarMeltContext value={melt}>
-              {right ? (
-                <BarSearchButtonContext value={button ? searchButtonFor(route.key) : null}>
-                  {right}
-                </BarSearchButtonContext>
-              ) : button ? (
-                <SearchButton routeKey={route.key} inBar />
-              ) : null}
-            </BarMeltContext>
+            <Animated.View
+              pointerEvents="box-none"
+              // Out of reach while search is open, the magnifier left under the field among them.
+              importantForAccessibility={rowAside ? 'no-hide-descendants' : 'auto'}
+              style={[styles.side, trailStyle]}>
+              <BarGlassPresenceContext value={trailGlass}>
+                <BarMeltContext value={melt}>
+                  {right ? (
+                    <BarSearchButtonContext value={button ? searchButton : null}>{right}</BarSearchButtonContext>
+                  ) : button ? (
+                    <SearchButton routeKey={route.key} inBar />
+                  ) : null}
+                </BarMeltContext>
+              </BarGlassPresenceContext>
+            </Animated.View>
           </Animated.View>
         </AnimatedNativeGlassBlur>
       </Animated.View>
-      {barSearchShown ? (
-        <View pointerEvents="box-none" style={[styles.barSearch, { top, left: margin, right: margin }]}>
-          <BarSearch routeKey={route.key} from={sides.right} open={barFocused} onClosed={closeBarSearch} />
-        </View>
-      ) : null}
       {below ? (
         <Animated.View pointerEvents="none" style={[styles.largeBlock, { height: largeBlock }, rowStyle]}>
-          <AnimatedNativeGlassBlur animatedProps={largeBlur} style={styles.leading}>
-            <Animated.Text
-              numberOfLines={1}
-              allowFontScaling={false}
-              accessibilityRole="header"
-              style={[styles.largeTitle, type.large, { paddingHorizontal: margin, color: titleColor }, largeStyle]}>
-              {label}
-            </Animated.Text>
-          </AnimatedNativeGlassBlur>
+          {largeText(true)}
         </Animated.View>
       ) : null}
       {block ? (
         <Animated.View
-          style={[styles.searchBlock, !below && styles.searchBelowRow, searchStyle]}
+          style={[styles.searchBlock, focusedInBar && styles.searchOpen, !below && styles.searchBelowRow, searchStyle]}
           onLayout={(event) => setBlockTop(event.nativeEvent.layout.y)}>
           <HeaderSearch routeKey={route.key} progress={searchProgress} />
         </Animated.View>
@@ -665,6 +937,8 @@ const styles = StyleSheet.create({
   titleBlurLeading: { alignItems: 'flex-start', maxWidth: '100%' },
   measure: { position: 'absolute', opacity: 0, maxWidth: undefined },
   searchBlock: { overflow: 'hidden' },
+  // Focused, it stays whole: the close button swells and grows under the finger past the block's edges.
+  searchOpen: { overflow: 'visible' },
   barSearch: {
     position: 'absolute',
     height: bar.row,
@@ -674,6 +948,7 @@ const styles = StyleSheet.create({
   searchBelowRow: { marginTop: bar.inline - bar.row },
   // Not clipped: the large title rides up into the bar's row before it fades, as on iOS.
   largeBlock: { height: bar.large, marginTop: bar.inline - bar.row },
+  largeInEdge: { position: 'absolute', left: 0, right: 0 },
   largeTitle: {
     fontSize: title.large.fontSize,
     lineHeight: title.large.lineHeight,

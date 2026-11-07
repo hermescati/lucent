@@ -97,9 +97,10 @@ export const glass = {
   // it darkened rather than a stroke. Full at the sides; a quarter where it faces up or down in light mode, and none in
   // dark, where it also eases off over light backdrops.
   edge: { width: 0.5, top: { light: 0.25, dark: 0 }, darken: { light: 0, dark: 0.88 } },
-  // Its material over stripes: a near-sharp image at about a quarter (light) or a third (dark) over a blur far wider
-  // than 16pt, at every stripe period; in dark the blur averages after the tone (tonePre).
-  haze: { weight: { light: 0.74, dark: 0.69 }, radius: 40, blur: 0.4 },
+  // Its material over stripes: a near-sharp image at about a quarter over a blur far wider than 16pt, at every stripe
+  // period; in dark the blur averages after the tone (tonePre). Fitted to the contrast 40pt stripes keep under the
+  // tab bar's accessory on iOS 27 (44 levels light, 64 dark).
+  haze: { weight: { light: 0.78, dark: 0.76 }, radius: 40, blur: 0.4 },
   outlineSide: 1.1,
   rimSide: 3,
   insetShade: { dark: 0, light: 0 },

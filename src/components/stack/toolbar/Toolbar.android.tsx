@@ -37,15 +37,14 @@ export const toolbarOptions = (props: LucentToolbarProps): NativeStackNavigation
     }
     return {};
   }
-  return {
-    headerShown: true,
-    [side]: ({ tintColor }: { tintColor?: string }) =>
-      props.asChild ? (
-        props.children
-      ) : (
-        <BarItems color={colorString(props.tintColor) ?? tintColor ?? ''}>{props.children}</BarItems>
-      ),
-  };
+  const items = ({ tintColor }: { tintColor?: string }) =>
+    props.asChild ? (
+      props.children
+    ) : (
+      <BarItems color={colorString(props.tintColor) ?? tintColor ?? ''}>{props.children}</BarItems>
+    );
+  // Bar items take a back button kept beside them onto their glass (`BarBackButtonContext`).
+  return { headerShown: true, [side]: props.asChild ? items : Object.assign(items, { lucentBarItems: true }) };
 };
 
 // A page's toolbar changes as the page renders; the bar reads it from here, so the page doesn't set options each time.
@@ -76,6 +75,7 @@ const ToolbarRoot = (props: LucentToolbarProps) => {
   const route = useRoute();
   const side = sideFor(props.placement ?? 'bottom');
   const id = `${route.key}:${props.placement ?? 'bottom'}`;
+  const asChild = Boolean(props.asChild);
 
   useLayoutEffect(() => {
     pageToolbars.set(id, props);
@@ -90,16 +90,18 @@ const ToolbarRoot = (props: LucentToolbarProps) => {
         publish();
       };
     }
+    const slot = ({ tintColor }: { tintColor?: string }) => <PageToolbarSlot id={id} tintColor={tintColor} />;
     navigation.setOptions({
       headerShown: true,
-      [side]: ({ tintColor }: { tintColor?: string }) => <PageToolbarSlot id={id} tintColor={tintColor} />,
+      // Bar items unless they're the page's own view (`asChild`), which a back button can't join.
+      [side]: asChild ? slot : Object.assign(slot, { lucentBarItems: true }),
     });
     return () => {
       pageToolbars.delete(id);
       navigation.setOptions({ [side]: undefined });
     };
     // The slot reads the latest props itself; only where it sits needs setting.
-  }, [navigation, id, side]);
+  }, [navigation, id, side, asChild]);
 
   return null;
 };

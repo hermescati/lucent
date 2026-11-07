@@ -11,9 +11,7 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const search = useRef<SearchBarCommands>(null);
   const needle = query.trim().toLowerCase();
-  const results = entries.filter(
-    (entry) => entry.href !== '/search' && `${entry.name} ${entry.summary}`.toLowerCase().includes(needle),
-  );
+  const results = entries.filter((entry) => `${entry.name} ${entry.summary}`.toLowerCase().includes(needle));
 
   const actions = [
     {

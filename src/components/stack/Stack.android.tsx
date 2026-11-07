@@ -28,8 +28,14 @@ import { useLargeBlock } from './header/barType.android';
 import { MenuHost } from './menu/Menu.android';
 import { backgroundOf, pageBackground } from './page.android';
 import { SearchBar, searchPlacement } from './search/SearchBar.android';
-import { BottomSearch, BottomSearchButton, FocusedSearch } from './search/SearchField.android';
-import { useSearch } from './search/store.android';
+import {
+  BottomSearch,
+  BottomSearchButton,
+  FocusedSearch,
+  SearchBubbleContext,
+  useSearchBubble,
+} from './search/SearchField.android';
+import { setSearchLeaves, useSearch } from './search/store.android';
 import {
   ahead,
   dimAt,
@@ -264,6 +270,8 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const [focusShown, setFocusShown] = useState(searching);
   if (searching && !focusShown) setFocusShown(true);
   const closeFocus = useCallback(() => setFocusShown(false), []);
+  // The magnifier or field at the bottom and the field it opens, up ahead of time so it grows at the press.
+  const bubble = useSearchBubble();
   const bottomBar = Boolean(bottomToolbar) || placement === 'bottom' || placement === 'button';
   const { colors } = useTheme();
   const largeBlock = useLargeBlock();
@@ -277,6 +285,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   // The screen a swipe back uncovers, which it dims.
   const below = state.routes[state.index - 1]?.key === key;
   const routeIndex = state.routes.findIndex((route: { key: string }) => route.key === key);
+  setSearchLeaves(key, routeIndex > 0 || stackBelow(navigation));
   const lucent = Boolean((options as Record<string, unknown>)[pushed]);
 
   // A screen Lucent pushes waits unseen until the swipe has it off-screen to the right, then slides in over the one it
@@ -406,32 +415,47 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
             // Its buttons hold and melt through a push or a pop, as the bar's do.
             <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
               <ScreenHiddenContext value={hidden}>
-                <BottomToolbar
-                  toolbar={bottomToolbar}
-                  tintColor={tint}
-                  routeKey={key}
-                  pushed={routeIndex > 0}
-                  searching={searching && placement === 'slot'}
-                  returning={focusShown && !searching && placement === 'slot'}
-                  stayDown={Boolean(search?.focused) && (placement === 'header' || placement === 'barButton')}
-                />
+                <SearchBubbleContext value={placement === 'slot' ? bubble : null}>
+                  <BottomToolbar
+                    toolbar={bottomToolbar}
+                    tintColor={tint}
+                    routeKey={key}
+                    pushed={routeIndex > 0}
+                    searching={searching && placement === 'slot'}
+                    returning={focusShown && !searching && placement === 'slot'}
+                    stayDown={Boolean(search?.focused) && (placement === 'header' || placement === 'barButton')}
+                  />
+                </SearchBubbleContext>
               </ScreenHiddenContext>
             </SwipeRoleContext>
           ) : null}
-          {placement === 'bottom' && !focusShown ? <BottomSearch routeKey={key} /> : null}
-          {placement === 'button' && !focusShown ? <BottomSearchButton routeKey={key} /> : null}
-          {focusShown ? (
+          {placement === 'bottom' ? <BottomSearch routeKey={key} bubble={bubble} /> : null}
+          {placement === 'button' ? <BottomSearchButton routeKey={key} bubble={bubble} /> : null}
+          {focusShown || placement === 'button' || placement === 'bottom' || placement === 'slot' ? (
             <FocusedSearch
               routeKey={key}
               from={placement === 'slot' ? 'slot' : placement === 'button' ? 'button' : 'bottom'}
               open={searching}
               onClosed={closeFocus}
+              bubble={placement === 'button' || placement === 'bottom' || placement === 'slot' ? bubble : undefined}
             />
           ) : null}
         </MenuHost>
       </Animated.View>
     </HeaderScrollProvider>
   );
+};
+
+// Whether a stack this one is nested in has a screen to go back to, up to the tabs: iOS's swipe back goes there from a
+// nested stack's first screen.
+const stackBelow = (navigation: { getParent: () => unknown }) => {
+  type Parent = { getParent: () => Parent | undefined; getState: () => { type?: string; index?: number } };
+  for (let parent = navigation.getParent() as Parent | undefined; parent; parent = parent.getParent()) {
+    const { type, index = 0 } = parent.getState();
+    if (type === 'tab') return false;
+    if (type === 'stack' && index > 0) return true;
+  }
+  return false;
 };
 
 const StackRoot = ({ children, screenOptions, screenLayout, ...props }: StackProps) => {

@@ -135,6 +135,12 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     host?.invalidate()
   }
 
+  // And so is a change to what it holds: a glyph fading in redraws only itself, which the host wouldn't see.
+  override fun onDescendantInvalidated(child: View, target: View) {
+    super.onDescendantInvalidated(child, target)
+    host?.invalidate()
+  }
+
   private val contrastObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
     override fun onChange(selfChange: Boolean) {
       reducedTransparency = readReducedTransparency()

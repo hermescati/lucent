@@ -33,6 +33,12 @@ class GlassBlurView(context: Context, appContext: AppContext) :
     super.setRenderEffect(effect)
   }
 
+  // React Native sizes its children: measuring them here, as a LinearLayout does, would give a text input its text's
+  // height rather than its own, and it'd draw its text at the top.
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+  }
+
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
 
   @SuppressLint("MissingSuperCall")

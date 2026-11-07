@@ -28,7 +28,7 @@ export const bar = {
 /** The bar's side margin on a window this wide. */
 export const barMargin = (width: number) => (width >= bar.wideFrom ? bar.wideMargin : bar.margin);
 
-export { barItemMotion } from '../../core/motion/island';
+export { barItemMotion, islandReturn, islandSplit } from '../../core/motion/island';
 
 export const barItem = {
   height: 44,
@@ -47,6 +47,9 @@ export const barItem = {
   textPadding: 17,
   fontSize: 17,
   lineHeight: 22,
+  // iOS draws a text button's label and the back button's in SF Regular, which Roboto Regular is lighter than beside it;
+  // Roboto Medium looks as heavy.
+  labelWeight: '500',
   // A `selected` button (iOS 27 simulator): a fill 36pt tall in its capsule, a circle for a lone icon, 38pt wide for an
   // icon among others (iOS widens it with the glyph, 41pt for a shipping box), and the capsule less 4pt each side for a
   // label. Its glyph shows the glass through it. In light mode the fill is the system blue; in dark mode iOS draws
@@ -129,6 +132,13 @@ export const barMotion = {
   // Each title blurs as it fades, to about this radius out of focus (iOS 27 simulator: the inline title arrives soft and
   // sharpens, the large one goes soft as it goes).
   titleBlur: 8,
+  // The inline title also rises into the row as it comes, from `inlineRise` below, eased out over `inlineRiseIn`, and
+  // sinks back as it goes over `inlineRiseOut`; going, it's soft by `inlineBlurBy` of the way (iOS 27 simulator: 14pt
+  // below at first, half way by 120ms, settled by 430ms; going, down 13.6pt over 420ms, soft within 70ms).
+  inlineRise: 14,
+  inlineRiseIn: 430,
+  inlineRiseOut: 420,
+  inlineBlurBy: 0.2,
   // A pushed screen's opaque-bar inline title fades in over `itemsFade`, this long after the push starts. Its buttons pop
   // in from the start of a push Lucent slides, and this long after the bar shows for one it doesn't.
   itemsDelay: 70,
@@ -143,6 +153,8 @@ export const barMotion = {
   // from and pushing to screens with bar buttons.
   meltOut: 220,
   meltIn: 260,
+  // A capsule of its own that comes this long after its row has split off; sooner, it came with the screen.
+  splitAfter: 300,
   meltGrow: 0.12,
   // Coming, the capsules' scale from where they start, to their peak, reached `at` of the way back (the melt eased out
   // over `meltIn`, so about 60ms in).
@@ -309,15 +321,16 @@ export const search = {
   buttonIcon: 28,
   // The magnifier's middle and where the text starts, from the field's leading edge.
   iconCentre: 21,
-  // Material's magnifier draws its ink a little left of and below its box's middle, where SF's sits centred: moved by
-  // this much, its ink sits where iOS 27's does, 22pt in and a third of a point above the field's middle.
-  iconNudge: { x: 2.4, y: -2 },
+  // Material's magnifier draws its ink a little left of its box's middle, where SF's sits centred: moved by this much,
+  // its ink sits where iOS 27's does, 22pt in. Up and down its ink is centred, as iOS's is in the field.
+  iconNudge: { x: 2.4, y: 0 },
   text: 42,
   fontSize: 17,
   // Placeholder and typed text alike (iOS 27 simulator and kit).
   fontWeight: '500',
-  // Android's text box puts the text this much lower in the field than UIKit does.
-  textNudge: -1.1,
+  // Placeholder and typed text, one text box, moved down this much: iOS 27 centres them on the magnifier, a third of a
+  // point below it (simulator), where Android's box leaves them about 2pt above it.
+  textNudge: 1.3,
   // The resting field's label, drawn as text rather than a text box, sits this much lower than the box would put it:
   // iOS centres its text about a point below the field's middle.
   displayNudge: 1.3,
@@ -351,12 +364,76 @@ export const searchMotion = {
   // critically damped spring of about 30 rad/s, with no overshoot: 30% by 37ms, 67% by 77ms, 93% by 145ms.
   lift: { duration: 240, settle: 60, overshoot: 1, back: 150 },
   drop: { stiffness: 900, damping: 60 },
-  // The magnifier among the bar's items, opening (iOS 27 simulator): its capsule stretches left into a field across the
-  // row over about 90ms as the row's title and buttons go, the placeholder coming in, with the close cross at its end.
-  // About 330ms in, the close button buds off the field's end, the glass necking apart, over about 80ms.
-  // Closing plays it back over about 200ms: the placeholder goes, the close button merges back, and the field shrinks
-  // into the capsule as the row's title and buttons come back.
-  bar: { stretch: 90, content: 90, budAt: 330, bud: 80, closeFade: 60, closeMerge: 100, closeAt: 50, closeShrink: 170 },
+  // The magnifier among the bar's items, opening (iOS 27 simulator, frame by frame): the row's title and back button are
+  // gone by the first frame, and the trailing capsule stretches left into a field across the row on a strong ease-out,
+  // 41% of the way by 33ms, 85% by 83ms, 97% by 167ms. The field's content and the close cross come in blurred and are
+  // sharp by about 170ms. The close button buds off the field's end from the start, necked to it, and breaks free at
+  // about 250ms. Stretching, the field sags: its bottom drops about 11pt by 60ms, its top staying put, eases back to
+  // about 6pt by 160ms, and snaps back up as the close button breaks free: it gets bigger, its content too, rather than
+  // moving down.
+  bar: {
+    stretch: 230,
+    // How much of the field's glass shows parked, out of sight: none to the eye, enough to keep it drawing.
+    parked: 0.004,
+    // The trailing capsule's items, inside the field as it grows, are gone by its third frame.
+    itemsOut: 50,
+    // The close button buds off the field's end as it starts to stretch, a round bud a third its size at its own place,
+    // and grows there whole by about 150ms, as big as the sagging field, as the field's end draws back to it, the two
+    // overlapping a little, joined by a tight neck; at about 235ms the neck breaks at once and the gap between them opens.
+    close: {
+      spring: { duration: 260, dampingRatio: 1 },
+      from: 0.35,
+      neck: { at: 202, overlap: 6, blend: 7 },
+      // Its cross comes in blurred, readable by about 120ms and a little soft until the neck breaks.
+      cross: { soft: 0.7, softBy: 120 },
+      // Closing, it shrinks into the field's end as a bump, gone by about 170ms, as the field draws back into it.
+      meltTime: 220,
+      // Its cross stays till it's nearly in, blurring away over about 150ms as iOS 27's does.
+      glyphGoneBy: 0.15,
+      // Its cross comes out of the field's end into the circle from this far in, and goes back in shrinking to this, as
+      // the tab bar's search close button's does.
+      glyphShift: 28,
+      glyphScale: 0.6,
+      blurOut: 150,
+    },
+    content: 60,
+    blur: 10,
+    sharpBy: 170,
+    sag: { by: 11, up: 60, hold: 30, eased: 6, ease: 70, snapAt: 90, snap: 33 },
+    // Its content with it: 8% bigger at the deepest, 4.5% as it eases, and a little small once the close button breaks
+    // free, settled by about 400ms.
+    grow: { by: 1.08, eased: 1.045, snapped: 0.96, settle: 170 },
+    // Closing (iOS 27 simulator, frame by frame), all at once: the field's start draws back into the trailing capsule
+    // over about 160ms, the placeholder fading in about 100ms, as the close button melts into its end and the back button
+    // buds off its start, growing back; the title fades in from about 50ms, the capsule's items from about 150ms, and
+    // the magnifier last, at about 400ms.
+    // The back button budding off the field's start as it draws back (simulator, frame by frame): from about a third its
+    // size, three quarters by 100ms, whole by about 170ms and a little past, its chevron soft until then.
+    backReturn: { from: 0.35, spring: { duration: 700, dampingRatio: 0.7 } },
+    // Opened from the magnifier's press, search mode starts this far in, its render done before the field is sharp.
+    commitAt: 90,
+    // Landing back in the trailing capsule (simulator, frame by frame): the field arrives about 18% taller and a little
+    // wider than the capsule, swelling over the last `from` of its stretch, arriving at `at` (about 150ms in), and
+    // deflates from there, the capsule taking it over, by about 270ms.
+    land: { from: 0.3, at: 0.06, peak: 1, settle: 120 },
+    closeFade: 100,
+    // As a field's sides move with the keyboard, its glass follows its layout on the UI thread this long after each move.
+    followSide: 100,
+    // The field draws back on the curve of a critically damped spring of about 31 rad/s, as iOS 27's does (11% of the way
+    // by 17ms, 49% by 50ms, 75% by 83ms, 92% by 117ms): the same spring as a field rising into the row going back down.
+    // Run over a fixed `closeShrink`, so it lands, and hands over to the capsule, on time rather than when a spring
+    // would call itself at rest, 400ms on.
+    closeOmega: 0.03,
+    closeShrink: 240,
+    // The title shows as the field's stretch goes from `from` to `to`: about 50ms to 120ms into its draw back.
+    titleIn: { from: 0.55, to: 0.1 },
+    // The trailing items show over the last part of its draw back, as stretch goes from this to 0.
+    itemsIn: 0.04,
+    // The magnifier comes back as an item showing on its capsule does (`barItemMotion.show`): the capsule swells, peaking
+    // about 530ms in as iOS 27's does, and the magnifier grows out of a blur, showing from about 400ms and sharp by
+    // about 600ms.
+    magnifierIn: { delay: 350, duration: 0 },
+  },
   // Search mode from the bottom (iOS 27 simulator). The bar fades within about 100ms as the content moves up into its
   // place on a critically damped spring of about 25 rad/s: 44% by 63ms, 78% by 116ms, 93% by 170ms.
   hide: { stiffness: 625, damping: 50 },
@@ -367,19 +444,23 @@ export const searchMotion = {
   // recordings: the field is full width by about 60%, the close button whole by about 90%, the toolbar's items gone
   // by 40%.
   bottom: {
-    grow: [0.1, 0.6],
-    bud: [0.45, 0.9],
+    // In the toolbar's slot, the toolbar's items give way to the field as it grows out of the slot this far. The field's
+    // own motion, out of what was tapped and back, is every search field's (`SearchMorph`, `searchMotion.bar`).
     melt: [0.1, 0.4],
-    // With no keyboard coming up (a hardware one), a clock stands in for it.
+    // Grown out of the magnifier's circle, its content's cut this far inside the circle's end, so only the magnifier
+    // shows in it.
+    circleClip: 8,
+    // Closed, it's taken away by this long after the keyboard starts down, if the keyboard hasn't said it's down.
+    closeBy: 600,
+    // The toolbar, beside a field in its slot, with no keyboard coming up (a hardware one): a clock stands in for it.
     fallback: 500,
     fallbackOver: 250,
     // Closing, a field in the toolbar's slot fades where it is, its close button a little slower, and the toolbar comes
-    // back once the keyboard is nearly down (below a quarter of its way). The magnifier's field shrinks at once to the
-    // empty circle, which rides the keyboard down; the bottom field rides it down whole.
+    // back once the keyboard is nearly down (below a quarter of its way). Otherwise it draws back into what it came out
+    // of as it rides the keyboard down.
     fieldOut: 50,
     closeOut: 120,
     toolbarBack: [0.02, 0.25],
-    collapse: 80,
   },
   rowOut: 50,
   rowIn: 200,

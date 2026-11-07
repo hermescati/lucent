@@ -1,3 +1,5 @@
+import { islandReturn, islandSplit } from '../../core/motion/island';
+
 export const layout = {
   tabBarHeight: 62,
   tabBarCompactHeight: 48,
@@ -169,8 +171,8 @@ export const motion = {
     searchDrag: { duration: 220, dampingRatio: 1 },
     searchKeyboardMorph: { duration: 170, dampingRatio: 1 },
     searchKeyboardAbsorb: { duration: 140, dampingRatio: 1 },
-    searchDipIn: { duration: 90, dampingRatio: 1 },
-    searchDipOut: { duration: 200, dampingRatio: 1 },
+    searchDipIn: islandReturn.dipIn,
+    searchDipOut: islandReturn.dipOut,
     press: { duration: 160, dampingRatio: 1 },
     closeFlash: { duration: 300, dampingRatio: 1 },
     stretch: { duration: 340, dampingRatio: 0.55 },
@@ -380,14 +382,10 @@ export const motion = {
   // Search moving between its circle and the tabs: the circle starts (or ends) this much of its size inside the bar's
   // end, and the two melt together this much at the midpoint.
   searchSplit: {
-    spring: { duration: 780, dampingRatio: 0.74 },
+    ...islandSplit,
     // Pulled out as the bar minimizes (iOS 27: split off within about 60ms, the bar gathering as it goes), it splits
     // off quickly, done as the bar gathers into its circles.
     pull: { duration: 200, dampingRatio: 1 },
-    from: 0.55,
-    blend: 26,
-    iconFrom: 0.04,
-    iconMeltFrom: 0.5,
   },
   searchPop: { delay: 80, shift: 28, hiddenScale: 0.96, tuckScale: 0.78, glyphScale: 1 },
   pressSquashX: 0,
@@ -397,7 +395,7 @@ export const motion = {
   nudgeFollow: 1,
   dragThreshold: 4,
   searchDrag: { start: 10 },
-  searchKeyboard: { edge: 12, focusDelay: 180, dipAt: 0.05, dip: 4, minHeight: 120 },
+  searchKeyboard: { edge: 12, focusDelay: 180, dipAt: 0.05, dip: islandReturn.dip, minHeight: 120 },
   inkTone: { threshold: 0.04 },
   labelFadeRate: 1.8,
   collapseDistance: 24,
