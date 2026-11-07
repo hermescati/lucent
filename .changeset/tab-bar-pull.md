@@ -1,0 +1,5 @@
+---
+'expo-lucent': patch
+---
+
+On Android, the tab bar's glass follows a finger dragged off it, as iOS 27's does. The search circle stays pressed wherever the finger goes and pulls after it into an ellipse, its magnifier stretching with it (measured on the simulator: about 9% longer and its middle 10pt over with the finger 280pt off it); let go far from it, it isn't pressed. A lens held above or below the bar, and the bar under it, follow the finger the whole way, in step, as iOS's do: with the finger 720pt up the bar's top rises about 6pt and its bottom about 2.5pt, its ends draw in about 10pt each, and the lens rises about 7pt, the search circle staying where it is. The lens rides on a slightly bouncy spring, so it gives with the finger. A minimized tab bar no longer opens at the touch: held, it swells (49 to 65pt on iOS) and brightens, and opens once let go; dragged, it opens and the drag carries on there, the selected tab's lens lifting and going with the finger. Glass views take a `shapePull`, one of their shapes stretched as a whole.

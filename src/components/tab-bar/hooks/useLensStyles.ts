@@ -70,6 +70,7 @@ export const useLensStyles = (bar: BarState) => {
     tapSlide,
     tapStay,
     wallSide,
+    lensGive,
   } = bar;
 
   // iOS 27's hairline outline, in pixels (read here: PixelRatio isn't there in a worklet).
@@ -166,6 +167,15 @@ export const useLensStyles = (bar: BarState) => {
     const land = landing.get() * tapStay.get() * tapSlide.get();
     scaleX *= 1 + land * motion.tapLanding.wide;
     scaleY *= 1 - land * motion.tapLanding.flat;
+    // Held and dragged above or below the bar, it follows the finger with the bar: its near edge more than its far one,
+    // so it rises and grows taller, as iOS 27's (motion.pull).
+    const give = lensGive.get() * lift.get();
+    const toward = Math.abs(give);
+    const nearShift = toward * motion.pull.lens.near;
+    const farShift = toward * motion.pull.lens.far;
+    const lensHeight = Math.max(lensFullHeight * scaleY, 1);
+    scaleX *= 1 - motion.pull.lens.narrow * toward;
+    scaleY *= 1 + (nearShift - farShift) / lensHeight;
     return {
       translateX:
         (left + right) / 2 -
@@ -174,7 +184,10 @@ export const useLensStyles = (bar: BarState) => {
         heading.get() * Math.abs(jelly.get()) * (span / 2) * motion.jelly.lean +
         wallSide.get() * squish.get() * (span / 2) -
         pressed * ((span * motion.poke.flat) / 2 + motion.poke.lean),
-      translateY: slide * lift.get() * motion.tapSlide.drop + land * (1 - lift.get()) * motion.tapLanding.drop,
+      translateY:
+        slide * lift.get() * motion.tapSlide.drop +
+        land * (1 - lift.get()) * motion.tapLanding.drop +
+        (Math.sign(give) * (nearShift + farShift)) / 2,
       scaleX,
       scaleY,
     };
@@ -446,9 +459,7 @@ export const useLensStyles = (bar: BarState) => {
       topDepth: lerp(1, motion.tapLanding.iconDepth, glideBend.get() * motion.switchTravel.topBend),
       edgeAxis: holding.get(),
       rimWidth:
-        scheme === 'dark'
-          ? edgeWidth
-          : lerp(glass.lensRimWidth[scheme], glass.lensHeldRimWidth[scheme], holding.get()),
+        scheme === 'dark' ? edgeWidth : lerp(glass.lensRimWidth[scheme], glass.lensHeldRimWidth[scheme], holding.get()),
       prismAxis: holding.get(),
       prismShift: glass.lensHeldPrismShift[scheme] * holding.get(),
       pinchSpread: lerp(glass.lensPinchSpread, glass.lensHeldPinchSpread[scheme], holding.get()),

@@ -281,6 +281,10 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
   const slideTo = useSharedValue(0);
   const slideRight = useSharedValue(true);
   const tapStay = useSharedValue(0);
+  // How far above or below the bar a finger holding the lens is, in points (motion.pull); it eases out with the lift.
+  const lensPull = useSharedValue(0);
+  // The same, on the lens's own slightly bouncy spring (motion.pull.lens).
+  const lensGive = useSharedValue(0);
   const landing = useSharedValue(0);
   const tapGlow = useSharedValue(0);
   const dripShape = useSharedValue(0);
@@ -319,6 +323,8 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
       }
     },
   );
+  // Held, the minimized bar swells as the search circle does, staying minimized until let go (motion.minimizedPress).
+  const minimizedPress = useGlassPress();
   const compactSize = useDerivedValue(() => layout.tabBarCompactHeight * (1 - compactPop.get()));
   const scaleX = useDerivedValue(() => lerp(1, compactSize.get() / Math.max(barWidth.get(), 1), collapsed.get()));
   const scaleY = useDerivedValue(() => lerp(1, compactSize.get() / fullHeight, collapsed.get()));
@@ -490,6 +496,7 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     searchPop,
     searchIdle,
     searchPress,
+    minimizedPress,
     fieldPress,
     searchRaise,
     searchTab,
@@ -515,6 +522,8 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     tapGlow,
     tapSlide,
     tapStay,
+    lensPull,
+    lensGive,
     tintColor,
     towardSearch,
     tuck,

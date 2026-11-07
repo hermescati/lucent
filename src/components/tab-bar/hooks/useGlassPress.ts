@@ -12,12 +12,16 @@ export type GlassPress = ReturnType<typeof useGlassPress>;
 export const useGlassPress = (full = false) => {
   const press = useSharedValue(0);
   const top = useSharedValue(1);
+  // How far a finger is past the shape's edges, signed, in points (motion.pull); it eases out with the press.
+  const pull = useSharedValue({ x: 0, y: 0 });
 
   return {
     press,
+    pull,
     onPressIn: (peak = 1) => {
       'worklet';
       top.set(peak);
+      pull.set({ x: 0, y: 0 });
       press.set(withSpring(peak, motion.springs.press));
     },
     onPressOut: () => {

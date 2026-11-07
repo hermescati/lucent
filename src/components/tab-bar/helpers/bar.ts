@@ -1,7 +1,7 @@
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
 
 import { space } from '../../../theme/tokens';
-import { layout } from '../tokens';
+import { layout, motion } from '../tokens';
 
 export const rowInset = space[4];
 export const inlinePad = layout.tabBarInlinePadding;
@@ -44,6 +44,29 @@ export const clamp01 = (value: number) => {
 export const lerp = (from: number, to: number, progress: number) => {
   'worklet';
   return from + (to - from) * progress;
+};
+
+/** How far `at` is past `low` to `high`, signed, in points, up to the pull's reach (motion.pull). */
+export const pastEdge = (at: number, low: number, high: number) => {
+  'worklet';
+  const past = at < low ? at - low : at > high ? at - high : 0;
+  return Math.max(-motion.pull.reach, Math.min(motion.pull.reach, past));
+};
+
+/**
+ * A pressed shape pulled toward a finger dragged off it (motion.pull): how much longer across (`x`) and down (`y`), and
+ * how far its middle moves.
+ */
+export const pullBy = (
+  pull: { x: number; y: number },
+  press: number,
+  { stretch, shift }: { stretch: number; shift: number },
+) => {
+  'worklet';
+  const x = pull.x * press;
+  const y = pull.y * press;
+  const long = stretch * (Math.abs(x) - Math.abs(y));
+  return { x: 1 + long, y: 1 - long, shiftX: x * shift, shiftY: y * shift };
 };
 
 export const tick = () => {

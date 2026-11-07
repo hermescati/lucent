@@ -9,7 +9,8 @@ import {
   withSpring,
 } from 'react-native-reanimated';
 
-import { clamp01, fieldGlyphCenter, fullHeight, lerp, modeHeight, modeInset, modeShrink } from '../helpers/bar';
+import { useSolidGlass } from '../../../theme/solid';
+import { clamp01, fieldGlyphCenter, fullHeight, lerp, modeHeight, modeInset, modeShrink, pullBy } from '../helpers/bar';
 import { layout, motion } from '../tokens';
 import type { BarState } from './useBarState';
 
@@ -40,6 +41,7 @@ export const useSearchMorph = (bar: BarState) => {
     searchPress,
     searchRaise,
   } = bar;
+  const solid = useSolidGlass();
 
   const morphSearch = useCallback(
     (open: boolean) => {
@@ -171,8 +173,7 @@ export const useSearchMorph = (bar: BarState) => {
       {
         // Rising to the middle of a field grown for larger text (helpers/bar searchFieldFit).
         translateY:
-          searchDip.get() -
-          (fieldFit.rise / 2) * Math.pow(clamp01(searchMode.get()), motion.searchMorph.heightLag),
+          searchDip.get() - (fieldFit.rise / 2) * Math.pow(clamp01(searchMode.get()), motion.searchMorph.heightLag),
       },
     ],
   }));
@@ -221,9 +222,22 @@ export const useSearchMorph = (bar: BarState) => {
   const rowBlurProps = useAnimatedProps(() => ({
     radius: clamp01(searchMode.get()) * motion.searchTabs.blur,
   }));
-  const searchContentStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: searchScale.get() }],
-  }));
+  // Pulled by a finger dragged off it, what's on the circle stretches and moves with its glass (useBarGlass).
+  const searchContentStyle = useAnimatedStyle(() => {
+    const pulled = pullBy(
+      searchPress.pull.get(),
+      (solid ? 0 : searchPress.press.get()) * (1 - clamp01(searchMode.get())),
+      motion.pull.circle,
+    );
+    return {
+      transform: [
+        { translateX: pulled.shiftX },
+        { translateY: pulled.shiftY },
+        { scaleX: searchScale.get() * pulled.x },
+        { scaleY: searchScale.get() * pulled.y },
+      ],
+    };
+  });
 
   // The bubble's contents shrink with the bar as it minimises, but iOS's magnifier barely does, so it undoes most of it.
   const searchGlyphStyle = useAnimatedStyle(() => {

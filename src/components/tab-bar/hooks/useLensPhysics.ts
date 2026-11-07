@@ -202,7 +202,11 @@ export const useLensPhysics = (bar: BarState & BarPress) => {
     const left = contain ? Math.max(hugged - halfWidth, barLeft) : hugged - halfWidth;
     const right = contain ? Math.min(hugged + halfWidth, barRight) : hugged + halfWidth;
     restSpan.set(halfWidth * 2);
-    placeSpan.set({ rest: restHalf * 2, grow: (liftHalf - restHalf) * 2 * free });
+    // Only when it changes: a new object every frame counts as a change, and kept everything that reads it, and the
+    // window, drawing at rest.
+    const span = placeSpan.get();
+    const grow = (liftHalf - restHalf) * 2 * free;
+    if (span.rest !== restHalf * 2 || span.grow !== grow) placeSpan.set({ rest: restHalf * 2, grow });
 
     const collapsing = collapsed.get() !== previousCollapsed.get();
     previousCollapsed.set(collapsed.get());

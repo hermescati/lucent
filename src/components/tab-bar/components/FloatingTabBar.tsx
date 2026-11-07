@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
-import { GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
@@ -25,6 +25,7 @@ import {
   inlinePad,
   lerp,
   lensFullHeight,
+  pastEdge,
   revealGroup,
   rowInset,
   screenGroup,
@@ -311,6 +312,33 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
           ? () => command('focus')
           : closeSearch
         : openSearch;
+  // Held, the circle stays pressed wherever the finger goes, pulled after it (motion.pull), as iOS 27's is; let go on
+  // it or near it, it's pressed.
+  const circleMoved = useSharedValue(false);
+  const circleGesture = usePanGesture({
+    enabled: Boolean(circleTab),
+    minDistance: 0,
+    onBegin: () => {
+      circleMoved.set(false);
+      searchPress.onPressIn();
+    },
+    onUpdate: (event) => {
+      if (Math.hypot(event.translationX, event.translationY) > motion.dragThreshold) circleMoved.set(true);
+      const { reach } = motion.pull.circle;
+      const clamp = (past: number) => Math.max(-reach, Math.min(reach, past));
+      searchPress.pull.set({
+        x: clamp(pastEdge(event.x, 0, fullHeight)),
+        y: clamp(pastEdge(event.y, 0, fullHeight)),
+      });
+    },
+    onFinalize: (event) => {
+      searchPress.onPressOut();
+      const { slop } = motion.pull;
+      const near = event.x > -slop && event.x < fullHeight + slop && event.y > -slop && event.y < fullHeight + slop;
+      // A tap never moves far enough for the pan to take hold, which ends it as cancelled; it's still a press.
+      if ((!event.canceled || !circleMoved.get()) && near && circlePress) scheduleOnRN(circlePress);
+    },
+  });
 
   // The lifted lens, glass only: solid, the bar's own pill stands in for it (useBarGlass).
   const lensGlass = (
@@ -405,31 +433,30 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
               // TalkBack reads its stand-in instead (circleStandIn), after the tabs and search's field.
               importantForAccessibility="no-hide-descendants">
               <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
-                <Pressable
-                  style={StyleSheet.absoluteFill}
-                  onPress={circlePress}
-                  onPressIn={() => searchPress.onPressIn()}
-                  onPressOut={searchPress.onPressOut}
-                  accessible={false}>
-                  <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
-                    <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
-                    <Animated.View style={[styles.searchIcon, searchInkStyle]}>
-                      <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
-                        <TabIcon
-                          icon={circleTab.icon}
-                          selected={apartFocused && !circleTab.searchRole}
-                          size={layout.searchIconSize}
-                          color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.tint) : color.tabInk}
-                        />
-                      </Animated.View>
-                      <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
-                        <Animated.View style={idleGlyphStyle}>
-                          <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                <GestureDetector gesture={circleGesture}>
+                  <Animated.View style={StyleSheet.absoluteFill} accessible={false}>
+                    <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
+                      <Animated.View
+                        style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]}
+                      />
+                      <Animated.View style={[styles.searchIcon, searchInkStyle]}>
+                        <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
+                          <TabIcon
+                            icon={circleTab.icon}
+                            selected={apartFocused && !circleTab.searchRole}
+                            size={layout.searchIconSize}
+                            color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.tint) : color.tabInk}
+                          />
+                        </Animated.View>
+                        <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
+                          <Animated.View style={idleGlyphStyle}>
+                            <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                          </Animated.View>
                         </Animated.View>
                       </Animated.View>
                     </Animated.View>
                   </Animated.View>
-                </Pressable>
+                </GestureDetector>
               </Animated.View>
             </Animated.View>
           ) : null}

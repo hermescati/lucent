@@ -17,6 +17,7 @@ import {
   modeHeight,
   modeInset,
   modeRadius,
+  pullBy,
 } from '../helpers/bar';
 
 /** The bar's glass shapes (tabs pill, search circle and field) and its press growth. */
@@ -43,6 +44,9 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     lensGeometry,
     lensPosition,
     lensPresence,
+    lensPull,
+    lift,
+    minimizedPress,
     modeTarget,
     pillShiftX,
     push,
@@ -83,6 +87,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     if (width <= 0) {
       return {
         shapes: [] as number[],
+        shapePull: [-1, 1, 1],
         blend: 0,
         dim: 0,
         glowX: 0,
@@ -135,28 +140,41 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       (solid ? 0 : barGrowth.get()) * motion.barGrow.y * (1 - settled) +
       (fullHeight * barItemMotion.swellY * swelling) / 2;
     const wallBulge = solid || gliding.get() ? 0 : Math.max(0, squish.get()) * motion.squish.barBulge * (1 - settled);
+    // A lens held above or below the bar draws its near edge after the finger and narrows it a little, as iOS 27's.
+    const lensHeld = (solid ? 0 : lift.get()) * (1 - settled) * lensPull.get();
+    const heldNarrow = Math.abs(lensHeld) * motion.pull.bar.narrow;
+    // Above (negative), the top is the near edge; below, the bottom.
+    const heldUp = -Math.min(lensHeld, 0);
+    const heldDown = Math.max(lensHeld, 0);
     const pillLeft =
-      pillShiftX.get() + (width - width * scaleX.get()) / 2 - growX - (wallSide.get() < 0 ? wallBulge : 0);
+      pillShiftX.get() + (width - width * scaleX.get()) / 2 - growX - (wallSide.get() < 0 ? wallBulge : 0) + heldNarrow;
     const pillRight =
       pillLeft +
       width * scaleX.get() +
       growX * (1 + towardSearch) +
       (wallSide.get() < 0 ? wallBulge : 0) +
-      (wallSide.get() > 0 ? wallBulge : 0);
+      (wallSide.get() > 0 ? wallBulge : 0) -
+      heldNarrow * 2;
     const pillInset = (fullHeight * (1 - scaleY.get())) / 2;
-    const pillTop = pillInset - grow;
+    // Held while minimized, it swells about its middle (motion.minimizedPress); search's circle beside it doesn't.
+    const minimizedHeld = solid ? 0 : minimizedPress.press.get() * collapsed.get();
+    const swellBy = (minimizedHeld * motion.minimizedPress.grow) / 2;
+    const pillTop = pillInset - grow - heldUp * motion.pull.bar.near + heldDown * motion.pull.bar.far - swellBy;
+    const pillBottom =
+      fullHeight - pillInset + grow - heldUp * motion.pull.bar.far + heldDown * motion.pull.bar.near + swellBy;
     const backGrow = modeRadius * motion.pressGrow * backPress.press.get() * settled;
-    const backLeft = lerp(pillLeft, pillLeft + modeInset, settled) - backGrow;
+    const backLeft = lerp(pillLeft, pillLeft + modeInset, settled) - backGrow - swellBy;
     const bump = searchBump.get();
     const backRight =
       lerp(pillRight, pillLeft + modeInset + modeHeight, settled) +
       backGrow +
+      swellBy +
       bump * motion.searchBump.overshoot -
       backBump.get() * motion.searchBump.squish;
     // At larger text the field reaches above its row (helpers/bar searchFieldFit), and its circles rise to its middle.
     const rise = fieldFit.rise * settledY;
     const backTop = lerp(pillTop, modeInset, settledY) - rise / 2 - backGrow;
-    const backBottom = lerp(fullHeight - pillInset + grow, fullHeight - modeInset, settledY) - rise / 2 + backGrow;
+    const backBottom = lerp(pillBottom, fullHeight - modeInset, settledY) - rise / 2 + backGrow;
     const spread = keyboardSpread.get();
     const sink = tileSink.get();
     const dip = searchDip.get();
@@ -190,7 +208,14 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const fieldRadius = lerp(tucked, circleRadius, popPlace);
     // Set apart or melting back: the circle travels between the bar's end and its own place, growing as it leaves.
     const apart = searchApart.get();
-    const splitX = lerp(width - fullHeight / 2, circleX, apart);
+    // Held and dragged off, the circle pulls after the finger, stretched as a whole (`shapePull`, a circle into an
+    // ellipse) about a middle that follows it.
+    const pulled = pullBy(
+      searchPress.pull.get(),
+      (solid ? 0 : searchPress.press.get()) * (1 - settled),
+      motion.pull.circle,
+    );
+    const splitX = lerp(width - fullHeight / 2, circleX, apart) + pulled.shiftX * apart;
     const splitRadius = fieldRadius * lerp(motion.searchSplit.from, 1, clamp01(apart));
     // Held by its clear button, the field swells about its middle.
     const held = fieldPress.press.get() * settled;
@@ -264,14 +289,24 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
               glowStrength: glass.backGlow[scheme] * backSpread,
               glowShape: -1,
             }
-          : {
-              glowX: (leftEdge.get() + rightEdge.get()) / 2 + pad,
-              glowY: fullHeight / 2 + pad,
-              glowSpread: glass.pressGlowSpread,
-              glowStrength: glass.pressGlow * shine.get() * barPress.get() * (1 - tapSlide.get()) * (1 - settled),
-              glowShape: -1,
-            }),
+          : minimizedHeld > 0
+            ? {
+                // Held while minimized, it brightens all over, as the search circle does.
+                glowX: (backLeft + backRight) / 2 + pad,
+                glowY: (backTop + backBottom) / 2 + pad,
+                glowSpread: backRight - backLeft,
+                glowStrength: glass.pressGlow * minimizedHeld,
+                glowShape: -1,
+              }
+            : {
+                glowX: (leftEdge.get() + rightEdge.get()) / 2 + pad,
+                glowY: fullHeight / 2 + pad,
+                glowSpread: glass.pressGlowSpread,
+                glowStrength: glass.pressGlow * shine.get() * barPress.get() * (1 - tapSlide.get()) * (1 - settled),
+                glowShape: -1,
+              }),
       wideMix: lerp(glass.wideMix[scheme], glass.pressWideMix[scheme], barPress.get() * (1 - settled)),
+      shapePull: apart > 0.002 && (pulled.x !== 1 || pulled.y !== 1) ? [1, pulled.x, pulled.y] : [-1, 1, 1],
       shapes: [
         backLeft + pad,
         backTop + sink + pad,
@@ -280,9 +315,9 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
         ...(apart > 0.002
           ? [
               splitX - splitRadius + bump * motion.searchBump.squish + pad,
-              circleY - rise / 2 - splitRadius + dip + pad,
+              circleY - rise / 2 - splitRadius + dip + pulled.shiftY * apart + pad,
               splitX + splitRadius + pad,
-              circleY - rise / 2 + splitRadius + dip + pad,
+              circleY - rise / 2 + splitRadius + dip + pulled.shiftY * apart + pad,
             ]
           : []),
         ...(mode > 0
@@ -297,14 +332,20 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     };
   });
 
+  // What's in the bar goes with it while a lens held above or below pulls it (barGlassProps): up or down with its middle,
+  // drawn in with its ends. Read here, not in a helper, so the styles track it.
   const pressScaleStyle = useAnimatedStyle(() => {
     const width = Math.max(barWidth.get(), 1);
-    const growX = (solid ? 0 : barGrowth.get()) * motion.barGrow.x * (1 - clamp01(searchMode.get()));
+    const open = 1 - clamp01(searchMode.get());
+    const growX = (solid ? 0 : barGrowth.get()) * motion.barGrow.x * open;
+    const held = (solid ? 0 : lift.get()) * open * lensPull.get();
+    const { near, far, narrow } = motion.pull.bar;
     return {
       transform: [
-        { translateY: tileSink.get() },
+        { translateY: tileSink.get() + (held * (near + far)) / 2 },
         { translateX: (-growX * (1 - towardSearch)) / 2 },
-        { scale: 1 + (growX * (1 + towardSearch)) / width },
+        { scaleX: (1 + (growX * (1 + towardSearch)) / width) * (1 - (2 * Math.abs(held) * narrow) / width) },
+        { scaleY: 1 + (growX * (1 + towardSearch)) / width },
       ],
     };
   });
@@ -314,12 +355,16 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const open = 1 - clamp01(searchMode.get());
     const growX = (solid ? 0 : barGrowth.get()) * motion.barGrow.x * open;
     const growY = (solid ? 0 : barGrowth.get()) * motion.barGrow.y * open;
+    // Pulled with the bar's glass, or it shows as a band where the glass has moved on (barGlassProps).
+    const held = (solid ? 0 : lift.get()) * open * lensPull.get();
+    const { near, far, narrow } = motion.pull.bar;
     return {
       opacity: shine.get() * lerp(1, barPress.get(), tapStay.get()) * open,
       transform: [
         { translateX: (growX * (towardSearch - 1)) / 2 },
-        { scaleX: 1 + (growX * (1 + towardSearch)) / width },
-        { scaleY: 1 + (growY * 2) / fullHeight },
+        { translateY: (held * (near + far)) / 2 },
+        { scaleX: (1 + (growX * (1 + towardSearch)) / width) * (1 - (2 * Math.abs(held) * narrow) / width) },
+        { scaleY: 1 + (growY * 2 + Math.abs(held) * (near - far)) / fullHeight },
       ],
     };
   });

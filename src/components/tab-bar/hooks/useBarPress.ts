@@ -6,7 +6,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import type { BarState } from './useBarState';
 import type { SearchMorph } from './useSearchMorph';
 import { setTabBarCollapsed } from '../context/collapse';
-import { clamp01, inlinePad, modeInset, tick } from '../helpers/bar';
+import { clamp01, fullHeight, inlinePad, modeInset, pastEdge, tick } from '../helpers/bar';
 import { slotIndexAt } from '../helpers/slots';
 import { motion } from '../tokens';
 
@@ -49,7 +49,10 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     landing,
     lensPosition,
     lensPresence,
+    lensPull,
+    lensGive,
     lift,
+    minimizedPress,
     modeTarget,
     moved,
     nudge,
@@ -78,8 +81,12 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
 
   const positionAt = (x: number) => {
     'worklet';
-    // Back to the bar's own scale, then to the tab at that place (helpers/slots).
-    const unscaled = barWidth.get() / 2 + (x - barWidth.get() / 2 - barShiftX.get()) / Math.max(scaleX.get(), 0.01);
+    // Back to the bar's own scale, then to the tab at that place (helpers/slots). Opening from minimized, a finger is
+    // already over the tab it will be over once open, not the one the shrunken bar puts there.
+    const opening = collapse != null && collapse.target.get() === 0 && collapse.progress.get() > 0;
+    const unscaled = opening
+      ? x
+      : barWidth.get() / 2 + (x - barWidth.get() / 2 - barShiftX.get()) / Math.max(scaleX.get(), 0.01);
     return clampIndex(slotIndexAt(slotPlan.get(), unscaled));
   };
 
@@ -90,9 +97,10 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     landing.set(withSequence(withSpring(amount, motion.springs.landIn), withSpring(0, motion.springs.landOut)));
   };
 
-  const pressBegin = (x: number) => {
+  // `at`, a tab pressed whatever is under `x` (the selected one, for a drag that started on the minimized bar).
+  const pressBegin = (x: number, at = -1) => {
     'worklet';
-    const index = Math.round(positionAt(x));
+    const index = at >= 0 ? at : Math.round(positionAt(x));
     bounceAt.set(-1);
     if (index !== focused.get()) {
       scheduleOnRN(tick);
@@ -316,22 +324,42 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     enabled: !searchFocused,
     minDistance: 0,
     onBegin: (event) => {
+      // Minimized, a press swells it and waits: let go, it opens; dragged, it opens and the drag carries on there.
       if (collapse && collapse.target.get() === 1) {
         expandOnly.set(true);
-        setTabBarCollapsed(collapse, 0);
+        minimizedPress.onPressIn();
+        barPress.set(withSpring(1, motion.springs.barPressIn));
         return;
       }
+      lensPull.set(0);
+      lensGive.set(0);
       pressBegin(event.x);
     },
     onUpdate: (event) => {
+      // Sprung, so the lens and the bar give with the finger rather than tracking it rigidly; the lens springs back a
+      // little past where it settles.
+      const past = pastEdge(event.y, 0, fullHeight);
+      lensPull.set(withSpring(past, motion.springs.track));
+      lensGive.set(withSpring(past, motion.pull.lens.spring));
       if (expandOnly.get()) {
-        return;
+        // A drag from the minimized bar carries on in the bar it opens, as iOS 27's does: the selected tab's lens
+        // lifts in place and goes with the finger. A tap or a hold only opens it once let go.
+        if (Math.abs(event.translationX) < motion.dragThreshold || focused.get() < 0) {
+          return;
+        }
+        expandOnly.set(false);
+        minimizedPress.onPressOut();
+        if (collapse) setTabBarCollapsed(collapse, 0);
+        pressBegin(event.x, focused.get());
       }
       pressUpdate(event.x, event.translationX);
     },
     onFinalize: (event) => {
       if (expandOnly.get()) {
         expandOnly.set(false);
+        minimizedPress.onPressOut();
+        barPress.set(withSpring(0, motion.springs.barPressOut));
+        if (collapse) setTabBarCollapsed(collapse, 0);
         return;
       }
       pressEnd(event.canceled);

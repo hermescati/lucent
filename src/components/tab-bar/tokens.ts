@@ -354,6 +354,25 @@ export const motion = {
     iconHalf: 0.35,
   },
   pressGrow: 0.26,
+  // The minimized bar held (iOS 27 simulator): it swells from 49 to 65pt on the press spring and brightens, and stays
+  // minimized; let go, it opens. A drag from it opens it at once and carries on as a drag on the bar.
+  minimizedPress: { grow: 16 },
+  // A finger dragged off a pressed glass shape pulls it after itself, as iOS 27's do (simulator, held 120 to 320pt off):
+  // per point past its edge, the search circle grows `stretch` longer toward it and as much narrower across, its middle
+  // moving `shift`; the lens about half as much. Up to `reach` points, and only while pressed.
+  pull: {
+    // The circle stops at `reach`: further, pressed and pulled, it would outgrow the bar glass's padded bounds.
+    circle: { stretch: 0.00032, shift: 0.035, reach: 370 },
+    // A lens held above or below the bar, and the bar under it, follow the finger the whole way, in step (simulator,
+    // held 220, 470 and 720pt up, against held still): per point past the bar's edge, the near edge moves `near` and the
+    // far edge `far` toward the finger, and the bar narrows by `narrow` at each end; the search circle stays. The lens
+    // rides on a slightly bouncy spring, settling in about 0.45s, so it gives with the finger.
+    lens: { near: 0.0102, far: 0.003, narrow: 0.00005, spring: { duration: 450, dampingRatio: 0.55 } },
+    bar: { near: 0.0112, far: 0.0027, narrow: 0.014 },
+    reach: 700,
+    // Let go this close to the circle, it still counts as a press, as a UIKit control's touch up inside does.
+    slop: 70,
+  },
   // The search field held by its clear button (iOS 27 simulator): the field and everything in it grow about 5% about
   // its middle on the press spring, necking into the close button's circle beside it, and its glass brightens, settling
   // back after the finger lifts, the neck thinning to a strand before it lets go. A tap of 50ms grows it fully, as a
