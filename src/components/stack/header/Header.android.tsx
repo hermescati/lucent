@@ -45,7 +45,7 @@ import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
 import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
 import { getSearch, searchFocusDrive, updateSearch } from '../search/store.android';
-import { SwipeProgressContext, swipePhase } from '../swipe/SwipeBack.android';
+import { SwipeProgressContext, ahead, swipePhase } from '../swipe/SwipeBack.android';
 import { ScreenHiddenContext, StackBackContext, SwipeRoleContext } from '../swipe/role.android';
 import {
   bar,
@@ -640,7 +640,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     if (opening.get()) {
       return {
         opacity: withTiming(0, { duration: searchMotion.bar.itemsOut }),
-        transform: [{ translateX: -fieldStretch.get() * fieldReach }],
+        transform: [{ translateX: -fieldStretch.get() * fieldReach * ahead }],
       };
     }
     // Closing from the magnifier, its items ride the field's start back into the capsule, the open run backwards,
@@ -649,7 +649,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       const stretch = fieldStretch.get();
       return {
         opacity: interpolate(stretch, [0, searchMotion.bar.itemsIn], [1, 0], 'clamp'),
-        transform: [{ translateX: -stretch * fieldReach }],
+        transform: [{ translateX: -stretch * fieldReach * ahead }],
       };
     }
     if (!rowAside) {
@@ -658,7 +658,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     if (barFocused) {
       return {
         opacity: withTiming(0, { duration: searchMotion.bar.itemsOut }),
-        transform: [{ translateX: -fieldStretch.get() * fieldReach }],
+        transform: [{ translateX: -fieldStretch.get() * fieldReach * ahead }],
       };
     }
     return { opacity: withTiming(0, { duration: searchMotion.rowOut }) };

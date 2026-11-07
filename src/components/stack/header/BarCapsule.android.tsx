@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import { I18nManager, StyleSheet, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   measure,
@@ -21,6 +21,9 @@ import { islandReturn } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { createLucentContext } from '../../../theme/context';
 import { bar, barItem, barItemMotion } from '../tokens';
+
+// Right to left, a capsule's start is its right.
+const mirrored = I18nManager.isRTL;
 
 // The glass shader draws at most this many shapes in one view.
 export const maxBridged = 4;
@@ -223,9 +226,15 @@ export const BarGlassRow = ({ children, style, height, presence: own, pressable 
         right = left + frame.width / scale;
         bottom = top + frame.height / scale;
       }
-      // Drawn in from its start without a layout pass, which `measure` would read a frame late.
-      left += view?.inset?.get() ?? 0;
-      right += view?.outset?.get() ?? 0;
+      // Drawn in from its start without a layout pass, which `measure` would read a frame late; right to left, its start
+      // is its right.
+      if (mirrored) {
+        right -= view?.inset?.get() ?? 0;
+        left -= view?.outset?.get() ?? 0;
+      } else {
+        left += view?.inset?.get() ?? 0;
+        right += view?.outset?.get() ?? 0;
+      }
       const scale = (view?.scale?.get() ?? 1) * (back?.scale.get() ?? 1);
       const dip = (back?.dip.get() ?? 0) + (view?.drop?.get() ?? 0);
       top += dip;

@@ -12,6 +12,7 @@ import {
 } from 'react';
 import {
   BackHandler,
+  I18nManager,
   Pressable,
   StyleSheet,
   Text,
@@ -95,7 +96,7 @@ const Magnifier = ({ color, show, scale }: { color: string; show: boolean; scale
   if (!show) return null;
   return (
     <Animated.View
-      style={[styles.icon, { left: search.iconCentre - search.iconSize / 2 + search.iconNudge.x }, scaleStyle]}>
+      style={[styles.icon, { left: search.iconCentre - search.iconSize / 2 + search.iconNudge.x * ahead }, scaleStyle]}>
       <SymbolView name={{ android: 'search' }} size={search.iconSize} tintColor={color} />
     </Animated.View>
   );
@@ -103,6 +104,9 @@ const Magnifier = ({ color, show, scale }: { color: string; show: boolean; scale
 
 // A critically damped spring's way from rest to rest, as an easing over a fixed time: `k` is its angular frequency times
 // that time, and it's scaled to land on 1 at the end.
+// Right to left, what moves toward the end moves left; styles' left and right already swap, translations don't.
+const ahead = I18nManager.isRTL ? -1 : 1;
+
 const criticallyDamped = (k: number) => {
   const end = 1 - (1 + k) * Math.exp(-k);
   return (t: number) => {
@@ -435,7 +439,7 @@ const CloseButton = ({
     const shrink = split && split.out.get() === 0 ? glyphScale + (1 - glyphScale) * apart * apart : 1;
     return {
       transform: [
-        { translateX: (slide?.get() ?? 0) - (glyphShift * (1 - apart)) / scale },
+        { translateX: ((slide?.get() ?? 0) - (glyphShift * (1 - apart)) / scale) * ahead },
         { scale: shrink },
         { translateY: drop?.get() ?? 0 },
         { scale: 1 + (2 * (drop?.get() ?? 0)) / size },
@@ -496,8 +500,11 @@ const FocusedSearchBody = ({
   // Where it grows from: the magnifier's circle, the field as it showed at rest, or the toolbar's slot.
   const circle = (width - toolbar.height) / 2;
   const rect = useSyncExternalStore(onRects, () => displayRects.get(routeKey));
-  const fromLeft = from === 'button' ? circle : (rect?.x ?? toolbar.margin);
-  const fromRight = from === 'button' ? circle : rect ? width - rect.x - rect.width : toolbar.margin;
+  // Its sides in from the screen's start and end; the rest at rest is measured across the screen, left to right.
+  const fromLeft = rect?.x ?? toolbar.margin;
+  const fromRight = rect ? width - rect.x - rect.width : toolbar.margin;
+  const fromStart = from === 'button' ? circle : ahead > 0 ? fromLeft : fromRight;
+  const fromEnd = from === 'button' ? circle : ahead > 0 ? fromRight : fromLeft;
   // Above the keyboard it takes nearly the screen's width, widening as the keyboard comes up; with the keyboard down
   // (searched, or a hardware one), it keeps the toolbar's margins, as iOS's does. A floating keyboard takes no room under
   // it, reporting no height as its progress jumps, so the field keeps its width there rather than snapping wider.
@@ -545,8 +552,8 @@ const FocusedSearchBody = ({
           onClosed={() => landed.set(1)}
           up={up}
           height={toolbar.height}
-          fromLeft={fromLeft}
-          fromRight={fromRight}
+          fromStart={fromStart}
+          fromEnd={fromEnd}
           side={side}
           shift={from === 'button' ? toolbar.height / 2 - search.iconCentre : 0}
           clip={from === 'button'}
@@ -608,8 +615,8 @@ export const BarSearch = ({ from, ...props }: BarSearchProps) => {
         state={state}
         up={up}
         height={barItem.height}
-        fromLeft={width - margin - Math.max(from, barItem.height)}
-        fromRight={margin}
+        fromStart={width - margin - Math.max(from, barItem.height)}
+        fromEnd={margin}
         side={side}
         sags
         parks
@@ -643,8 +650,8 @@ interface SearchMorphProps extends Omit<BarSearchProps, 'from'> {
   up: SharedValue<number>;
   height: number;
   // The screen's insets, left and right, of what it grows out of, and of where it ends up.
-  fromLeft: number;
-  fromRight: number;
+  fromStart: number;
+  fromEnd: number;
   side: SharedValue<number>;
   // How far the magnifier sits past its place in the field in what it grows out of: a circle's middle.
   shift?: number;
@@ -677,8 +684,8 @@ const SearchMorph = ({
   onClosed,
   up,
   height,
-  fromLeft,
-  fromRight,
+  fromStart,
+  fromEnd,
   side,
   shift = 0,
   sags = false,
@@ -892,8 +899,8 @@ const SearchMorph = ({
   }, [open]);
   // How far in its glass is drawn at each end as it grows, from where it ends up to what it grows out of: its layout
   // stays where it ends up, and its glass follows on the UI thread.
-  const away = useDerivedValue(() => (1 - stretch.get()) * (fromLeft - side.get()));
-  const endIn = useDerivedValue(() => (1 - stretch.get()) * Math.max(fromRight - side.get(), 0));
+  const away = useDerivedValue(() => (1 - stretch.get()) * (fromStart - side.get()));
+  const endIn = useDerivedValue(() => (1 - stretch.get()) * Math.max(fromEnd - side.get(), 0));
   const outset = useDerivedValue(() => room - closePlace.get() - endIn.get());
   // The close button rides the field's end, where that draws back away from its place.
   const slide = useDerivedValue(() => -endIn.get());
@@ -901,7 +908,7 @@ const SearchMorph = ({
   const contentStyle = useAnimatedStyle(() => ({
     opacity: shown.get(),
     transform: [
-      { translateX: clip ? 0 : away.get() + shift * (1 - stretch.get()) },
+      { translateX: clip ? 0 : (away.get() + shift * (1 - stretch.get())) * ahead },
       { translateY: sag.get() / 2 },
       { scale: grow.get() },
     ],
@@ -1067,6 +1074,8 @@ const styles = StyleSheet.create({
   icon: { position: 'absolute', top: '50%', marginTop: -search.iconSize / 2 + search.iconNudge.y },
   input: {
     position: 'absolute',
+    // From the magnifier on, whatever the text's own direction, as iOS lines it up.
+    textAlign: I18nManager.isRTL ? 'right' : 'left',
     top: search.textNudge,
     bottom: -search.textNudge,
     right: search.clearTrailing + search.clearSize + 8,
@@ -1076,6 +1085,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   displayText: {
+    // From the magnifier on, as the text box's: a text's left is its start, which React Native swaps right to left.
+    textAlign: 'left',
     textAlignVertical: 'center',
     lineHeight: toolbar.height,
     top: search.displayNudge,
