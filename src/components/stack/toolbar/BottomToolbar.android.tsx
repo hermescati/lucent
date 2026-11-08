@@ -84,10 +84,11 @@ export const BottomToolbar = ({
   // Clipped only to hide its ends under the minimized bar's circles; otherwise the clip spans the screen, so a held
   // item's glass can grow past its edges.
   const inset = useDerivedValue(() => (tabBar && typing.get() <= above ? between : 0));
+  // Up with the keyboard by a transform, not laid out again each frame as it rises.
   const clip = useAnimatedStyle(() => ({
-    bottom: Math.max(above, typing.get()) - shadowRoom,
     left: inset.get(),
     right: inset.get(),
+    transform: [{ translateY: above - Math.max(above, typing.get()) }],
   }));
   // The row keeps its place inside the clip, so the items stay where they'd be without it.
   // Room on each side too, inside the blur that holds them, which cuts what it holds to its bounds: a held capsule
@@ -172,17 +173,23 @@ export const BottomToolbar = ({
       ) : null}
       {/* Its touches are taken by a cover in search mode, not by its own pointerEvents changing: a render that changes
         the views its items' blur and fade ride would put those back for a frame (synchronous UI props). */}
-      <Animated.View pointerEvents="box-none" style={[styles.clip, clip, holdStyle]}>
-        <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.toolbar, row, fade]} animatedProps={meltBlur}>
-          <BarMeltContext value={melt}>
-            <BarFillContext value={typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined}>
-              <BarItems color={tint} bottom routeKey={routeKey} away={searching}>
-                {props.children}
-              </BarItems>
-            </BarFillContext>
-          </BarMeltContext>
-        </AnimatedNativeGlassBlur>
-        {searching ? <View style={StyleSheet.absoluteFill} /> : null}
+      {/* The swipe's hold moves it sideways out here, the keyboard up inside: one transform each. */}
+      <Animated.View pointerEvents="box-none" style={[styles.hold, holdStyle]}>
+        <Animated.View pointerEvents="box-none" style={[styles.clip, { bottom: above - shadowRoom }, clip]}>
+          <AnimatedNativeGlassBlur
+            pointerEvents="box-none"
+            style={[styles.toolbar, row, fade]}
+            animatedProps={meltBlur}>
+            <BarMeltContext value={melt}>
+              <BarFillContext value={typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined}>
+                <BarItems color={tint} bottom routeKey={routeKey} away={searching}>
+                  {props.children}
+                </BarItems>
+              </BarFillContext>
+            </BarMeltContext>
+          </AnimatedNativeGlassBlur>
+          {searching ? <View style={StyleSheet.absoluteFill} /> : null}
+        </Animated.View>
       </Animated.View>
     </>
   );
@@ -191,12 +198,11 @@ export const BottomToolbar = ({
 const styles = StyleSheet.create({
   edge: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, elevation: 2 },
   edgeLine: { position: 'absolute', top: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth },
+  hold: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 2, elevation: 2 },
   clip: {
     position: 'absolute',
     paddingVertical: shadowRoom,
     overflow: 'hidden',
-    zIndex: 2,
-    elevation: 2,
   },
   toolbar: {
     flexDirection: 'row',

@@ -16,6 +16,8 @@ import { ScreenHiddenContext, SwipeRoleContext } from '../swipe/role.android';
 import { barMotion, swipeMotion } from '../tokens';
 
 const meltIn = { duration: barMotion.meltIn, easing: Easing.out(Easing.cubic) };
+// Going, eased out too: iOS's icons are blurred within its first 30ms, which an ease-in-out start would reach late.
+const meltOut = { duration: barMotion.meltOut, easing: Easing.out(Easing.quad) };
 
 /**
  * A push or a pop moves the screens under one set of bars on iOS: their buttons stay where they stand while the pages
@@ -48,7 +50,7 @@ export const useSwipeMelt = (pushed: boolean) => {
       if (phase === previous || !role) return;
       if ((role === 'top' && phase === swipePhase.going) || (role === 'below' && phase === swipePhase.pushing)) {
         melt.set(Math.abs(melt.get()));
-        melt.set(withTiming(1, { duration: barMotion.meltOut }));
+        melt.set(withTiming(1, meltOut));
       } else if (role === 'below' && phase === swipePhase.going) {
         melt.set(-Math.abs(melt.get()));
         melt.set(withTiming(0, meltIn));

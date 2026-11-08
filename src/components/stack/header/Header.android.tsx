@@ -162,7 +162,8 @@ const ScrollEdge = ({
   const lineStyle = useAnimatedStyle(() => ({ opacity: under.get() }));
   const tailProps = useAnimatedProps(() => ({ fadeBlur: tail ? under.get() * tail.blur : 0 }));
   const edgeStyle = useAnimatedStyle(() => ({ height: height + (reach?.get() ?? 0) }));
-  const tailStyle = useAnimatedStyle(() => ({ top: height + (reach?.get() ?? 0) }));
+  // Below the edge as it reaches further, moved rather than laid out again each frame.
+  const tailStyle = useAnimatedStyle(() => ({ transform: [{ translateY: reach?.get() ?? 0 }] }));
   return (
     <Animated.View pointerEvents="none" style={[styles.edgeClip, { height: screenHeight }, cornerStyle]}>
       {tail ? (
@@ -172,7 +173,7 @@ const ScrollEdge = ({
           lift
           animatedProps={tailProps}
           pointerEvents="none"
-          style={[styles.edge, { height: tail.height }, tailStyle]}
+          style={[styles.edge, { top: height, height: tail.height }, tailStyle]}
         />
       ) : null}
       <AnimatedNativeGlassView

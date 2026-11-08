@@ -85,6 +85,12 @@ export const Split = ({
   // 1 while a held neck lasts.
   const held = useSharedValue(0);
   const row = useBarGlassRow();
+  // How long the row's glass follows its layout: the split's spring and its neck, or the melt's own timing.
+  const followFor = (showing: boolean) => {
+    'worklet';
+    const moving = showing ? Math.max(springConfig.duration, neck?.at ?? 0) + delay : (meltTime ?? meltSpring.duration);
+    return moving + 50;
+  };
   const first = useRef(true);
   // The latest, without starting the spring over when a caller passes a new one.
   const goneRef = useRef(onGone);
@@ -109,7 +115,7 @@ export const Split = ({
       held.set(1);
       held.set(withDelay(delay + neck.at, withTiming(0, { duration: islandSplit.neckBreak })));
     } else held.set(0);
-    row?.follow(Math.max(springConfig.duration, neck?.at ?? 0) + (shown ? delay : 0) + 50);
+    row?.follow(followFor(shown));
   }, [shown, appear, delay, apart, held, neck, springConfig, meltSpring, row]);
   useAnimatedReaction(
     () => [apart.get(), held.get()] as const,
@@ -129,12 +135,14 @@ export const Split = ({
           held.set(1);
           held.set(withDelay(delay + neck.at, withTiming(0, { duration: islandSplit.neckBreak })));
         }
+        row?.follow(followFor(true));
         return;
       }
       held.set(0);
       apart.set(
         meltTime ? withTiming(0, { duration: meltTime, easing: Easing.inOut(Easing.quad) }) : withSpring(0, meltSpring),
       );
+      row?.follow(followFor(false));
     },
   );
   useAnimatedReaction(

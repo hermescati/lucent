@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { BackHandler, I18nManager, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  Easing,
   interpolate,
   useAnimatedProps,
   useAnimatedStyle,
@@ -41,6 +42,9 @@ type OpenMenu = (tree: MenuTree, anchor: Anchor) => void;
 
 // Right to left: frames measured across the screen go from its right, and the submenu chevron points left.
 const mirrored = I18nManager.isRTL;
+
+// Closing eased out, moving on its first frame, as iOS's does (`menuMotion.close`).
+const closeTiming = { duration: menuMotion.close, easing: Easing.out(Easing.cubic) };
 
 const MenuContext = createLucentContext<OpenMenu | null>('StackMenu', null);
 
@@ -424,12 +428,12 @@ const OpenMenuView = ({
   useEffect(() => {
     if (!closing) return;
     progress.set(
-      withTiming(0, { duration: menuMotion.close }, (finished) => {
+      withTiming(0, closeTiming, (finished) => {
         if (finished) scheduleOnRN(onClosed);
       }),
     );
     // A submenu open over it closes with it, rather than staying whole until it's gone.
-    subProgress.set(withTiming(0, { duration: menuMotion.close }));
+    subProgress.set(withTiming(0, closeTiming));
   }, [closing, onClosed, progress, subProgress]);
 
   // Its card opens once it's there to open, not a render before, which would lose its first frames.
@@ -440,7 +444,7 @@ const OpenMenuView = ({
   const clearSubmenu = useCallback(() => setSubmenu(null), []);
   const closeSubmenu = useCallback(() => {
     subProgress.set(
-      withTiming(0, { duration: menuMotion.close }, (finished) => {
+      withTiming(0, closeTiming, (finished) => {
         if (finished) scheduleOnRN(clearSubmenu);
       }),
     );
@@ -548,11 +552,20 @@ export const MenuHost = ({ children }: { children: ReactNode }) => {
       {presented ? (
         <View
           ref={overlay}
+          pointerEvents="box-none"
           style={styles.overlay}
           onLayout={() =>
             overlay.current?.measureInWindow((x, y, width, height) => setScreen({ x, y, width, height }))
           }>
-          <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close menu" />
+          {/* Closing, taps go through to what's under it, its button too, rather than closing it again. Its own
+            pointerEvents change, not the overlay's: the glass rides the overlay, and a render that changes it would put
+            its animated frame back for a frame. */}
+          <Pressable
+            pointerEvents={closing ? 'none' : 'auto'}
+            style={StyleSheet.absoluteFill}
+            onPress={close}
+            accessibilityLabel="Close menu"
+          />
           {screen ? (
             <OpenMenuView
               key={presented.id}

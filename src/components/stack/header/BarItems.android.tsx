@@ -25,7 +25,6 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
-  FadeOut,
   useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -125,8 +124,9 @@ interface SearchItem {
 // A spacer without a width is flexible: in the bottom toolbar it pushes the groups either side of it apart.
 // `shares`: a fixed one that keeps its neighbours on one capsule, its width added between them (`sharesBackground`).
 type Item = ButtonItem | ViewItem | SearchItem | { kind: 'spacer'; key: string; width?: number; shares?: boolean };
-// A fixed spacer kept inside a capsule.
-type GapItem = { kind: 'gap'; key: string; width: number };
+// A fixed spacer kept inside a capsule; or the place of a bare item or view taken off the toolbar, closing from the
+// width it had (`from`), what it showed fading out in it (`leaving`).
+type GapItem = { kind: 'gap'; key: string; width: number; from?: number; leaving?: ReactNode };
 type GroupItem = ButtonItem | ViewItem | SearchItem | GapItem;
 
 const text = (node: ReactNode) =>
@@ -214,7 +214,7 @@ const toItems = (children: ReactNode): Item[] =>
 // In the bottom toolbar, iOS 27 ignores a button's `separateBackground` (simulator: it stays on its neighbours'
 // capsule), while `hidesSharedBackground` leaves it bare, its neighbours' capsule split around it.
 type Group = GroupItem[] & { own?: 'start' | 'end'; base?: string; bare?: boolean };
-const toGroups = (items: Item[], bottom: boolean) => {
+const toGroups = (items: (Item | GapItem)[], bottom: boolean) => {
   const groups: (Group | { spacer?: number; key: string })[] = [];
   let current: GroupItem[] = [];
   // A fixed space that doesn't share its neighbours' background, waiting for what comes after it.
@@ -330,7 +330,7 @@ const toGroups = (items: Item[], bottom: boolean) => {
       groups.push(own);
     } else if (
       (item.kind === 'button' && (item.prominent || item.textOnly)) ||
-      (item.separate && !(bottom && item.kind === 'button'))
+      ('separate' in item && item.separate && !(bottom && item.kind === 'button'))
     ) {
       close();
       current = [];
@@ -410,7 +410,18 @@ const CapsuleSwell = ({
  * icons around it split apart, and it fades in as they do (toolbar.bareIn), rather than taking its width at once and
  * shoving the capsules aside. Taken away, it fades where it stood while the capsules close up.
  */
-const BareSlot = ({ opens, minWidth, children }: { opens: boolean; minWidth: number; children: ReactNode }) => {
+const BareSlot = ({
+  opens,
+  minWidth,
+  onWidth,
+  children,
+}: {
+  opens: boolean;
+  minWidth: number;
+  // Its width as laid out, for the gap it leaves when it's taken away.
+  onWidth: (width: number) => void;
+  children: ReactNode;
+}) => {
   const [natural, setNatural] = useState(0);
   const [opening] = useState(opens);
   const open = useSharedValue(opening ? 0 : 1);
@@ -425,7 +436,7 @@ const BareSlot = ({ opens, minWidth, children }: { opens: boolean; minWidth: num
   const slotStyle = useAnimatedStyle(() => (opening ? { width: Math.max(natural * open.get(), 0) } : { minWidth }));
   const contentStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
   return (
-    <Animated.View exiting={FadeOut.duration(toolbar.bareIn.duration)} style={[styles.view, slotStyle]}>
+    <Animated.View style={[styles.view, slotStyle]} onLayout={(event) => onWidth(event.nativeEvent.layout.width)}>
       <Animated.View
         // At its own size while its slot opens around it, kept in the slot's middle and spilling past its sides until
         // it's open: laid out, not floated over it, which would leave it out of what TalkBack reaches.
@@ -438,18 +449,34 @@ const BareSlot = ({ opens, minWidth, children }: { opens: boolean; minWidth: num
 };
 
 /** A fixed space kept on a capsule, opening and closing on the split's spring as the item after it melts in or off. */
-const Gap = ({ width }: { width: number }) => {
-  const size = useSharedValue(width);
+const Gap = ({ width, from, leaving }: { width: number; from?: number; leaving?: ReactNode }) => {
+  const size = useSharedValue(from ?? width);
+  const shown = useSharedValue(1);
   const first = useRef(true);
   useLayoutEffect(() => {
     if (first.current) {
       first.current = false;
-      return;
+      if (from === undefined || from === width) return;
     }
     size.set(withSpring(width, islandSplit.spring));
-  }, [width, size]);
+  }, [width, size, from]);
+  useLayoutEffect(() => {
+    if (leaving) shown.set(withTiming(0, { duration: toolbar.bareIn.duration }));
+  }, [leaving, shown]);
   const style = useAnimatedStyle(() => ({ width: Math.max(size.get(), 0) }));
-  return <Animated.View style={style} />;
+  const fade = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  return (
+    <Animated.View style={style}>
+      {leaving ? (
+        <Animated.View
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.leaving, fade]}>
+          {leaving}
+        </Animated.View>
+      ) : null}
+    </Animated.View>
+  );
 };
 
 /**
@@ -794,16 +821,33 @@ export const BarItems = ({ children, color, bottom = false, routeKey, away = fal
   ];
   // A button taken off the toolbar (swapped for a view, say) stays on its capsule as a ghost while its slot closes on the
   // split's spring, where it would leave at once and jump everything beside it.
-  const listedKey = listed.map((item) => item.key).join('|');
+  const isBare = (item: Item | undefined): item is ButtonItem | ViewItem =>
+    Boolean(item && ((item.kind === 'view' && item.separate) || (item.kind === 'button' && item.bare && !item.hidden)));
+  // Bare ones marked, so one turning into a button in its place counts as a change.
+  const listedKey = listed.map((item) => (isBare(item) ? `${item.key}*${item.kind}` : item.key)).join('|');
   const [listedBefore, setListedBefore] = useState({ key: listedKey, items: listed });
-  const [departing, setDeparting] = useState<{ item: ButtonItem; before: string | null }[]>([]);
+  const [departing, setDeparting] = useState<{ item: ButtonItem | ViewItem; before: string | null }[]>([]);
+  // Bare items' and views' widths, and what each last showed, for the gap each leaves as it goes.
+  const [bareWidths] = useState(() => new Map<string, number>());
+  const [bareShown] = useState(() => new Map<string, ReactNode>());
   if (listedBefore.key !== listedKey) {
     const now = new Set(listed.map((item) => item.key));
+    const byKey = new Map(listed.map((item) => [item.key, item]));
+    // Gone, or a bare item or view turned into something else in its place (an item keyed by its index keeps its key).
+    const isGone = (item: Item) => !now.has(item.key) || (isBare(item) && !isBare(byKey.get(item.key)));
     const went = bottom
       ? listedBefore.items.flatMap((item, at) => {
+          if (!isGone(item)) return [];
+          if (departing.some((gone) => gone.item.key === item.key)) return [];
+          // A bare item or view leaves its place closing as a gap, rather than taking it with it at once.
+          const bareGoing = isBare(item) && bareWidths.has(item.key);
+          if (bareGoing) {
+            const next = listedBefore.items.slice(at).find((other) => now.has(other.key));
+            return [{ item, before: next?.key ?? null }];
+          }
           if (
-            item.kind !== 'button' ||
             now.has(item.key) ||
+            item.kind !== 'button' ||
             item.hidden ||
             item.bare ||
             item.prominent ||
@@ -815,7 +859,7 @@ export const BarItems = ({ children, color, bottom = false, routeKey, away = fal
           return [{ item, before: next?.key ?? null }];
         })
       : [];
-    setDeparting((current) => [...current.filter((gone) => !now.has(gone.item.key)), ...went]);
+    setDeparting((current) => [...current.filter((gone) => isGone(gone.item)), ...went]);
     setListedBefore({ key: listedKey, items: listed });
   }
   useEffect(() => {
@@ -823,8 +867,17 @@ export const BarItems = ({ children, color, bottom = false, routeKey, away = fal
     const done = setTimeout(() => setDeparting([]), islandSplit.spring.duration + 50);
     return () => clearTimeout(done);
   }, [departing]);
-  const items = departing.reduce<Item[]>((all, { item, before }) => {
-    const ghost: ButtonItem = { ...item, hidden: true, ghost: true, badge: undefined };
+  const items = departing.reduce<(Item | GapItem)[]>((all, { item, before }) => {
+    const ghost: ButtonItem | GapItem =
+      item.kind === 'view' || item.bare
+        ? {
+            kind: 'gap',
+            key: `${item.key}~gone`,
+            width: 0,
+            from: bareWidths.get(item.key),
+            leaving: bareShown.get(item.key),
+          }
+        : { ...item, hidden: true, ghost: true, badge: undefined };
     const at = before === null ? -1 : all.findIndex((other) => other.key === before);
     return at < 0 ? [...all, ghost] : [...all.slice(0, at), ghost, ...all.slice(at)];
   }, listed);
@@ -941,19 +994,25 @@ export const BarItems = ({ children, color, bottom = false, routeKey, away = fal
           {bottom && item.separate ? <SearchLand /> : null}
         </View>
       ) : item.kind === 'gap' ? (
-        <Gap key={item.key} width={item.width} />
+        <Gap key={item.key} width={item.width} from={item.from} leaving={item.leaving} />
       ) : (
         <View key={item.key}>{item.element}</View>
       ),
     );
     // A custom view brings its own look; only buttons sit on glass. iOS centres it in at least a button's width: a 40pt
     // avatar gets 2pt more on each side than a button would.
-    if (views || (group as Group).bare)
+    if (views || (group as Group).bare) {
+      bareShown.set(groupKey(group), content);
       return (
-        <BareSlot key={groupKey(group)} opens={known !== null} minWidth={metrics.height}>
+        <BareSlot
+          key={groupKey(group)}
+          opens={known !== null}
+          minWidth={metrics.height}
+          onWidth={(width) => bareWidths.set(groupKey(group), width)}>
           {content}
         </BareSlot>
       );
+    }
     const hiddenKey = group.map((item) => (item.kind === 'button' && item.hidden ? '1' : '0')).join('');
     const capsule = (
       <CapsuleSwell key={key} hiddenKey={hiddenKey} showing={showing.length}>
@@ -1083,6 +1142,16 @@ const styles = StyleSheet.create({
   },
   badgeText: { lineHeight: badgeMetrics.size, includeFontPadding: false },
   view: { alignItems: 'center', justifyContent: 'center' },
+  // Centred on its closing gap, at its own size.
+  leaving: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: -200,
+    right: -200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bareContent: { flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
   badgeAnchor: { position: 'absolute', top: 0, left: 0, right: 0, height: 0 },
 });

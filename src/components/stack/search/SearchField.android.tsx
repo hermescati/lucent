@@ -666,6 +666,11 @@ const FocusedSearchBody = ({
       if (done && !was) scheduleOnRN(onClosed);
     },
   );
+  // Opened again, it hasn't landed: kept mounted between opens, it would otherwise hand over the moment the keyboard
+  // next went down.
+  useEffect(() => {
+    if (open) landed.set(0);
+  }, [open, landed]);
   // A floating or hardware keyboard may never quite report itself down.
   useEffect(() => {
     if (open) return undefined;

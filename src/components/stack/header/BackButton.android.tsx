@@ -31,6 +31,9 @@ interface Props {
   history?: MenuTree;
 }
 
+// Right to left, the start is to the right.
+const ahead = I18nManager.isRTL ? -1 : 1;
+
 // The capsule's width around a label this wide, its chevron grown `by` with the text.
 const capsuleFor = (labelWidth: number, by: number) =>
   backButton.leading + backButton.chevronWidth * by + backButton.gap + labelWidth + backButton.trailing;
@@ -113,7 +116,8 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
   // a tap, its padding too.
   const inset = useAnimatedStyle(() => {
     const alone = (barItem.icon - chevronWidth) / 2 - backButton.aloneShift;
-    return { paddingStart: alone + (backButton.leading - alone) * shown.get() };
+    // Moved rather than padded, so it's not laid out again each frame; right to left, toward the right.
+    return { transform: [{ translateX: (alone + (backButton.leading - alone) * shown.get()) * ahead }] };
   });
   const labelStyle = useAnimatedStyle(() => ({
     opacity: shown.get() * shown.get(),

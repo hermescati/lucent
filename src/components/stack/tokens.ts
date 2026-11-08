@@ -330,7 +330,9 @@ export const menuSolidColors = {
 
 export const menuMotion = {
   open: { damping: 26, stiffness: 320, mass: 1 },
-  close: 180,
+  // Closing, it shrinks back into its button fast and then tails off: iOS 27's is down to about half its size 34ms in
+  // and a quarter by 100ms, gone by about 350ms (simulator, from a tap outside). Eased out over this long.
+  close: 300,
   // The items come in over the last part of the open, once the glass has room for them.
   contentFrom: 0.35,
 } as const;
