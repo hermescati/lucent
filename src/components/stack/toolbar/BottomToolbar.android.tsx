@@ -128,8 +128,9 @@ export const BottomToolbar = ({
 
   // With a bare item on it, what scrolls under it blurs and washes, as under the navigation bar (toolbar.edge).
   // Only while it shows: it's lifted glass, which draws what's behind it over whatever lies under it, the field above
-  // the keyboard too, at any opacity. Search mode takes the toolbar away, and the edge with it.
-  const bare = hasBareItem(props.children) && !searching && !returning;
+  // the keyboard too, at any opacity. Search mode takes the toolbar away, and the edge with it. Solid, it's always there:
+  // iOS 27 with Reduce Transparency sets every toolbar on a band of the page's colour (simulator).
+  const bare = (solid || hasBareItem(props.children)) && !searching && !returning;
   const [edgeMounted, setEdgeMounted] = useState(bare);
   if (bare && !edgeMounted) setEdgeMounted(true);
   const edgeIn = useSharedValue(0);
