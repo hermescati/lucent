@@ -26,6 +26,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { BackButton } from './BackButton.android';
 import { BarGlassPresenceContext, BarReturnContext } from './BarCapsule.android';
@@ -186,6 +187,65 @@ const ScrollEdge = ({
         {children}
         {line ? <Animated.View style={[styles.edgeLine, { backgroundColor: line }, lineStyle]} /> : null}
       </AnimatedNativeGlassView>
+    </Animated.View>
+  );
+};
+
+/**
+ * The edge over the status bar alone, while search mode from the bottom hides the bar: iOS 27 keeps blurring and washing
+ * what scrolls up under the status bar there, as over a bar with no title (untitledEdge), where the bar's own edge fades
+ * with it. It comes in as the bar goes and goes as it comes back, and is taken away once gone: lifted glass draws over
+ * what's under it at any opacity.
+ */
+const StatusEdge = ({
+  shown,
+  top,
+  color,
+  under,
+  fallback,
+}: {
+  shown: boolean;
+  top: number;
+  color: string;
+  under: SharedValue<number>;
+  fallback?: ColorValue;
+}) => {
+  const [mounted, setMounted] = useState(shown);
+  if (shown && !mounted) setMounted(true);
+  const presence = useSharedValue(0);
+  useEffect(() => {
+    if (!mounted) return;
+    presence.set(
+      withTiming(shown ? 1 : 0, { duration: searchMotion.barFade }, (done) => {
+        if (done && !shown) scheduleOnRN(setMounted, false);
+      }),
+    );
+  }, [shown, mounted, presence]);
+  const style = useAnimatedStyle(() => ({ opacity: presence.get() }));
+  if (!mounted) return null;
+  const { untitledEdge } = barMotion;
+  const reach = top * untitledEdge.reach;
+  return (
+    <Animated.View pointerEvents="none" style={[styles.statusEdge, { height: reach }, style]}>
+      <EdgeWash
+        color={color}
+        stops={[
+          [untitledEdge.wash, top * untitledEdge.washTo],
+          [0, reach],
+        ]}
+        under={under}
+      />
+      <ScrollEdge
+        color={color}
+        height={reach}
+        blur={barMotion.softBlur}
+        wash={0}
+        under={under}
+        fade={{ blur: barMotion.softFade, to: reach }}
+        fallback={fallback}
+        fallbackFade={top * (untitledEdge.reach - untitledEdge.washTo)}>
+        {null}
+      </ScrollEdge>
     </Animated.View>
   );
 };
@@ -814,163 +874,179 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   );
 
   return (
-    <Animated.View
-      pointerEvents={hidden ? 'none' : 'box-none'}
-      style={[styles.header, { height, paddingTop: top }, shownStyle]}>
-      {transparent && washStops ? <EdgeWash color={background ?? wash} stops={washStops} under={under} /> : null}
-      {transparent ? null : (
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.edge, { backgroundColor: background ?? barMotion.opaqueFill[scheme] }, fillStyle]}
-        />
-      )}
-      {transparent ? (
-        <ScrollEdge
-          color={background ?? wash}
-          height={
-            untitled
-              ? top * barMotion.untitledEdge.reach
-              : top + bar.row + (solid ? barMotion.solidFade : barMotion.edgeReach)
-          }
-          reach={untitled ? undefined : edgeReach}
-          blur={hard ? barMotion.hardBlur : soft || untitled ? barMotion.softBlur : barMotion.edgeBlur[scheme]}
-          wash={hard ? barMotion.hardTint[scheme] : washStops ? 0 : barMotion.edgeTint}
-          saturation={hard ? barMotion.hardSaturation[scheme] : 1}
-          line={hard || washStops || solid ? undefined : barMotion.edgeLine[scheme]}
-          fade={
-            hard
-              ? undefined
-              : untitled
-                ? { blur: barMotion.softFade, to: top * barMotion.untitledEdge.reach }
-                : soft
-                  ? { blur: barMotion.softFade, to: top + bar.row }
-                  : { blur: barMotion.edgeFade, to: top + bar.row * barMotion.edgeFadeTo }
-          }
-          tail={
-            soft && !untitled && !solid
-              ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur }
-              : undefined
-          }
-          fallback={solid ? backgroundOf(options, colors.background) : undefined}
-          fallbackFade={
-            untitled ? top * (barMotion.untitledEdge.reach - barMotion.untitledEdge.washTo) : barMotion.solidFade
-          }
-          under={under}>
-          {untitled ? null : (
-            <Animated.View style={[styles.titleRow, { marginTop: top }, rowStyle]}>{inlineTitle}</Animated.View>
-          )}
-          {placement === 'row' ? (
-            <View pointerEvents="none" style={[styles.largeOnEdge, { top }]}>
-              {rowLarge}
-            </View>
-          ) : null}
-          {below ? (
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.largeInEdge, { top: top + bar.inline, height: largeBlock }, rowStyle, largeEdgeRise]}>
-              {largeText(false)}
-            </Animated.View>
-          ) : null}
-        </ScrollEdge>
-      ) : null}
-      {/* Up ahead of time, out of sight, so it opens on the first frame; under the row, whose trailing items fade out
-      over it as it grows out of their capsule. */}
-      {button || barSearchShown ? (
-        <View
-          // Up ahead of time, out of sight, it lets touches through to the row under it (the glass view in it doesn't
-          // take a pointerEvents of its own).
-          pointerEvents={barFocused ? 'box-none' : 'none'}
-          style={[styles.barSearch, { top, left: margin, right: margin }]}>
-          <BarSearch
-            routeKey={route.key}
-            from={sides.right}
-            open={barFocused}
-            stretch={fieldStretch}
-            closing={fieldClosing}
-            land={landSwell}
-            opened={fieldOpen}
-            starterRef={startField}
-            onClosed={closeBarSearch}
+    <>
+      <Animated.View
+        pointerEvents={hidden ? 'none' : 'box-none'}
+        style={[styles.header, { height, paddingTop: top }, shownStyle]}>
+        {transparent && washStops ? <EdgeWash color={background ?? wash} stops={washStops} under={under} /> : null}
+        {transparent ? null : (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.edge, { backgroundColor: background ?? barMotion.opaqueFill[scheme] }, fillStyle]}
           />
-        </View>
-      ) : null}
-      <Animated.View pointerEvents={rowAside ? 'none' : 'box-none'} style={[styles.row, { paddingHorizontal: margin }]}>
-        {titleMeasure}
-        {placement === 'row' && !transparent ? rowLarge : null}
-        {/* Without the edge's glass to draw in: an opaque bar's title, or a view in a bare bar's, which draws whole. */}
-        {transparent && !untitled ? null : (
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, itemsStyle]}>
-            <Animated.View style={[StyleSheet.absoluteFill, rowStyle]}>{inlineTitle}</Animated.View>
-          </Animated.View>
         )}
-        <Animated.View pointerEvents="box-none" style={[styles.side, holdStyle, leadStyle]} onLayout={measure('left')}>
-          <BarReturnContext value={returning}>
-            {back && backStays && !backOnBar ? (
-              <BackSplit shown={showBack} beside={Boolean(left)}>
-                <Animated.View pointerEvents="box-none" style={backStyle}>
-                  {backButton}
-                </Animated.View>
-              </BackSplit>
+        {transparent ? (
+          <ScrollEdge
+            color={background ?? wash}
+            height={
+              untitled
+                ? top * barMotion.untitledEdge.reach
+                : top + bar.row + (solid ? barMotion.solidFade : barMotion.edgeReach)
+            }
+            reach={untitled ? undefined : edgeReach}
+            blur={hard ? barMotion.hardBlur : soft || untitled ? barMotion.softBlur : barMotion.edgeBlur[scheme]}
+            wash={hard ? barMotion.hardTint[scheme] : washStops ? 0 : barMotion.edgeTint}
+            saturation={hard ? barMotion.hardSaturation[scheme] : 1}
+            line={hard || washStops || solid ? undefined : barMotion.edgeLine[scheme]}
+            fade={
+              hard
+                ? undefined
+                : untitled
+                  ? { blur: barMotion.softFade, to: top * barMotion.untitledEdge.reach }
+                  : soft
+                    ? { blur: barMotion.softFade, to: top + bar.row }
+                    : { blur: barMotion.edgeFade, to: top + bar.row * barMotion.edgeFadeTo }
+            }
+            tail={
+              soft && !untitled && !solid
+                ? { height: barMotion.edgeTail.reach, blur: barMotion.edgeTail.blur }
+                : undefined
+            }
+            fallback={solid ? backgroundOf(options, colors.background) : undefined}
+            fallbackFade={
+              untitled ? top * (barMotion.untitledEdge.reach - barMotion.untitledEdge.washTo) : barMotion.solidFade
+            }
+            under={under}>
+            {untitled ? null : (
+              <Animated.View style={[styles.titleRow, { marginTop: top }, rowStyle]}>{inlineTitle}</Animated.View>
+            )}
+            {placement === 'row' ? (
+              <View pointerEvents="none" style={[styles.largeOnEdge, { top }]}>
+                {rowLarge}
+              </View>
             ) : null}
-            {/* Only with something in it: an empty one would count the side's gap after a back button that stays. */}
-            {(showBack && !backStays) || left ? (
-              <AnimatedNativeGlassBlur
-                pointerEvents="box-none"
-                style={[styles.side, meltStyle]}
-                animatedProps={meltBlur}>
-                {back && !backStays && !backOnBar ? (
-                  <BackSplit shown={showBack} beside={Boolean(left)}>
+            {below ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.largeInEdge, { top: top + bar.inline, height: largeBlock }, rowStyle, largeEdgeRise]}>
+                {largeText(false)}
+              </Animated.View>
+            ) : null}
+          </ScrollEdge>
+        ) : null}
+        {/* Up ahead of time, out of sight, so it opens on the first frame; under the row, whose trailing items fade out
+      over it as it grows out of their capsule. */}
+        {button || barSearchShown ? (
+          <View
+            // Up ahead of time, out of sight, it lets touches through to the row under it (the glass view in it doesn't
+            // take a pointerEvents of its own).
+            pointerEvents={barFocused ? 'box-none' : 'none'}
+            style={[styles.barSearch, { top, left: margin, right: margin }]}>
+            <BarSearch
+              routeKey={route.key}
+              from={sides.right}
+              open={barFocused}
+              stretch={fieldStretch}
+              closing={fieldClosing}
+              land={landSwell}
+              opened={fieldOpen}
+              starterRef={startField}
+              onClosed={closeBarSearch}
+            />
+          </View>
+        ) : null}
+        <Animated.View
+          pointerEvents={rowAside ? 'none' : 'box-none'}
+          style={[styles.row, { paddingHorizontal: margin }]}>
+          {titleMeasure}
+          {placement === 'row' && !transparent ? rowLarge : null}
+          {/* Without the edge's glass to draw in: an opaque bar's title, or a view in a bare bar's, which draws whole. */}
+          {transparent && !untitled ? null : (
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, itemsStyle]}>
+              <Animated.View style={[StyleSheet.absoluteFill, rowStyle]}>{inlineTitle}</Animated.View>
+            </Animated.View>
+          )}
+          <Animated.View
+            pointerEvents="box-none"
+            style={[styles.side, holdStyle, leadStyle]}
+            onLayout={measure('left')}>
+            <BarReturnContext value={returning}>
+              {back && backStays && !backOnBar ? (
+                <BackSplit shown={showBack} beside={Boolean(left)}>
+                  <Animated.View pointerEvents="box-none" style={backStyle}>
                     {backButton}
-                  </BackSplit>
-                ) : null}
-                <BarBackButtonContext value={backOnBar ? { element: backButton, shown: showBack } : null}>
-                  {left}
-                </BarBackButtonContext>
-              </AnimatedNativeGlassBlur>
-            ) : null}
-          </BarReturnContext>
-        </Animated.View>
-        <AnimatedNativeGlassBlur
-          pointerEvents="box-none"
-          style={[styles.side, holdStyle]}
-          animatedProps={meltBlur}
-          onLayout={measureRight}>
-          <Animated.View pointerEvents="box-none" style={[styles.side, meltStyle]}>
-            <Animated.View
-              pointerEvents="box-none"
-              // Out of reach while search is open, the magnifier left under the field among them.
-              importantForAccessibility={rowAside ? 'no-hide-descendants' : 'auto'}
-              style={[styles.side, trailStyle]}>
-              <BarGlassPresenceContext value={trailGlass}>
-                <BarMeltContext value={melt}>
-                  {right ? (
-                    <BarSearchButtonContext value={button ? searchButton : null}>{right}</BarSearchButtonContext>
-                  ) : button ? (
-                    <SearchButton routeKey={route.key} inBar />
+                  </Animated.View>
+                </BackSplit>
+              ) : null}
+              {/* Only with something in it: an empty one would count the side's gap after a back button that stays. */}
+              {(showBack && !backStays) || left ? (
+                <AnimatedNativeGlassBlur
+                  pointerEvents="box-none"
+                  style={[styles.side, meltStyle]}
+                  animatedProps={meltBlur}>
+                  {back && !backStays && !backOnBar ? (
+                    <BackSplit shown={showBack} beside={Boolean(left)}>
+                      {backButton}
+                    </BackSplit>
                   ) : null}
-                </BarMeltContext>
-              </BarGlassPresenceContext>
+                  <BarBackButtonContext value={backOnBar ? { element: backButton, shown: showBack } : null}>
+                    {left}
+                  </BarBackButtonContext>
+                </AnimatedNativeGlassBlur>
+              ) : null}
+            </BarReturnContext>
+          </Animated.View>
+          <AnimatedNativeGlassBlur
+            pointerEvents="box-none"
+            style={[styles.side, holdStyle]}
+            animatedProps={meltBlur}
+            onLayout={measureRight}>
+            <Animated.View pointerEvents="box-none" style={[styles.side, meltStyle]}>
+              <Animated.View
+                pointerEvents="box-none"
+                // Out of reach while search is open, the magnifier left under the field among them.
+                importantForAccessibility={rowAside ? 'no-hide-descendants' : 'auto'}
+                style={[styles.side, trailStyle]}>
+                <BarGlassPresenceContext value={trailGlass}>
+                  <BarMeltContext value={melt}>
+                    {right ? (
+                      <BarSearchButtonContext value={button ? searchButton : null}>{right}</BarSearchButtonContext>
+                    ) : button ? (
+                      <SearchButton routeKey={route.key} inBar />
+                    ) : null}
+                  </BarMeltContext>
+                </BarGlassPresenceContext>
+              </Animated.View>
+            </Animated.View>
+          </AnimatedNativeGlassBlur>
+        </Animated.View>
+        {below ? (
+          <Animated.View pointerEvents="none" style={[styles.largeBlock, { height: largeBlock }, rowStyle]}>
+            {largeText(true)}
+          </Animated.View>
+        ) : null}
+        {block ? (
+          // A field that stays under the row is the bar's, not the page's: it holds still as the pages slide and fades
+          // with the swipe, as iOS 27's does. One under a large title scrolls with the page, and slides with it.
+          <Animated.View
+            style={[styles.searchHold, !below && styles.searchBelowRow, pinned && !below && crossStyle]}
+            onLayout={(event) => setBlockTop(event.nativeEvent.layout.y)}>
+            <Animated.View style={[styles.searchBlock, focusedInBar && styles.searchOpen, searchStyle]}>
+              <HeaderSearch routeKey={route.key} progress={searchProgress} />
             </Animated.View>
           </Animated.View>
-        </AnimatedNativeGlassBlur>
+        ) : null}
       </Animated.View>
-      {below ? (
-        <Animated.View pointerEvents="none" style={[styles.largeBlock, { height: largeBlock }, rowStyle]}>
-          {largeText(true)}
-        </Animated.View>
+      {transparent ? (
+        <StatusEdge
+          shown={searchHides}
+          top={top}
+          color={wash}
+          under={under}
+          fallback={solid ? backgroundOf(options, colors.background) : undefined}
+        />
       ) : null}
-      {block ? (
-        // A field that stays under the row is the bar's, not the page's: it holds still as the pages slide and fades
-        // with the swipe, as iOS 27's does. One under a large title scrolls with the page, and slides with it.
-        <Animated.View
-          style={[styles.searchHold, !below && styles.searchBelowRow, pinned && !below && crossStyle]}
-          onLayout={(event) => setBlockTop(event.nativeEvent.layout.y)}>
-          <Animated.View style={[styles.searchBlock, focusedInBar && styles.searchOpen, searchStyle]}>
-            <HeaderSearch routeKey={route.key} progress={searchProgress} />
-          </Animated.View>
-        </Animated.View>
-      ) : null}
-    </Animated.View>
+    </>
   );
 };
 
@@ -980,6 +1056,7 @@ const styles = StyleSheet.create({
   // Clips the lifted edge to its screen's rounded corners while it moves.
   edgeClip: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
   edgeLine: { position: 'absolute', left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth },
+  statusEdge: { position: 'absolute', top: 0, left: 0, right: 0 },
   titleRow: { height: bar.row },
   row: {
     height: bar.row,
