@@ -102,11 +102,24 @@ class LucentModule : Module() {
       Prop("underlay") { view: GlassView, underlay: String? -> view.underlay = underlay }
       Prop("overlay") { view: GlassView, overlay: String? -> view.overlay = overlay }
 
-      Prop("shapes") { view: GlassView, value: FloatArray? -> view.shapes = value }
-      Prop("shapePull") { view: GlassView, value: FloatArray? -> view.shapePull = value }
+      // Animated on the UI thread, these redraw the solid fallback themselves (redrawIfSolid).
+      Prop("shapes") { view: GlassView, value: FloatArray? ->
+        view.shapes = value
+        view.redrawIfSolid()
+      }
+      Prop("shapePull") { view: GlassView, value: FloatArray? ->
+        view.shapePull = value
+        view.redrawIfSolid()
+      }
       Prop("inset") { view: GlassView, value: Float? -> view.inset = value ?: 0f }
-      Prop("cornerRadius") { view: GlassView, value: Float? -> view.cornerRadius = value ?: 0f }
-      Prop("blend") { view: GlassView, value: Float? -> view.blend = value ?: 0f }
+      Prop("cornerRadius") { view: GlassView, value: Float? ->
+        view.cornerRadius = value ?: 0f
+        view.redrawIfSolid()
+      }
+      Prop("blend") { view: GlassView, value: Float? ->
+        view.blend = value ?: 0f
+        view.redrawIfSolid()
+      }
       Prop("blurRadius") { view: GlassView, value: Float? -> view.blurRadius = value ?: 0f }
       Prop("bezel") { view: GlassView, value: Float? -> view.bezel = value ?: 0f }
       Prop("refraction") { view: GlassView, value: Float? -> view.refraction = value ?: 0f }

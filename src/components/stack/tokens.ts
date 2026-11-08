@@ -474,6 +474,10 @@ export const searchMotion = {
     // circle. Out of one, it starts at the circle's size and widens over `circleStretch` as it rides the keyboard up.
     circleEmpty: 60,
     circleStretch: 300,
+    // Solid, the field out of the toolbar's capsule fades in over it and out again over this long, and the capsule
+    // goes only once the field is this far in.
+    solidFade: 120,
+    solidUp: 0.99,
     // A field drawing back into a magnifier's circle, at the bottom or among the toolbar's items: as the navigation
     // bar's lands in its capsule (bar.land), it swells as it nears, from `from` of its stretch to `at`, up to `peak`,
     // and the circle takes the swell over and settles on a looser spring, wobbling as it comes round.

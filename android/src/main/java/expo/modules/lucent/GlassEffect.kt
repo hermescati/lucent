@@ -56,6 +56,14 @@ abstract class GlassEffect(context: Context, appContext: AppContext) :
   override val pressesSolid: Boolean
     get() = !usesShader
 
+  /**
+   * Redraws the solid fallback after a shape prop animated on the UI thread changes: it draws only when asked, where the
+   * shader's glass redraws every frame anyway and asking again would only cost it.
+   */
+  fun redrawIfSolid() {
+    if (!usesShader) invalidate()
+  }
+
   init {
     GlassSupport.track(this)
   }

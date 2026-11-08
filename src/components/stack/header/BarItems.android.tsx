@@ -4,6 +4,7 @@ import {
   isValidElement,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -24,7 +25,7 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
-  FadeIn,
+  FadeOut,
   useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -49,7 +50,16 @@ import { createLucentContext } from '../../../theme/context';
 import { useOpenMenu } from '../menu/Menu.android';
 import { menuTree } from '../menu/items';
 import { SearchBubbleContext, SearchDisplay, setCapsuleRect } from '../search/SearchField.android';
-import { badge as badgeMetrics, barItem, barItemMotion, barMotion, bar, islandSplit, toolbar } from '../tokens';
+import {
+  badge as badgeMetrics,
+  barItem,
+  barItemMotion,
+  barMotion,
+  bar,
+  islandSplit,
+  searchMotion,
+  toolbar,
+} from '../tokens';
 import {
   ToolbarBadge,
   ToolbarButton,
@@ -394,6 +404,35 @@ const CapsuleSwell = ({
   return <SwellContext value={swell}>{children(swell)}</SwellContext>;
 };
 
+/**
+ * An item with no glass. Swapped in after the row first showed, its slot opens from nothing on the split's spring as the
+ * icons around it split apart, and it fades in as they do (toolbar.bareIn), rather than taking its width at once and
+ * shoving the capsules aside. Taken away, it fades where it stood while the capsules close up.
+ */
+const BareSlot = ({ opens, minWidth, children }: { opens: boolean; minWidth: number; children: ReactNode }) => {
+  const [natural, setNatural] = useState(0);
+  const [opening] = useState(opens);
+  const open = useSharedValue(opening ? 0 : 1);
+  const shown = useSharedValue(opening ? 0 : 1);
+  useLayoutEffect(() => {
+    if (!opening || natural === 0) return;
+    open.set(withSpring(1, islandSplit.spring));
+    shown.set(withDelay(toolbar.bareIn.delay, withTiming(1, { duration: toolbar.bareIn.duration })));
+  }, [opening, natural, open, shown]);
+  const slotStyle = useAnimatedStyle(() => (opening ? { width: Math.max(natural * open.get(), 0) } : { minWidth }));
+  const contentStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  return (
+    <Animated.View exiting={FadeOut.duration(toolbar.bareIn.duration)} style={[styles.view, slotStyle]}>
+      <Animated.View
+        // Measured at its own size while its slot opens around it, kept in the slot's middle.
+        style={[opening && styles.bareContent, { minWidth }, contentStyle]}
+        onLayout={opening && natural === 0 ? (event) => setNatural(event.nativeEvent.layout.width) : undefined}>
+        {children}
+      </Animated.View>
+    </Animated.View>
+  );
+};
+
 /** A fixed space kept on a capsule, opening and closing on the split's spring as the item after it melts in or off. */
 const Gap = ({ width }: { width: number }) => {
   const size = useSharedValue(width);
@@ -709,12 +748,12 @@ export const BarBackButtonContext = createLucentContext<{ element: ReactNode; sh
 
 /** A `Stack.Toolbar`'s items for one side of the bar, grouped onto glass capsules as iOS 26 does. */
 export const BarItems = ({ children, color, bottom = false, routeKey }: Props) => {
-  const { scheme } = useLucentTheme();
+  const { scheme, solid } = useLucentTheme();
   const tabsTint = useTabsTint();
   const metrics = bottom ? toolbar : barItem;
   const searchButton = useContext(BarSearchButtonContext);
   // As iOS does, the magnifier joins the trailing items, on their capsule when it can share one.
-  const items: Item[] = [
+  const listed: Item[] = [
     ...toItems(children),
     ...(searchButton && !bottom
       ? [
@@ -733,11 +772,51 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
         ]
       : []),
   ];
+  // A button taken off the toolbar (swapped for a view, say) stays on its capsule as a ghost while its slot closes on the
+  // split's spring, where it would leave at once and jump everything beside it.
+  const listedKey = listed.map((item) => item.key).join('|');
+  const [listedBefore, setListedBefore] = useState({ key: listedKey, items: listed });
+  const [departing, setDeparting] = useState<{ item: ButtonItem; before: string | null }[]>([]);
+  if (listedBefore.key !== listedKey) {
+    const now = new Set(listed.map((item) => item.key));
+    const went = bottom
+      ? listedBefore.items.flatMap((item, at) => {
+          if (
+            item.kind !== 'button' ||
+            now.has(item.key) ||
+            item.hidden ||
+            item.bare ||
+            item.prominent ||
+            item.textOnly ||
+            !(item.md || item.image)
+          )
+            return [];
+          const next = listedBefore.items.slice(at + 1).find((other) => now.has(other.key));
+          return [{ item, before: next?.key ?? null }];
+        })
+      : [];
+    setDeparting((current) => [...current.filter((gone) => !now.has(gone.item.key)), ...went]);
+    setListedBefore({ key: listedKey, items: listed });
+  }
+  useEffect(() => {
+    if (departing.length === 0) return undefined;
+    const done = setTimeout(() => setDeparting([]), islandSplit.spring.duration + 50);
+    return () => clearTimeout(done);
+  }, [departing]);
+  const items = departing.reduce<Item[]>((all, { item, before }) => {
+    const ghost: ButtonItem = { ...item, hidden: true, ghost: true, badge: undefined };
+    const at = before === null ? -1 : all.findIndex((other) => other.key === before);
+    return at < 0 ? [...all, ghost] : [...all.slice(0, at), ghost, ...all.slice(at)];
+  }, listed);
   const groups = toGroups(items, bottom);
   // The toolbar's slot as a magnifier's circle and the field that grows out of it are one piece of glass: the circle's
   // glass goes the frame the field's comes up over it, and is back the frame the field's lands in it.
   const bubble = useContext(SearchBubbleContext);
-  const circlePresence = useDerivedValue<number>(() => (bubble && bubble.up.get() > 0.5 ? 0 : 1));
+  // Solid, the field fades in over it and out again (bottom.solidFade), so it stays until the field's whole: an opaque
+  // field half in over nothing would show what's behind it.
+  const circlePresence = useDerivedValue<number>(() =>
+    bubble && bubble.up.get() > (solid ? searchMotion.bottom.solidUp : 0.5) ? 0 : 1,
+  );
   // The search field's capsule, whose whole span the field grows out of, its other items on it fading as it does.
   const searchCapsule = useRef<ComponentRef<typeof View>>(null);
   const measureCapsule = () =>
@@ -851,14 +930,9 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
     // avatar gets 2pt more on each side than a button would.
     if (views || (group as Group).bare)
       return (
-        <Animated.View
-          key={groupKey(group)}
-          // Swapped in after the row first showed, it fades in once the icons it split off have opened their place,
-          // rather than over them as they bud off (toolbar.bareIn).
-          entering={known !== null ? FadeIn.delay(toolbar.bareIn.delay).duration(toolbar.bareIn.duration) : undefined}
-          style={[styles.view, { minWidth: metrics.height }]}>
+        <BareSlot key={groupKey(group)} opens={known !== null} minWidth={metrics.height}>
           {content}
-        </Animated.View>
+        </BareSlot>
       );
     const hiddenKey = group.map((item) => (item.kind === 'button' && item.hidden ? '1' : '0')).join('');
     const capsule = (
@@ -987,5 +1061,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { lineHeight: badgeMetrics.size, includeFontPadding: false },
   view: { alignItems: 'center', justifyContent: 'center' },
+  bareContent: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   badgeAnchor: { position: 'absolute', top: 0, left: 0, right: 0, height: 0 },
 });

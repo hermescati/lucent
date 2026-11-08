@@ -623,6 +623,10 @@ const FocusedSearchBody = ({
     pinned.get() >= 0 ? pinned.get() : Math.max(rest, -keyboard.height.get() + toolbar.aboveKeyboard),
   );
   const fieldStyle = useAnimatedStyle(() => ({ bottom: bottom.get(), left: side.get(), right: side.get() }));
+  // When it parks back in the toolbar's slot: once the keyboard's down; solid, once it has landed, fading over the
+  // toolbar's items as they come back, which it would otherwise hide, opaque, until the keyboard's all the way down.
+  const { solid } = useLucentTheme();
+  const parkGate = useDerivedValue(() => (solid ? (bottom.get() - rest > 0.5 ? 1 : 0) : keyboard.progress.get()));
   // Taken away once it has played out and the keyboard's down, so what it came from shows where it landed.
   const landed = useSharedValue(0);
   useAnimatedReaction(
@@ -664,7 +668,7 @@ const FocusedSearchBody = ({
           focus={bubble ? 'sharp' : 'mount'}
           land={from === 'button' ? landSwell : undefined}
           parks={Boolean(bubble)}
-          parksBy={from === 'slot' ? keyboard.progress : undefined}
+          parksBy={from === 'slot' ? parkGate : undefined}
           starterRef={bubble?.starterRef}
           tint={from === 'slot' ? tabsTint : undefined}
           stretch={stretch}
@@ -770,8 +774,8 @@ interface SearchMorphProps extends Omit<BarSearchProps, 'from'> {
   focus: 'mount' | 'sharp' | 'grown';
   // Up ahead of time, out of sight, it parks its glass once closed rather than being taken away.
   parks?: boolean;
-  // Parked only once this is down (the keyboard's progress): the toolbar's capsule it drew back into takes over where
-  // the toolbar rests, its items back around it.
+  // Parked only once this is down (the keyboard's progress, or whether it has landed): the toolbar's capsule it drew
+  // back into takes over where the toolbar rests, its items back around it.
   parksBy?: SharedValue<number>;
   tint?: string;
 }
@@ -829,11 +833,16 @@ const SearchMorph = ({
   const textShown = useSharedValue(1);
   // Parked, its content goes with its glass: what it grew out of takes over, showing its own.
   const parkPending = useSharedValue(0);
+  // Solid, out of the toolbar's capsule, it fades over it rather than taking over the frame it comes or goes: opaque,
+  // it would hide the capsule's other items at once, where glass shows them blurring away under it.
+  const { solid } = useLucentTheme();
+  const fadesOver = solid && wideStart !== undefined;
   const park = () => {
     'worklet';
     parkPending.set(0);
-    up.set(searchMotion.bar.parked);
-    shown.set(0);
+    const { solidFade } = searchMotion.bottom;
+    up.set(fadesOver ? withTiming(searchMotion.bar.parked, { duration: solidFade }) : searchMotion.bar.parked);
+    shown.set(fadesOver ? withTiming(0, { duration: solidFade }) : 0);
   };
   // Once the keyboard's down, and after the render that ends search mode, which it sets off then: parked before it, the
   // capsule taking over would wait out that render to show, leaving neither glass for a few frames.
@@ -848,6 +857,11 @@ const SearchMorph = ({
     () => parkPending.get() === 1 && (parksBy?.get() ?? 0) <= keyboardDown,
     (now) => {
       if (!now) return;
+      // Fading, the capsule's already there under it: no render to wait for.
+      if (fadesOver) {
+        park();
+        return;
+      }
       parkPending.set(2);
       scheduleOnRN(parkAfterRender);
     },
@@ -925,7 +939,7 @@ const SearchMorph = ({
     closing.set(0);
     parkPending.set(0);
     textShown.set(1);
-    up.set(1);
+    up.set(fadesOver ? withTiming(1, { duration: searchMotion.bottom.solidFade }) : 1);
     sharp.set(clip || keepsContent ? 1 : 0);
     crossSharp.set(0);
     const next = <T,>(animation: T) => withDelay(FRAME, animation as never) as T;
