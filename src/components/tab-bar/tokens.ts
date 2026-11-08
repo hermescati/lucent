@@ -173,7 +173,6 @@ export const motion = {
     searchKeyboardAbsorb: { duration: 140, dampingRatio: 1 },
     searchDipIn: islandReturn.dipIn,
     searchDipOut: islandReturn.dipOut,
-    press: { duration: 160, dampingRatio: 1 },
     closeFlash: { duration: 300, dampingRatio: 1 },
     stretch: { duration: 340, dampingRatio: 0.55 },
     jellyLead: { duration: 240, dampingRatio: 0.75 },
@@ -354,9 +353,6 @@ export const motion = {
     iconHalf: 0.35,
   },
   pressGrow: 0.26,
-  // The minimized bar held (iOS 27 simulator): it swells from 49 to 65pt on the press spring and brightens, and stays
-  // minimized; let go, it opens. A drag from it opens it at once and carries on as a drag on the bar.
-  minimizedPress: { grow: 16 },
   // A finger dragged off a pressed glass shape pulls it after itself, as iOS 27's do (simulator, held 120 to 320pt off):
   // per point past its edge, the search circle grows `stretch` longer toward it and as much narrower across, its middle
   // moving `shift`; the lens about half as much. Up to `reach` points, and only while pressed.

@@ -327,7 +327,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
       // Minimized, a press swells it and waits: let go, it opens; dragged, it opens and the drag carries on there.
       if (collapse && collapse.target.get() === 1) {
         expandOnly.set(true);
-        minimizedPress.onPressIn();
+        minimizedPress.begin(event.x, event.y);
         barPress.set(withSpring(1, motion.springs.barPressIn));
         return;
       }
@@ -345,10 +345,11 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
         // A drag from the minimized bar carries on in the bar it opens, as iOS 27's does: the selected tab's lens
         // lifts in place and goes with the finger. A tap or a hold only opens it once let go.
         if (Math.abs(event.translationX) < motion.dragThreshold || focused.get() < 0) {
+          minimizedPress.move(event.x, event.y, 0);
           return;
         }
         expandOnly.set(false);
-        minimizedPress.onPressOut();
+        minimizedPress.end();
         if (collapse) setTabBarCollapsed(collapse, 0);
         pressBegin(event.x, focused.get());
       }
@@ -357,7 +358,7 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     onFinalize: (event) => {
       if (expandOnly.get()) {
         expandOnly.set(false);
-        minimizedPress.onPressOut();
+        minimizedPress.end();
         barPress.set(withSpring(0, motion.springs.barPressOut));
         if (collapse) setTabBarCollapsed(collapse, 0);
         return;

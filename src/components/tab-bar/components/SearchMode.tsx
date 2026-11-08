@@ -13,6 +13,7 @@ import { ClearButton } from './ClearButton';
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import type { ShapePress } from '../../../core/glass/useShapePress';
 import { useClearButton } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
@@ -21,7 +22,6 @@ import type { SearchFieldFit } from '../helpers/bar';
 import { mirrored } from '../helpers/mirror';
 import type { SlotPlan } from '../helpers/slots';
 import type { TabSpec } from '../helpers/triggers';
-import type { GlassPress, useGlassPress } from '../hooks/useGlassPress';
 import { clearButton, layout, motion, placeholderBlend, searchFieldText } from '../tokens';
 
 const fullHeight = layout.tabBarHeight;
@@ -53,7 +53,7 @@ interface Props {
   tintColor?: string;
   badgeColor?: string;
   badgeTextColor?: string;
-  backPress: ReturnType<typeof useGlassPress>;
+  backPress: ShapePress;
   travel: {
     index: number;
     slots: SharedValue<SlotPlan>;
@@ -71,7 +71,7 @@ interface Props {
   // The field taken up again while inactive.
   onWake: () => void;
   // The field's glass under a finger on its clear button.
-  fieldPress: GlassPress;
+  fieldPress: ShapePress;
   backDrag: PanGesture;
   keyboard: SharedValue<number>;
   spread: SharedValue<number>;
@@ -119,9 +119,12 @@ export const SearchMode = ({
     onClear: clearQuery,
     onPressIn: () => {
       'worklet';
-      fieldPress.onPressIn();
+      fieldPress.begin();
     },
-    onPressOut: fieldPress.onPressOut,
+    onPressOut: () => {
+      'worklet';
+      fieldPress.end();
+    },
     hitSlop: clearButton.hitSlop,
   });
   // Touched in its text, the field swells a little less than under its clear button (iOS 27 simulator). The text box
@@ -129,15 +132,15 @@ export const SearchMode = ({
   const fieldTouch = useManualGesture({
     onTouchesDown: () => {
       'worklet';
-      fieldPress.onPressIn(motion.fieldTapPeak);
+      fieldPress.begin(0, 0, motion.fieldTapPeak);
     },
     onTouchesUp: () => {
       'worklet';
-      fieldPress.onPressOut();
+      fieldPress.end();
     },
     onTouchesCancel: () => {
       'worklet';
-      fieldPress.onPressOut();
+      fieldPress.end();
     },
   });
   const [keyboardUp, setKeyboardUp] = useState(false);
@@ -269,8 +272,8 @@ export const SearchMode = ({
           style={[styles.back, { top: modeInset - fieldFit.rise / 2 }]}
           pointerEvents={keyboardUp ? 'none' : 'auto'}
           onPress={goBack}
-          onPressIn={() => backPress.onPressIn()}
-          onPressOut={backPress.onPressOut}
+          onPressIn={() => backPress.begin()}
+          onPressOut={() => backPress.end()}
           accessibilityRole="button"
           accessibilityLabel={backTab.label}>
           <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>

@@ -14,10 +14,10 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 
-import { useGlassPress } from './useGlassPress';
 import { useKeyboard } from './useKeyboard';
 import { useTabBarOffset } from './useTabBarOffset';
 import { regularMaterial } from '../../../core/glass/material';
+import { useShapePress } from '../../../core/glass/useShapePress';
 import { barItemMotion } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { glass, space } from '../../../theme/tokens';
@@ -223,10 +223,10 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
     disabledTabs.set(disabledKey.split('').map((flag) => flag === '1'));
   }, [disabledKey, disabledTabs]);
   const hasBadges = tabs.some((tab) => tab.badge !== undefined);
-  const searchPress = useGlassPress();
+  const searchPress = useShapePress();
   // The search field's glass under a finger on its clear button: it swells and brightens, as iOS's does.
-  const fieldPress = useGlassPress(true);
-  const backPress = useGlassPress();
+  const fieldPress = useShapePress(true);
+  const backPress = useShapePress();
   const backLight = useSharedValue(0);
   const backDragging = useSharedValue(false);
   const glassStyle = regularMaterial(theme);
@@ -323,8 +323,9 @@ export const useBarState = ({ tabs, searchTab, accessory, tintColor }: FloatingT
       }
     },
   );
-  // Held, the minimized bar swells as the search circle does, staying minimized until let go (motion.minimizedPress).
-  const minimizedPress = useGlassPress();
+  // Held, the minimized bar swells and lights up as a pressed glass shape does, staying minimized until let go (iOS 27:
+  // let go, it opens; a drag from it opens it at once and carries on as a drag on the bar).
+  const minimizedPress = useShapePress();
   const compactSize = useDerivedValue(() => layout.tabBarCompactHeight * (1 - compactPop.get()));
   const scaleX = useDerivedValue(() => lerp(1, compactSize.get() / Math.max(barWidth.get(), 1), collapsed.get()));
   const scaleY = useDerivedValue(() => lerp(1, compactSize.get() / fullHeight, collapsed.get()));

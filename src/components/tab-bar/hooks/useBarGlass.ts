@@ -1,5 +1,7 @@
 import { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 
+import { glassPress } from '../../../core/glass/presets';
+import { leanBy } from '../../../core/glass/useShapePress';
 import { barItemMotion } from '../../../core/motion/island';
 import { useSolidGlass } from '../../../theme/solid';
 import { glass } from '../../../theme/tokens';
@@ -156,9 +158,10 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       (wallSide.get() > 0 ? wallBulge : 0) -
       heldNarrow * 2;
     const pillInset = (fullHeight * (1 - scaleY.get())) / 2;
-    // Held while minimized, it swells about its middle (motion.minimizedPress); search's circle beside it doesn't.
+    // Held while minimized, it swells about its middle by as much as any pressed glass shape grows (glassPress.grow:
+    // iOS 27's goes from 49 to 65pt); search's circle beside it doesn't.
     const minimizedHeld = solid ? 0 : minimizedPress.press.get() * collapsed.get();
-    const swellBy = (minimizedHeld * motion.minimizedPress.grow) / 2;
+    const swellBy = (minimizedHeld * glassPress.grow) / 2;
     const pillTop = pillInset - grow - heldUp * motion.pull.bar.near + heldDown * motion.pull.bar.far - swellBy;
     const pillBottom =
       fullHeight - pillInset + grow - heldUp * motion.pull.bar.far + heldDown * motion.pull.bar.near + swellBy;
@@ -210,11 +213,17 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
     const apart = searchApart.get();
     // Held and dragged off, the circle pulls after the finger, stretched as a whole (`shapePull`, a circle into an
     // ellipse) about a middle that follows it.
-    const pulled = pullBy(
-      searchPress.pull.get(),
-      (solid ? 0 : searchPress.press.get()) * (1 - settled),
-      motion.pull.circle,
-    );
+    // Held, it also leans toward the finger on it, as every pressed glass shape does (useShapePress).
+    const circleHeld = (solid ? 0 : searchPress.press.get()) * (1 - settled);
+    const dragged = pullBy(searchPress.pull.get(), circleHeld, motion.pull.circle);
+    const half = fullHeight / 2;
+    const leaned = leanBy(searchPress.x.get() - half, searchPress.y.get() - half, half, circleHeld);
+    const pulled = {
+      x: dragged.x * leaned.x,
+      y: dragged.y * leaned.y,
+      shiftX: dragged.shiftX + leaned.shiftX,
+      shiftY: dragged.shiftY + leaned.shiftY,
+    };
     const splitX = lerp(width - fullHeight / 2, circleX, apart) + pulled.shiftX * apart;
     const splitRadius = fieldRadius * lerp(motion.searchSplit.from, 1, clamp01(apart));
     // Held by its clear button, the field swells about its middle.
@@ -291,11 +300,11 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
             }
           : minimizedHeld > 0
             ? {
-                // Held while minimized, it brightens all over, as the search circle does.
+                // Held while minimized, it lights up as a pressed glass button does (useShapePress).
                 glowX: (backLeft + backRight) / 2 + pad,
                 glowY: (backTop + backBottom) / 2 + pad,
-                glowSpread: backRight - backLeft,
-                glowStrength: glass.pressGlow * minimizedHeld,
+                glowSpread: glassPress.glowSpread,
+                glowStrength: glassPress.glow * minimizedPress.glow.get() * collapsed.get(),
                 glowShape: -1,
               }
             : {

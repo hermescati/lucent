@@ -332,21 +332,21 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const circleGesture = usePanGesture({
     enabled: Boolean(circleTab),
     minDistance: 0,
-    onBegin: () => {
+    onBegin: (event) => {
       circleMoved.set(false);
-      searchPress.onPressIn();
+      searchPress.begin(event.x, event.y);
     },
     onUpdate: (event) => {
       if (Math.hypot(event.translationX, event.translationY) > motion.dragThreshold) circleMoved.set(true);
       const { reach } = motion.pull.circle;
       const clamp = (past: number) => Math.max(-reach, Math.min(reach, past));
-      searchPress.pull.set({
-        x: clamp(pastEdge(event.x, 0, fullHeight)),
-        y: clamp(pastEdge(event.y, 0, fullHeight)),
-      });
+      const pastX = pastEdge(event.x, 0, fullHeight);
+      const pastY = pastEdge(event.y, 0, fullHeight);
+      searchPress.move(event.x, event.y, Math.hypot(pastX, pastY));
+      searchPress.drag(clamp(pastX), clamp(pastY));
     },
     onFinalize: (event) => {
-      searchPress.onPressOut();
+      searchPress.end();
       const { slop } = motion.pull;
       const near = event.x > -slop && event.x < fullHeight + slop && event.y > -slop && event.y < fullHeight + slop;
       // A tap never moves far enough for the pan to take hold, which ends it as cancelled; it's still a press.

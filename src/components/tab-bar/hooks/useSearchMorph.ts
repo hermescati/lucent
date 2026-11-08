@@ -9,6 +9,7 @@ import {
   withSpring,
 } from 'react-native-reanimated';
 
+import { leanBy } from '../../../core/glass/useShapePress';
 import { useSolidGlass } from '../../../theme/solid';
 import { clamp01, fieldGlyphCenter, fullHeight, lerp, modeHeight, modeInset, modeShrink, pullBy } from '../helpers/bar';
 import { layout, motion } from '../tokens';
@@ -224,11 +225,16 @@ export const useSearchMorph = (bar: BarState) => {
   }));
   // Pulled by a finger dragged off it, what's on the circle stretches and moves with its glass (useBarGlass).
   const searchContentStyle = useAnimatedStyle(() => {
-    const pulled = pullBy(
-      searchPress.pull.get(),
-      (solid ? 0 : searchPress.press.get()) * (1 - clamp01(searchMode.get())),
-      motion.pull.circle,
-    );
+    const held = (solid ? 0 : searchPress.press.get()) * (1 - clamp01(searchMode.get()));
+    const dragged = pullBy(searchPress.pull.get(), held, motion.pull.circle);
+    const half = fullHeight / 2;
+    const leaned = leanBy(searchPress.x.get() - half, searchPress.y.get() - half, half, held);
+    const pulled = {
+      x: dragged.x * leaned.x,
+      y: dragged.y * leaned.y,
+      shiftX: dragged.shiftX + leaned.shiftX,
+      shiftY: dragged.shiftY + leaned.shiftY,
+    };
     return {
       transform: [
         { translateX: pulled.shiftX },
