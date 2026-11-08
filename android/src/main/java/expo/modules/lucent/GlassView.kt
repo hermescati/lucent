@@ -65,6 +65,12 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
 
   private val ancestorRect = RectF()
   private val ownRect = RectF()
+  // Screens over this one with rounded corners (a swipe back rounds the top screen's): the glass is kept out of where each
+  // is, cut along its corners, so what they uncover there still shows it.
+  private val coverRects = ArrayList<RectF>()
+  private val coverRadii = ArrayList<Float>()
+  private var coverCount = 0
+  private val coverPath = Path()
 
   private val wideNode: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassWide") else null
@@ -347,17 +353,44 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
 
   // What of `area` a screen over it leaves showing: screens slide sideways or up, so it's one edge moved. Whether the
   // screen spans the glass is what counts, not the whole backdrop: a screen in tabs stops short of the window.
-  private fun uncover(area: RectF, cover: RectF, glass: RectF) {
+  // A screen with rounded corners leaves its corners showing what's under it: the area keeps `radius` into the screen,
+  // which the screen's rounded shape is then cut out of.
+  private fun uncover(area: RectF, cover: RectF, glass: RectF, radius: Float) {
     if (!RectF.intersects(area, cover)) return
     val spansHeight = cover.top <= glass.top && cover.bottom >= glass.bottom
     val spansWidth = cover.left <= glass.left && cover.right >= glass.right
     when {
-      spansHeight && spansWidth -> area.setEmpty()
-      spansHeight && cover.left > area.left -> area.right = min(area.right, cover.left)
+      spansHeight && spansWidth && radius <= 0f -> area.setEmpty()
+      spansHeight && cover.left > area.left -> area.right = min(area.right, cover.left + radius)
+      spansHeight && cover.right < area.right -> area.left = maxOf(area.left, cover.right - radius)
+      spansHeight && spansWidth -> Unit
       spansHeight -> area.left = maxOf(area.left, cover.right)
       spansWidth && cover.top > area.top -> area.bottom = min(area.bottom, cover.top)
       spansWidth -> area.top = maxOf(area.top, cover.bottom)
     }
+  }
+
+  // The corner radius of a screen's page, in pixels: the first view inside it that fills it and has rounded corners (a
+  // swipe back rounds the top screen's). 0 when it has none.
+  private fun roundedCorner(screen: View): Float {
+    var level = listOf(screen)
+    repeat(7) {
+      val next = ArrayList<View>()
+      for (view in level) {
+        val group = view as? ViewGroup ?: continue
+        for (c in 0 until group.childCount) {
+          val inner = group.getChildAt(c)
+          if (inner.width < screen.width - 1) continue
+          val all = BackgroundStyleApplicator.getBorderRadius(inner, BorderRadiusProp.BORDER_RADIUS)
+          val corner = BackgroundStyleApplicator.getBorderRadius(inner, BorderRadiusProp.BORDER_TOP_LEFT_RADIUS) ?: all
+          val radius = (corner?.resolve(min(inner.width, inner.height) / density) ?: 0f) * density
+          if (radius > 0f && inner.height >= screen.height / 2) return radius
+          next.add(inner)
+        }
+      }
+      level = next
+    }
+    return 0f
   }
 
   // A view's corner radii, in pixels, into `roundRadii`, clockwise from the top left; false when it has none.
@@ -391,6 +424,7 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     var blur = 0f
     var clipped = false
     rounded = false
+    coverCount = 0
     var view: View = this
     while (view !== owner) {
       alpha *= view.alpha
@@ -414,7 +448,17 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
           ancestorMatrix.postConcat(hostInverse)
           ancestorRect.set(0f, 0f, above.width.toFloat(), above.height.toFloat())
           ancestorMatrix.mapRect(ancestorRect)
-          uncover(liftClip, ancestorRect, ownRect)
+          val radius = roundedCorner(above)
+          uncover(liftClip, ancestorRect, ownRect, radius)
+          if (radius > 0f && RectF.intersects(liftClip, ancestorRect)) {
+            if (coverCount == coverRects.size) {
+              coverRects.add(RectF())
+              coverRadii.add(0f)
+            }
+            coverRects[coverCount].set(ancestorRect)
+            coverRadii[coverCount] = radius
+            coverCount++
+          }
         }
       }
       if (parent !== owner && parent is ReactOverflowView && parent.overflow != null && parent.overflow != "visible") {
@@ -470,6 +514,11 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     val out = clip.beginRecording(owner.width, owner.height)
     try {
       if (clipped) out.clipRect(liftClip)
+      for (i in 0 until coverCount) {
+        coverPath.reset()
+        coverPath.addRoundRect(coverRects[i], coverRadii[i], coverRadii[i], Path.Direction.CW)
+        out.clipOutPath(coverPath)
+      }
       if (rounded) {
         roundPath.reset()
         roundPath.addRoundRect(roundClip, roundRadii, Path.Direction.CW)
