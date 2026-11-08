@@ -79,6 +79,63 @@ export const toolbarModes: ToolbarMode[] = [
     support: 'both',
   },
   {
+    slug: 'selected',
+    group: 'buttons',
+    name: 'Selected buttons',
+    summary: 'A button that stays on, filled with the tint',
+    apple: 'Mail (the filter, on)',
+    uikit: 'UIBarButtonItem.isSelected (iOS 26)',
+    code: `<Stack.Toolbar>
+  <Stack.Toolbar.Button
+    icon="line.3.horizontal.decrease"
+    md="filter_list"
+    selected={filtered}
+    onPress={() => setFiltered(!filtered)}
+  />
+  <Stack.Toolbar.Spacer />
+  <Stack.Toolbar.Button icon="square.and.pencil" md="edit_square" />
+</Stack.Toolbar>`,
+    support: 'both',
+    gap: 'Tap the filter to turn it on and off.',
+  },
+  {
+    slug: 'styles',
+    group: 'buttons',
+    name: 'Styles and tint',
+    summary: 'Plain, done and prominent buttons, tinted by the toolbar or one by one',
+    apple: 'Reminders, Calendar, Mail › Edit',
+    uikit: 'UIBarButtonItem.style (.prominent in iOS 26), tintColor; UIToolbar.tintColor',
+    code: `<Stack.Toolbar tintColor={tint} backgroundColor={background}>
+  <Stack.Toolbar.Button style={{ fontWeight: '600' }}>Edit</Stack.Toolbar.Button>
+  <Stack.Toolbar.Spacer />
+  <Stack.Toolbar.Button icon="flag" md="flag" tintColor={itemTint} />
+  <Stack.Toolbar.Spacer />
+  <Stack.Toolbar.Button icon="plus" md="add" variant={variant} />
+</Stack.Toolbar>`,
+    support: 'both',
+    gap: 'backgroundColor is Android-only in expo-router. Lucent uses it only for the solid fallback’s capsules: liquid glass has no background colour, as on iOS.',
+  },
+  {
+    slug: 'menu',
+    group: 'buttons',
+    name: 'Menus',
+    summary: 'A button that opens a menu: checkmarks, inline and palette sections, a destructive action',
+    apple: 'Notes (the ellipsis), Files',
+    uikit: 'UIBarButtonItem.menu; UIMenu.Options.displayInline, .displayAsPalette; .destructive',
+    code: `<Stack.Toolbar>
+  <Stack.Toolbar.Menu icon="ellipsis" md="more_horiz" title="View">
+    <Stack.Toolbar.MenuAction icon="square.grid.2x2" isOn={grid}>Gallery</Stack.Toolbar.MenuAction>
+    <Stack.Toolbar.MenuAction icon="list.bullet" isOn={!grid}>List</Stack.Toolbar.MenuAction>
+    <Stack.Toolbar.Menu inline title="Sort By">…</Stack.Toolbar.Menu>
+    <Stack.Toolbar.Menu palette title="Colour">…</Stack.Toolbar.Menu>
+    <Stack.Toolbar.MenuAction icon="trash" destructive>Delete All</Stack.Toolbar.MenuAction>
+  </Stack.Toolbar.Menu>
+  <Stack.Toolbar.Spacer />
+  <Stack.Toolbar.Button icon="square.and.pencil" md="edit_square" />
+</Stack.Toolbar>`,
+    support: 'both',
+  },
+  {
     slug: 'states',
     group: 'buttons',
     name: 'Disabled and hidden items',
@@ -115,6 +172,23 @@ export const toolbarModes: ToolbarMode[] = [
     gap: 'Give the view a width and height. On iOS a custom view takes its frame from its content, and React Native content has no size of its own there, so without them the toolbar draws nothing in its place. Lucent on Android draws it either way.',
   },
   {
+    slug: 'grouping',
+    group: 'layout',
+    name: 'Sharing a capsule',
+    summary: 'Which items share glass, which get their own, and which have none',
+    apple: 'Photos viewer, Mail',
+    uikit: 'UIBarButtonItem.sharesBackground, hidesSharedBackground; a fixed space that shares its background (iOS 26)',
+    code: `<Stack.Toolbar>
+  <Stack.Toolbar.Button icon="square.and.arrow.up" md="share" />
+  <Stack.Toolbar.Button icon="heart" md="favorite" separateBackground />
+  <Stack.Toolbar.Button icon="info.circle" md="info" hidesSharedBackground />
+  <Stack.Toolbar.Spacer width={16} sharesBackground />
+  <Stack.Toolbar.Button icon="trash" md="delete" />
+</Stack.Toolbar>`,
+    support: 'both',
+    gap: 'Switch what the middle button does, and whether the fixed space keeps its neighbours on one capsule.',
+  },
+  {
     slug: 'spacing',
     group: 'layout',
     name: 'Fixed spacing',
@@ -143,7 +217,7 @@ export const toolbarModes: ToolbarMode[] = [
     code: `<Stack.SearchBar placeholder="Search" />
 <Stack.Toolbar>
   <Stack.Toolbar.Button icon="line.3.horizontal.decrease" md="filter_list" />
-  <Stack.Toolbar.SearchBarSlot />
+  <Stack.Toolbar.SearchBarSlot separateBackground={separate} />
   <Stack.Toolbar.Button icon="square.and.pencil" md="edit_square" />
 </Stack.Toolbar>`,
     support: 'both',

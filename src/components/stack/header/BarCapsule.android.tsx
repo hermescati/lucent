@@ -120,8 +120,15 @@ export const swellBy = (width: number, height: number, amount: number) => {
 // glass view's hairline outline.
 const useBarMaterial = () => {
   const theme = useLucentTheme();
-  return { ...useGlassMaterial('regular'), ...barEdge(regularMaterial(theme)) };
+  const fill = useContext(BarFillContext);
+  return { ...useGlassMaterial('regular'), ...barEdge(regularMaterial(theme)), ...(fill ? { fallback: fill } : {}) };
 };
+
+/**
+ * The capsules' fill in the solid fallback, where they're drawn plain: `Stack.Toolbar`'s `backgroundColor`, which
+ * expo-router's Android toolbar fills itself with. Glass ignores it, as iOS's does.
+ */
+export const BarFillContext = createLucentContext<string | undefined>('BarFill', undefined);
 
 const glowFor = (width: number, tinted: boolean) =>
   (width >= glassPress.wideFrom ? glassPress.wideGlow : glassPress.glow) * (tinted ? glassPress.tintedGlow : 1);

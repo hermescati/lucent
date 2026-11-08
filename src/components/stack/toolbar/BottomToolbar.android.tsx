@@ -16,6 +16,7 @@ import { useToolbarOffset } from './offset.android';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
 import { useTabBarReach } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
+import { BarFillContext } from '../header/BarCapsule.android';
 import { BarItems } from '../header/BarItems.android';
 import { BarMeltContext, meltLook } from '../header/melt.android';
 import { useSwipeMelt } from '../header/swipeMelt.android';
@@ -116,9 +117,11 @@ export const BottomToolbar = ({
     <Animated.View pointerEvents={searching ? 'none' : 'box-none'} style={[styles.clip, clip, holdStyle]}>
       <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.toolbar, row, fade]} animatedProps={meltBlur}>
         <BarMeltContext value={melt}>
-          <BarItems color={tint} bottom routeKey={routeKey}>
-            {props.children}
-          </BarItems>
+          <BarFillContext value={typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined}>
+            <BarItems color={tint} bottom routeKey={routeKey}>
+              {props.children}
+            </BarItems>
+          </BarFillContext>
         </BarMeltContext>
       </AnimatedNativeGlassBlur>
     </Animated.View>

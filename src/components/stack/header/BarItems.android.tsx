@@ -40,6 +40,7 @@ import { Split } from './Split.android';
 import { useBarType } from './barType.android';
 import { BarMeltContext, meltLook } from './melt.android';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import { useTabsTint } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { systemTint } from '../../../theme/colors';
 import { createLucentContext } from '../../../theme/context';
@@ -107,8 +108,11 @@ interface SearchItem {
 }
 
 // A spacer without a width is flexible: in the bottom toolbar it pushes the groups either side of it apart.
-type Item = ButtonItem | ViewItem | SearchItem | { kind: 'spacer'; key: string; width?: number };
-type GroupItem = ButtonItem | ViewItem | SearchItem;
+// `shares`: a fixed one that keeps its neighbours on one capsule, its width added between them (`sharesBackground`).
+type Item = ButtonItem | ViewItem | SearchItem | { kind: 'spacer'; key: string; width?: number; shares?: boolean };
+// A fixed spacer kept inside a capsule.
+type GapItem = { kind: 'gap'; key: string; width: number };
+type GroupItem = ButtonItem | ViewItem | SearchItem | GapItem;
 
 const text = (node: ReactNode) =>
   Children.toArray(node)
@@ -170,7 +174,9 @@ const toItems = (children: ReactNode): Item[] =>
     if (child.type === ToolbarButton) return [{ ...buttonItem(props as LucentToolbarButtonProps, key, false), hidden }];
     if (child.type === ToolbarMenu) return [{ ...buttonItem(props as LucentToolbarMenuProps, key, true), hidden }];
     if (hidden) return [];
-    if (child.type === ToolbarSpacer) return [{ kind: 'spacer', key, width: props.width as number | undefined }];
+    if (child.type === ToolbarSpacer) {
+      return [{ kind: 'spacer', key, width: props.width as number | undefined, shares: Boolean(props.sharesBackground) }];
+    }
     if (child.type === ToolbarSearchBarSlot) {
       return [{ kind: 'search', key, separate: Boolean(props.hidesSharedBackground || props.separateBackground) }];
     }
@@ -191,6 +197,8 @@ const toGroups = (items: Item[], bottom: boolean) => {
   const groups: (Group | { spacer?: number; key: string })[] = [];
   let current: GroupItem[] = [];
   const close = () => {
+    // A shared fixed space with nothing after it on the capsule goes.
+    while (current.length > 0 && current[current.length - 1].kind === 'gap') current.pop();
     // Ghosts alone wait for the next capsule.
     if (current.some((item) => !(item.kind === 'button' && item.ghost))) {
       groups.push(current);
@@ -200,6 +208,12 @@ const toGroups = (items: Item[], bottom: boolean) => {
   for (const item of items) {
     if (item.kind === 'spacer') {
       if (!bottom) continue;
+      // A fixed space that shares its neighbours' background keeps them on one capsule, its width between them, as
+      // iOS 26 does (simulator: 16pt more between the two icons).
+      if (item.shares && item.width !== undefined && current.length > 0) {
+        current.push({ kind: 'gap', key: item.key, width: item.width });
+        continue;
+      }
       close();
       current = [];
       groups.push({ spacer: item.width, key: item.key });
@@ -298,6 +312,8 @@ const ItemButton = ({
   const bottom = metrics === toolbar;
   const { color: theme, scheme, solid } = useLucentTheme(item.tintColor);
   const selected = item.selected && !item.prominent;
+  // Inside tabs, the bottom toolbar takes the tab bar's tint, as iOS's does (barTint).
+  const tabsTint = useTabsTint();
   const ink = item.disabled
     ? theme.buttonDisabled
     : item.prominent
@@ -467,7 +483,7 @@ const ItemButton = ({
               styles.selected,
               {
                 top: (metrics.height - barItem.selected.height) / 2,
-                backgroundColor: item.tintColor ?? barItem.selected.fill[scheme],
+                backgroundColor: item.tintColor ?? (bottom ? tabsTint : undefined) ?? barItem.selected.fill[scheme],
               },
               icon
                 ? { width: fillWidth, start: fillStart }
@@ -557,6 +573,7 @@ export const BarBackButtonContext = createLucentContext<{ element: ReactNode; sh
 /** A `Stack.Toolbar`'s items for one side of the bar, grouped onto glass capsules as iOS 26 does. */
 export const BarItems = ({ children, color, bottom = false, routeKey }: Props) => {
   const { scheme } = useLucentTheme();
+  const tabsTint = useTabsTint();
   const metrics = bottom ? toolbar : barItem;
   const searchButton = useContext(BarSearchButtonContext);
   // As iOS does, the magnifier joins the trailing items, on their capsule when it can share one.
@@ -599,7 +616,9 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
         !group.some((item) => item.kind === 'search') &&
         !(group.length === 1 && group[0].kind === 'button' && group[0].prominent),
     );
-  const rowStyle = [styles.side, bottom && styles.bottom];
+  // With no flexible spacer to spread them, the bottom toolbar's capsules sit together in its middle, as iOS's do.
+  const flexible = groups.some((group) => !Array.isArray(group) && group.spacer === undefined);
+  const rowStyle = [styles.side, bottom && styles.bottom, bottom && !flexible && styles.centered];
   // A capsule of its own that comes after the row first shows has split off; one there from the start just shows.
   const [born] = useState(() => Date.now());
   // A capsule of its own whose icon has gone back to its neighbour's stays while it melts in.
@@ -652,6 +671,8 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
         <View key={item.key} style={styles.search}>
           {routeKey ? <SearchDisplay routeKey={routeKey} /> : null}
         </View>
+      ) : item.kind === 'gap' ? (
+        <View key={item.key} style={{ width: item.width }} />
       ) : (
         <View key={item.key}>{item.element}</View>
       ),
@@ -670,9 +691,14 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
       <CapsuleSwell key={key} hiddenKey={hiddenKey} showing={showing.length}>
         {(swell) => (
           <BarCapsule
-            // In the item's own colour, as iOS fills it, or the system's blue: UIKit's bar takes the window's tint, not
-            // the app's accent (iOS 27 simulator, with an orange accent on its tab bar).
-            tint={prominent ? (group[0].kind === 'button' && group[0].tintColor) || systemTint[scheme] : undefined}
+            // In the item's own colour, as iOS fills it, or the bar's: the navigation bar takes the window's tint, the
+            // system's blue, while the bottom toolbar inside tabs takes the tab bar's (iOS 27 simulator, with an
+            // orange tint on the tab bar: blue at the top, orange at the bottom).
+            tint={
+              prominent
+                ? (group[0].kind === 'button' && group[0].tintColor) || (bottom && tabsTint) || systemTint[scheme]
+                : undefined
+            }
             height={metrics.height}
             grow={searching}
             swell={swell}>
@@ -746,6 +772,7 @@ const styles = StyleSheet.create({
   side: { flexDirection: 'row', alignItems: 'center', gap: bar.groupGap },
   bottom: { flex: 1 },
   flexible: { flex: 1 },
+  centered: { justifyContent: 'center' },
   group: { flexDirection: 'row', alignItems: 'center' },
   search: { flex: 1, alignSelf: 'stretch' },
   item: { alignItems: 'center', justifyContent: 'center' },

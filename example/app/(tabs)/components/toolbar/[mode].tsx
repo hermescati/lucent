@@ -97,6 +97,169 @@ const Prominent = ({ mode }: ScreenProps) => (
   </Body>
 );
 
+const Selected = ({ mode }: ScreenProps) => {
+  const [filtered, setFiltered] = useState(true);
+  return (
+    <Body mode={mode} title="Inbox">
+      <Stack.Toolbar>
+        <Stack.Toolbar.Button
+          icon="line.3.horizontal.decrease"
+          md="filter_list"
+          accessibilityLabel="Filter"
+          selected={filtered}
+          onPress={() => setFiltered(!filtered)}
+        />
+        <Stack.Toolbar.Spacer />
+        <Stack.Toolbar.Button
+          icon="square.and.pencil"
+          md="edit_square"
+          accessibilityLabel="Compose"
+          onPress={() => {}}
+        />
+      </Stack.Toolbar>
+      <Section title="Filter">
+        <Choice
+          labels={['Off', 'On']}
+          selectedIndex={filtered ? 1 : 0}
+          onSelect={(index) => setFiltered(index === 1)}
+        />
+      </Section>
+    </Body>
+  );
+};
+
+const variants = ['plain', 'done', 'prominent'] as const;
+const tints = { None: undefined, Purple: '#AF52DE', Green: '#34C759' } as const;
+const backgrounds = { None: undefined, Blue: '#1C3F8C', Sand: '#E9DDC7' } as const;
+
+const Styles = ({ mode }: ScreenProps) => {
+  const [variant, setVariant] = useState(2);
+  const [tint, setTint] = useState(0);
+  const [itemTint, setItemTint] = useState(0);
+  const [background, setBackground] = useState(0);
+  const tintNames = Object.keys(tints) as (keyof typeof tints)[];
+  const backgroundNames = Object.keys(backgrounds) as (keyof typeof backgrounds)[];
+  return (
+    <Body mode={mode} title="Today">
+      <Stack.Toolbar tintColor={tints[tintNames[tint]]} backgroundColor={backgrounds[backgroundNames[background]]}>
+        <Stack.Toolbar.Button style={{ fontWeight: '600' }} onPress={() => {}}>
+          Edit
+        </Stack.Toolbar.Button>
+        <Stack.Toolbar.Spacer />
+        <Stack.Toolbar.Button
+          icon="flag"
+          md="flag"
+          accessibilityLabel="Flag"
+          tintColor={tints[tintNames[itemTint]]}
+          onPress={() => {}}
+        />
+        <Stack.Toolbar.Spacer />
+        <Stack.Toolbar.Button
+          icon="plus"
+          md="add"
+          accessibilityLabel="New"
+          variant={variants[variant]}
+          onPress={() => {}}
+        />
+      </Stack.Toolbar>
+      <Section title="The plus button's variant">
+        <Choice labels={[...variants]} selectedIndex={variant} onSelect={setVariant} />
+      </Section>
+      <Section title="The toolbar's tintColor">
+        <Choice labels={tintNames} selectedIndex={tint} onSelect={setTint} />
+      </Section>
+      <Section title="The flag's own tintColor">
+        <Choice labels={tintNames} selectedIndex={itemTint} onSelect={setItemTint} />
+      </Section>
+      <Section title="backgroundColor (solid fallback only)">
+        <Choice labels={backgroundNames} selectedIndex={background} onSelect={setBackground} />
+      </Section>
+    </Body>
+  );
+};
+
+const Menus = ({ mode }: ScreenProps) => {
+  const [grid, setGrid] = useState(true);
+  const [sort, setSort] = useState('Date');
+  return (
+    <Body mode={mode} title="Notes">
+      <Stack.Toolbar>
+        <Stack.Toolbar.Menu icon="ellipsis" md="more_horiz" title="View" accessibilityLabel="More">
+          <Stack.Toolbar.MenuAction icon="square.grid.2x2" md="grid_view" isOn={grid} onPress={() => setGrid(true)}>
+            Gallery
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="list.bullet" md="list" isOn={!grid} onPress={() => setGrid(false)}>
+            List
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.Menu inline title="Sort By">
+            {['Date', 'Title'].map((key) => (
+              <Stack.Toolbar.MenuAction key={key} isOn={sort === key} onPress={() => setSort(key)}>
+                {key}
+              </Stack.Toolbar.MenuAction>
+            ))}
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.Menu palette title="Colour">
+            <Stack.Toolbar.MenuAction icon="circle.fill" md="circle" onPress={() => {}}>
+              Red
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction icon="square.fill" md="square" onPress={() => {}}>
+              Blue
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction icon="triangle.fill" md="change_history" onPress={() => {}}>
+              Green
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.MenuAction icon="trash" md="delete" destructive onPress={() => {}}>
+            Delete All
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
+        <Stack.Toolbar.Spacer />
+        <Stack.Toolbar.Button
+          icon="square.and.pencil"
+          md="edit_square"
+          accessibilityLabel="Compose"
+          onPress={() => {}}
+        />
+      </Stack.Toolbar>
+    </Body>
+  );
+};
+
+const middles = ['Shared', 'separateBackground', 'hidesSharedBackground'] as const;
+
+const Grouping = ({ mode }: ScreenProps) => {
+  const [middle, setMiddle] = useState(0);
+  const [shares, setShares] = useState(true);
+  return (
+    <Body mode={mode} title="Photo">
+      <Stack.Toolbar>
+        <Stack.Toolbar.Button icon="square.and.arrow.up" md="share" accessibilityLabel="Share" onPress={() => {}} />
+        <Stack.Toolbar.Button
+          icon="heart"
+          md="favorite"
+          accessibilityLabel="Favourite"
+          separateBackground={middle === 1}
+          hidesSharedBackground={middle === 2}
+          onPress={() => {}}
+        />
+        <Stack.Toolbar.Button icon="info.circle" md="info" accessibilityLabel="Info" onPress={() => {}} />
+        <Stack.Toolbar.Spacer width={16} sharesBackground={shares} />
+        <Stack.Toolbar.Button icon="trash" md="delete" accessibilityLabel="Delete" onPress={() => {}} />
+      </Stack.Toolbar>
+      <Section title="The heart">
+        <Choice labels={[...middles]} selectedIndex={middle} onSelect={setMiddle} />
+      </Section>
+      <Section title="The fixed space's sharesBackground">
+        <Choice
+          labels={['false', 'true']}
+          selectedIndex={shares ? 1 : 0}
+          onSelect={(index) => setShares(index === 1)}
+        />
+      </Section>
+    </Body>
+  );
+};
+
 const States = ({ mode }: ScreenProps) => {
   const [selected, setSelected] = useState(false);
   return (
@@ -180,28 +343,45 @@ const Spacing = ({ mode }: ScreenProps) => (
   </Body>
 );
 
-const Search = ({ mode }: ScreenProps) => (
-  <Body mode={mode} title="Notes">
-    <Stack.SearchBar placeholder="Search" />
-    <Stack.Toolbar>
-      <Stack.Toolbar.Button
-        icon="line.3.horizontal.decrease"
-        md="filter_list"
-        accessibilityLabel="Filter"
-        onPress={() => {}}
-      />
-      <Stack.Toolbar.SearchBarSlot />
-      <Stack.Toolbar.Button icon="square.and.pencil" md="edit_square" accessibilityLabel="Compose" onPress={() => {}} />
-    </Stack.Toolbar>
-  </Body>
-);
+const slots = ['Default', 'separateBackground', 'hidesSharedBackground'] as const;
+
+const Search = ({ mode }: ScreenProps) => {
+  const [slot, setSlot] = useState(0);
+  return (
+    <Body mode={mode} title="Notes">
+      <Stack.SearchBar placeholder="Search" />
+      <Stack.Toolbar>
+        <Stack.Toolbar.Button
+          icon="line.3.horizontal.decrease"
+          md="filter_list"
+          accessibilityLabel="Filter"
+          onPress={() => {}}
+        />
+        <Stack.Toolbar.SearchBarSlot separateBackground={slot === 1} hidesSharedBackground={slot === 2} />
+        <Stack.Toolbar.Button
+          icon="square.and.pencil"
+          md="edit_square"
+          accessibilityLabel="Compose"
+          onPress={() => {}}
+        />
+      </Stack.Toolbar>
+      <Section title="The search slot">
+        <Choice labels={[...slots]} selectedIndex={slot} onSelect={setSlot} />
+      </Section>
+    </Body>
+  );
+};
 
 const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   icons: Icons,
   text: TextButtons,
   prominent: Prominent,
+  selected: Selected,
+  styles: Styles,
+  menu: Menus,
   states: States,
   status: Status,
+  grouping: Grouping,
   spacing: Spacing,
   search: Search,
 };
