@@ -514,7 +514,11 @@ const ItemButton = ({
 
   // An icon's slot, and how far it's in: a hidden icon has none. Shown, its slot eases open as the capsule swells (see
   // `CapsuleSwell`) and the glyph comes out of a blur; hidden, the glyph blurs away and the slot closes, as on iOS 27.
-  const slot = icon ? (grouped ? metrics.groupIcon : metrics.icon) : undefined;
+  // Grown with the text, icons sharing a capsule spread by as much as their glyphs grow, a lone one's circle staying
+  // its size (iOS 27 simulator: 56pt apart at Large, 62 at XXL).
+  const type = useBarType();
+  const glyphGrowth = barItem.iconSize * (type.glyph - 1);
+  const slot = icon ? (grouped ? metrics.groupIcon + glyphGrowth : metrics.icon) : undefined;
   // An icon's fill is centred on its glyph, but kept as far from the capsule's end as from its top and bottom, as iOS
   // 27's is: the capsule ends inside the outer icons' slots, by less than the fill's centring leaves.
   const fillWidth = grouped ? barItem.selected.groupWidth : barItem.selected.height;
@@ -536,7 +540,6 @@ const ItemButton = ({
   const shown = useSharedValue(item.hidden || opens ? 0 : 1);
   const swell = useContext(SwellContext);
   const melt = useContext(BarMeltContext);
-  const type = useBarType();
   // A row's shared glass follows the slot's layout while it resizes.
   const row = useBarGlassRow();
   const first = useRef(true);
@@ -627,14 +630,22 @@ const ItemButton = ({
   }));
 
   const glyph = item.md ? (
-    <SymbolView name={{ android: item.md }} size={barItem.symbolSize} tintColor={ink} />
+    <SymbolView name={{ android: item.md }} size={barItem.symbolSize * type.glyph} tintColor={ink} />
   ) : item.image ? (
-    <Image source={item.image} style={[styles.image, { tintColor: ink }]} />
+    <Image
+      source={item.image}
+      style={[
+        styles.image,
+        { width: barItem.iconSize * type.glyph, height: barItem.iconSize * type.glyph, tintColor: ink },
+      ]}
+    />
   ) : (
     <Text
       numberOfLines={1}
       allowFontScaling={false}
-      style={[styles.label, type.item, bottom && styles.labelBottom, { color: ink }]}>
+      // The toolbar's labels grow with the text; the navigation bar's stay their size, as on iOS 27 (simulator: "Edit"
+      // 27pt wide at Large and at XXL, where its title and symbols grow).
+      style={[styles.label, bottom && [type.item, styles.labelBottom], { color: ink }]}>
       {item.label}
     </Text>
   );
@@ -1048,7 +1059,7 @@ const styles = StyleSheet.create({
     height: barItem.selected.height,
     borderRadius: barItem.selected.height / 2,
   },
-  image: { width: barItem.iconSize, height: barItem.iconSize, resizeMode: 'contain' },
+  image: { resizeMode: 'contain' },
   label: {
     fontSize: barItem.fontSize,
     lineHeight: barItem.lineHeight,

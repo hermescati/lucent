@@ -31,9 +31,9 @@ interface Props {
   history?: MenuTree;
 }
 
-// The capsule's width around a label this wide.
-const capsuleFor = (labelWidth: number) =>
-  backButton.leading + backButton.chevronWidth + backButton.gap + labelWidth + backButton.trailing;
+// The capsule's width around a label this wide, its chevron grown `by` with the text.
+const capsuleFor = (labelWidth: number, by: number) =>
+  backButton.leading + backButton.chevronWidth * by + backButton.gap + labelWidth + backButton.trailing;
 
 /**
  * iOS 26's back button: a glass capsule with the chevron and the previous screen's title, or a circle with the chevron.
@@ -46,7 +46,9 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
     const value = event.nativeEvent.layout.width;
     setWidths((current) => (current[key] === value ? current : { ...current, [key]: value }));
   };
-  const fits = (width: number) => room === undefined || capsuleFor(width) <= room;
+  const type = useBarType();
+  const chevronWidth = backButton.chevronWidth * type.glyph;
+  const fits = (width: number) => room === undefined || capsuleFor(width, type.glyph) <= room;
   const text =
     displayMode !== 'default' || !label
       ? undefined
@@ -59,7 +61,6 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
   const [shownText, setShownText] = useState(text);
   if (text !== undefined && text !== shownText) setShownText(text);
   const openMenu = useOpenMenu();
-  const type = useBarType();
   const ref = useRef<ComponentRef<typeof Pressable>>(null);
   const onLongPress =
     history && openMenu
@@ -67,7 +68,7 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
       : undefined;
 
   const labelled = text !== undefined;
-  const target = labelled ? capsuleFor(text === label ? widths.label : widths.back) : barItem.icon;
+  const target = labelled ? capsuleFor(text === label ? widths.label : widths.back, type.glyph) : barItem.icon;
   const fromWidth = useSharedValue(target);
   const toWidth = useSharedValue(target);
   const progress = useSharedValue(1);
@@ -107,7 +108,7 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
   // The chevron moves from the circle's middle to its place before a label. Inside the press, so all of the circle takes
   // a tap, its padding too.
   const inset = useAnimatedStyle(() => {
-    const alone = (barItem.icon - backButton.chevronWidth) / 2 - backButton.aloneShift;
+    const alone = (barItem.icon - chevronWidth) / 2 - backButton.aloneShift;
     return { paddingStart: alone + (backButton.leading - alone) * shown.get() };
   });
   const labelStyle = useAnimatedStyle(() => ({
@@ -125,7 +126,7 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
           accessibilityLabel={label ? `Back to ${label}` : 'Back'}
           style={styles.press}>
           <Animated.View style={[styles.row, inset]}>
-            <Chevron color={color} />
+            <Chevron color={color} by={type.glyph} />
             {shownText !== undefined ? (
               <Animated.Text
                 numberOfLines={1}

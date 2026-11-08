@@ -45,6 +45,9 @@ export const useBarType = () => {
     },
     item: scaled(barItem, bodyBy),
     search: { fontSize: search.fontSize * bodyBy },
+    // Symbols grow with the text, up to the same size, in their circles and capsules (iOS 27 simulator: a magnifier
+    // 21pt at Large, 25.7 at XXL), as does the back button's chevron.
+    glyph: bodyBy,
   };
 };
 

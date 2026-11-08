@@ -93,13 +93,31 @@ const ClearGlyph = ({ fill, cross }: { fill: string; cross: string }) => (
   </View>
 );
 
-const Magnifier = ({ color, show, scale }: { color: string; show: boolean; scale?: SharedValue<number> }) => {
+const Magnifier = ({
+  color,
+  show,
+  scale,
+  by,
+}: {
+  color: string;
+  show: boolean;
+  scale?: SharedValue<number>;
+  // Grown with the text (`useBarType`'s glyph), its start staying put (iOS 27 simulator: 16.3pt at Large, 20.3 at XXL).
+  by: number;
+}) => {
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale?.get() ?? 1 }] }));
   if (!show) return null;
   return (
     <Animated.View
-      style={[styles.icon, { left: search.iconCentre - search.iconSize / 2 + search.iconNudge.x * ahead }, scaleStyle]}>
-      <SymbolView name={{ android: 'search' }} size={search.iconSize} tintColor={color} />
+      style={[
+        styles.icon,
+        {
+          left: search.iconCentre - search.iconSize / 2 + search.iconNudge.x * ahead,
+          marginTop: (-search.iconSize * by) / 2 + search.iconNudge.y,
+        },
+        scaleStyle,
+      ]}>
+      <SymbolView name={{ android: 'search' }} size={search.iconSize * by} tintColor={color} />
     </Animated.View>
   );
 };
@@ -187,7 +205,7 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing, tex
   const textStyle = useAnimatedStyle(() => ({ opacity: textShown?.get() ?? 1 }));
   return (
     <>
-      <Magnifier color={colors.icon} show={showIcon} scale={iconScale} />
+      <Magnifier color={colors.icon} show={showIcon} scale={iconScale} by={type.glyph} />
       <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, textStyle]}>
         <TextInput
           allowFontScaling={false}
@@ -219,7 +237,11 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing, tex
             }
           }}
           onSubmitEditing={() => props.onSearchButtonPress?.({ nativeEvent: { text: state.text } } as never)}
-          style={[styles.input, type.search, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
+          style={[
+            styles.input,
+            type.search,
+            { left: showIcon ? search.text + search.iconSize * (type.glyph - 1) : search.trailing, color: colors.text },
+          ]}
         />
       </Animated.View>
       <GestureDetector gesture={clear.gesture}>
@@ -328,7 +350,7 @@ const SearchDisplayBody = ({
         <Animated.View style={hideStyle}>
           <SymbolView
             name={{ android: 'search' }}
-            size={search.buttonIcon}
+            size={search.buttonIcon * type.glyph}
             tintColor={colorString(state.props.headerIconColor) ?? color.text}
           />
         </Animated.View>
@@ -344,7 +366,7 @@ const SearchDisplayBody = ({
       // Focused, the field above the keyboard shows it instead.
       style={[styles.display, !bubble && state.focused && styles.gone]}>
       <Animated.View style={[StyleSheet.absoluteFill, hideStyle]}>
-        <Magnifier color={colors.icon} show={showIcon} />
+        <Magnifier color={colors.icon} show={showIcon} by={type.glyph} />
         <Text
           numberOfLines={1}
           allowFontScaling={false}
@@ -352,7 +374,10 @@ const SearchDisplayBody = ({
             styles.input,
             type.search,
             styles.displayText,
-            { left: showIcon ? search.text : search.trailing, color: state.text ? colors.text : colors.placeholder },
+            {
+              left: showIcon ? search.text + search.iconSize * (type.glyph - 1) : search.trailing,
+              color: state.text ? colors.text : colors.placeholder,
+            },
           ]}>
           {state.text || (state.props.placeholder ?? 'Search')}
         </Text>
@@ -421,6 +446,7 @@ export const SearchButton = ({
   // back into it and this one takes over the frame it lands.
   const hidden = useDerivedValue<number>(() => (bubble && bubble.up.get() > 0.5 ? 0 : 1));
   const hideStyle = useAnimatedStyle(() => ({ opacity: hidden.get() }));
+  const type = useBarType();
   if (!state) return null;
   const size = inBar ? barItem.height : toolbar.height;
   return (
@@ -439,7 +465,7 @@ export const SearchButton = ({
         <Animated.View style={bubble ? hideStyle : undefined}>
           <SymbolView
             name={{ android: 'search' }}
-            size={search.buttonIcon}
+            size={search.buttonIcon * type.glyph}
             tintColor={colorString(state.props.headerIconColor) ?? color.text}
           />
         </Animated.View>
@@ -1237,7 +1263,7 @@ const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { s
 };
 
 const styles = StyleSheet.create({
-  icon: { position: 'absolute', top: '50%', marginTop: -search.iconSize / 2 + search.iconNudge.y },
+  icon: { position: 'absolute', top: '50%' },
   input: {
     position: 'absolute',
     // From the magnifier on, whatever the text's own direction, as iOS lines it up.
