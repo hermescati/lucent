@@ -40,6 +40,7 @@ export const setSearchProps = (routeKey: string, props: LucentSearchBarProps | u
   if (!props) {
     searches.delete(routeKey);
     focusDrives.delete(routeKey);
+    going.delete(routeKey);
   } else {
     const current = searches.get(routeKey);
     searches.set(routeKey, { focused: false, text: '', ...current, props });
@@ -57,6 +58,18 @@ export const setSearchLeaves = (routeKey: string, can: boolean) => {
 };
 
 export const searchLeaves = (routeKey: string) => leaves.has(routeKey);
+
+// Screens on their way off: a field still opening there doesn't take the keyboard as it goes, which would stay up over
+// the screen under it.
+const going = new Set<string>();
+
+/** The screen's leaving: its field lets go of the keyboard and isn't focused again. */
+export const searchGoing = (routeKey: string) => {
+  going.add(routeKey);
+  inputs.get(routeKey)?.blur();
+};
+
+export const searchIsGoing = (routeKey: string) => going.has(routeKey);
 
 // Each screen's search mode on the UI thread, 1 focused: set as search mode changes, before the render that shows it,
 // so motion that goes with it starts on the next frame rather than a render later.

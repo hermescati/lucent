@@ -76,12 +76,16 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
   const swell = useSharedValue(0);
   const was = useRef(labelled);
   useLayoutEffect(() => {
-    const now = fromWidth.get() + (toWidth.get() - fromWidth.get()) * progress.get();
+    const at = progress.get();
+    const now = fromWidth.get() + (toWidth.get() - fromWidth.get()) * at;
     fromWidth.set(now);
     toWidth.set(target);
     if (was.current === labelled) {
-      // The same label, measured again or swapped for "Back": no show, it just takes its width.
-      if (progress.get() >= 1) fromWidth.set(target);
+      // The same label, measured again or swapped for "Back": no show, it just takes its width. Mid-resize, it heads for
+      // the new width from where it is, its start moved so the width at this point of the resize is the one showing.
+      // Past the end in its overshoot too: it settles on the new width as the resize does.
+      if (Math.abs(1 - at) < 0.001) fromWidth.set(target);
+      else fromWidth.set((now - target * at) / (1 - at));
       return;
     }
     was.current = labelled;

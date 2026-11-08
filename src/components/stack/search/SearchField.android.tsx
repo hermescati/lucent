@@ -24,6 +24,7 @@ import {
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
+  cancelAnimation,
   Easing,
   interpolate,
   useAnimatedProps,
@@ -43,6 +44,7 @@ import { cancelSearch } from './SearchBar.android';
 import {
   getSearchInput,
   searchFocusDrive,
+  searchIsGoing,
   searchLeaves,
   setSearchInput,
   updateSearch,
@@ -139,7 +141,7 @@ const criticallyDamped = (k: number) => {
 // then right after the app starts, so it's asked again until it holds, a few frames at most.
 const focusInput = (routeKey: string, tries = 3) => {
   const input = getSearchInput(routeKey);
-  if (!input) return;
+  if (!input || searchIsGoing(routeKey)) return;
   input.focus();
   requestAnimationFrame(() => {
     const still = getSearchInput(routeKey) === input && searchFocusDrive(routeKey).get() === 1;
@@ -924,6 +926,12 @@ const SearchMorph = ({
     if (clip) textShown.set(withTiming(0, { duration: searchMotion.bottom.circleEmpty }));
     else if (!keepsContent) shown.set(withTiming(0, { duration: motion.closeFade }));
     crossSharp.set(withTiming(0, { duration: motion.close.blurOut, easing: Easing.in(Easing.quad) }));
+    // Closed before the open has played out, its sag and swell settle from where they are as it draws back, rather than
+    // running on and snapping once it has.
+    if (sags) {
+      sag.set(withTiming(0, { duration: motion.closeFade }));
+      grow.set(withTiming(1, { duration: motion.closeFade }));
+    }
     // Fading over the toolbar's capsule, it fades the moment it lands, still drawing back the last of the way, rather
     // than sitting there empty, opaque over the capsule's items, until it has.
     if (parks && fadesOver) parkPending.set(1);
@@ -937,6 +945,8 @@ const SearchMorph = ({
       scheduleOnRN(pressed ? endPressed : onClosed);
     };
     if (stretch.get() === 0) {
+      // An open still a frame from starting doesn't start.
+      cancelAnimation(stretch);
       done(true);
       return;
     }
@@ -1015,7 +1025,9 @@ const SearchMorph = ({
     sharp.set(
       next(
         withTiming(1, { duration: motion.sharpBy, easing: Easing.inOut(Easing.quad) }, (finished) => {
-          if (finished && focus === 'sharp') scheduleOnRN(pressed ? sharpened : focusInput, routeKey);
+          // Not once a close has started: its keyboard would come back up and search mode with it.
+          if (finished && focus === 'sharp' && opened.get() === 1)
+            scheduleOnRN(pressed ? sharpened : focusInput, routeKey);
         }),
       ),
     );

@@ -35,7 +35,7 @@ import {
   SearchBubbleContext,
   useSearchBubble,
 } from './search/SearchField.android';
-import { setSearchLeaves, useSearch } from './search/store.android';
+import { searchGoing, setSearchLeaves, useSearch } from './search/store.android';
 import {
   ahead,
   dimAt,
@@ -335,10 +335,11 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   // Back from this screen: Lucent takes it off itself, with the swipe's motion, and the stack pops it once it's gone.
   // Where it can't (no swipe back, or one already running), the stack pops it its own way.
   const goBack = useCallback(() => {
+    searchGoing(key);
     const swipeBack = driver();
     if (swipe && swipeBack) swipeBack.pop(() => navigation.goBack());
     else navigation.goBack();
-  }, [swipe, driver, navigation]);
+  }, [swipe, driver, navigation, key]);
 
   // The Back key and Android's back gesture, while this screen is on top. Its listener comes after the navigation
   // container's, which runs first, so it goes back from here; a stack nested in the screen with somewhere to go back to

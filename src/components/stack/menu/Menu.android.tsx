@@ -1,4 +1,13 @@
-import { useCallback, useContext, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import { BackHandler, I18nManager, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
@@ -419,7 +428,14 @@ const OpenMenuView = ({
         if (finished) scheduleOnRN(onClosed);
       }),
     );
-  }, [closing, onClosed, progress]);
+    // A submenu open over it closes with it, rather than staying whole until it's gone.
+    subProgress.set(withTiming(0, { duration: menuMotion.close }));
+  }, [closing, onClosed, progress, subProgress]);
+
+  // Its card opens once it's there to open, not a render before, which would lose its first frames.
+  useLayoutEffect(() => {
+    if (submenu) subProgress.set(withSpring(1, menuMotion.open));
+  }, [submenu, subProgress]);
 
   const clearSubmenu = useCallback(() => setSubmenu(null), []);
   const closeSubmenu = useCallback(() => {
@@ -438,9 +454,8 @@ const OpenMenuView = ({
       if (!item.keepPresented) requestClose();
     },
     onSubmenu: (item, top) => {
-      setSubmenu({ item, top });
       subProgress.set(0);
-      subProgress.set(withSpring(1, menuMotion.open));
+      setSubmenu({ item, top });
     },
   };
 

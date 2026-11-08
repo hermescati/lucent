@@ -741,10 +741,29 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const trailGlass = useDerivedValue<number>(() => (fieldOpen.get() === 1 || fieldStretch.get() > 0 ? 0 : 1));
   // How far that takes the field's start, which the trailing capsule's items ride.
   const fieldReach = Math.max(width - margin * 2 - Math.max(sides.right, barItem.height), 0);
+  // Their fade, started once as what it's heading for changes: started from a style that runs every frame the field
+  // stretches, it would start over each frame and crawl.
+  const trailFade = useSharedValue(1);
+  useAnimatedReaction(
+    () => {
+      if (fieldClosing.get() === 1) return 'closing';
+      if (opening.get() || barFocused) return 'out';
+      return rowAside ? 'aside' : 'in';
+    },
+    (now, previous) => {
+      if (now === previous) return;
+      // Closing, they follow the field's stretch (below), back in full by the time it lands.
+      if (now === 'closing') trailFade.set(1);
+      else if (now === 'out') trailFade.set(withTiming(0, { duration: searchMotion.bar.itemsOut }));
+      else if (now === 'in') trailFade.set(withTiming(1, { duration: searchMotion.rowIn }));
+      else trailFade.set(withTiming(0, { duration: searchMotion.rowOut }));
+    },
+    [barFocused, rowAside],
+  );
   const trailStyle = useAnimatedStyle(() => {
     if (opening.get()) {
       return {
-        opacity: withTiming(0, { duration: searchMotion.bar.itemsOut }),
+        opacity: trailFade.get(),
         transform: [{ translateX: -fieldStretch.get() * fieldReach * ahead }],
       };
     }
@@ -757,16 +776,14 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         transform: [{ translateX: -stretch * fieldReach * ahead }],
       };
     }
-    if (!rowAside) {
-      return { opacity: withTiming(1, { duration: searchMotion.rowIn }), transform: [{ translateX: 0 }] };
-    }
+    if (!rowAside) return { opacity: trailFade.get(), transform: [{ translateX: 0 }] };
     if (barFocused) {
       return {
-        opacity: withTiming(0, { duration: searchMotion.bar.itemsOut }),
+        opacity: trailFade.get(),
         transform: [{ translateX: -fieldStretch.get() * fieldReach * ahead }],
       };
     }
-    return { opacity: withTiming(0, { duration: searchMotion.rowOut }) };
+    return { opacity: trailFade.get() };
   });
   const type = useBarType();
   // The back button's room: the bar less its margins, the trailing side, and the title beside it.
