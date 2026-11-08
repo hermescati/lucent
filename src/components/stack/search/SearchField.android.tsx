@@ -837,9 +837,10 @@ const SearchMorph = ({
   // it would hide the capsule's other items at once, where glass shows them blurring away under it.
   const { solid } = useLucentTheme();
   const fadesOver = solid && wideStart !== undefined;
+  // 3 once parked.
   const park = () => {
     'worklet';
-    parkPending.set(0);
+    parkPending.set(3);
     const { solidFade } = searchMotion.bottom;
     up.set(fadesOver ? withTiming(searchMotion.bar.parked, { duration: solidFade }) : searchMotion.bar.parked);
     shown.set(fadesOver ? withTiming(0, { duration: solidFade }) : 0);
@@ -894,10 +895,13 @@ const SearchMorph = ({
     if (clip) textShown.set(withTiming(0, { duration: searchMotion.bottom.circleEmpty }));
     else if (!keepsContent) shown.set(withTiming(0, { duration: motion.closeFade }));
     crossSharp.set(withTiming(0, { duration: motion.close.blurOut, easing: Easing.in(Easing.quad) }));
+    // Fading over the toolbar's capsule, it fades the moment it lands, still drawing back the last of the way, rather
+    // than sitting there empty, opaque over the capsule's items, until it has.
+    if (parks && fadesOver) parkPending.set(1);
     const done = (finished?: boolean) => {
       'worklet';
       if (!finished) return;
-      if (parks) {
+      if (parks && parkPending.get() !== 3) {
         if (parksBy && parksBy.get() > keyboardDown) parkPending.set(1);
         else park();
       }
