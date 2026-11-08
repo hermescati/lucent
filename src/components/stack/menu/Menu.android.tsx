@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, I18nManager, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedProps,
@@ -29,6 +29,9 @@ export interface Anchor {
 }
 
 type OpenMenu = (tree: MenuTree, anchor: Anchor) => void;
+
+// Right to left: frames measured across the screen go from its right, and the submenu chevron points left.
+const mirrored = I18nManager.isRTL;
 
 const MenuContext = createLucentContext<OpenMenu | null>('StackMenu', null);
 
@@ -156,7 +159,12 @@ const Row = ({ entry, context }: { entry: Extract<Entry, { kind: 'row' }>; conte
               name="chevron_right"
               size={menu.chevron.size}
               tintColor={colors.text}
-              style={[styles.chevron, { right: menu.chevron.right - menu.chevron.size / 2 + 3 }]}
+              // Pointing toward the end, as iOS's does: left, right to left.
+              style={[
+                styles.chevron,
+                { right: menu.chevron.right - menu.chevron.size / 2 + 3 },
+                mirrored && styles.flipped,
+              ]}
             />
           ) : null}
         </>
@@ -288,10 +296,13 @@ interface PanelProps {
 const Panel = ({ from, to, progress, alignRight, alignBottom, contentHeight, dim, colors, children }: PanelProps) => {
   const material = useGlassMaterial('regular');
   const fromRadius = Math.min(from.width, from.height) / 2;
+  // Frames are measured from the screen's left; right to left, React Native lays `left` out from the right, and `right`
+  // from the left.
+  const side = mirrored ? 'right' : 'left';
   const frame = useAnimatedStyle(() => {
     const p = progress.get();
     return {
-      left: lerp(from.left, to.left, p),
+      [side]: lerp(from.left, to.left, p),
       top: lerp(from.top, to.top, p),
       width: lerp(from.width, to.width, p),
       height: lerp(from.height, to.height, p),
@@ -324,7 +335,7 @@ const Panel = ({ from, to, progress, alignRight, alignBottom, contentHeight, dim
         style={[
           styles.content,
           { width: to.width, height: to.height },
-          alignRight ? { right: 0 } : { left: 0 },
+          alignRight !== mirrored ? { right: 0 } : { left: 0 },
           alignBottom ? { bottom: 0 } : { top: 0 },
           content,
         ]}>
@@ -557,6 +568,7 @@ const styles = StyleSheet.create({
   icon: { position: 'absolute' },
   image: { width: menu.icon.size, height: menu.icon.size, resizeMode: 'contain' },
   chevron: { position: 'absolute' },
+  flipped: { transform: [{ scaleX: -1 }] },
   labels: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
   label: { fontSize: menu.fontSize, lineHeight: menu.lineHeight, includeFontPadding: false },
   bold: { fontWeight: '600' },
