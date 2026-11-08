@@ -1,6 +1,6 @@
 # Lucent API design
 
-Status: glass, tabs, the search bar, the navigation bar (`Stack`), `Switch`, `Slider`, `SegmentedControl`, `Button`, `ProgressView`, `Stepper` and `ContentUnavailableView` are built (Android implementation, iOS pass-through); see [Built](#built). Everything under [Planned](#planned) is not built yet. Targets Expo SDK 58 (`expo` 58.0.x, `expo-router` 58.0.x, `expo-glass-effect` 58.0.x, `@expo/ui` 58.0.x). Prop names below were read from those packages' installed type definitions.
+Status: glass, tabs, the search bar, the navigation bar and bottom toolbar (`Stack`), `Switch`, `Slider`, `SegmentedControl`, `Button`, `ProgressView`, `Stepper` and `ContentUnavailableView` are built (Android implementation, iOS pass-through); see [Built](#built). Everything under [Planned](#planned) is not built yet. Targets Expo SDK 58 (`expo` 58.0.x, `expo-router` 58.0.x, `expo-glass-effect` 58.0.x, `@expo/ui` 58.0.x). Prop names below were read from those packages' installed type definitions.
 
 ## What Lucent is
 
@@ -54,7 +54,7 @@ These have their own pages, with props and Android behaviour:
 
 - [Glass](components/glass.md): `GlassView`, `GlassContainer`, `GlassBackdrop`
 - [Tab bar](components/tabs.md): `NativeTabs`, `TabScrollView` and the scroll hooks
-- [Navigation bar](components/stack.md): `Stack`, `useHeaderScroll`, `useHeaderInset`, `useToolbarInset`
+- [Navigation bar](components/stack.md): `Stack` with its navigation bar, bottom toolbar and swipe back, `useHeaderScroll`, `useHeaderInset`, `useToolbarInset`
 - [Search bar](components/search.md): `SearchBar`, `useTabSearch`
 - [Switch](components/switch.md), [Slider](components/slider.md), [Segmented control](components/segmented-control.md), [Button](components/button.md), [Progress view](components/progress-view.md), [Stepper](components/stepper.md), [Content unavailable view](components/content-unavailable.md)
 - [Theming](theming.md): `LucentProvider`
@@ -62,10 +62,6 @@ These have their own pages, with props and Android behaviour:
 ## Planned
 
 Each component lists the Expo API it copies. "Same as Expo" means identical props; only Lucent additions are listed.
-
-### Header and toolbar, still to come
-
-The navigation bar is built ([Navigation bar](components/stack.md)). The bottom toolbar is built too. Everything in it is on Android, iOS 26's swipe back included.
 
 ### Universal controls (copy `@expo/ui`)
 
