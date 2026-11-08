@@ -24,9 +24,11 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
   useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withDelay,
   withSequence,
@@ -46,7 +48,7 @@ import { systemTint } from '../../../theme/colors';
 import { createLucentContext } from '../../../theme/context';
 import { useOpenMenu } from '../menu/Menu.android';
 import { menuTree } from '../menu/items';
-import { SearchDisplay } from '../search/SearchField.android';
+import { SearchBubbleContext, SearchDisplay, setCapsuleRect } from '../search/SearchField.android';
 import { badge as badgeMetrics, barItem, barItemMotion, barMotion, bar, islandSplit, toolbar } from '../tokens';
 import {
   ToolbarBadge,
@@ -72,6 +74,8 @@ interface ButtonItem {
   disabled?: boolean;
   prominent: boolean;
   separate: boolean;
+  // `hidesSharedBackground`: no glass of its own, splitting the capsule it would have shared around it.
+  bare?: boolean;
   // A label with no icon on iOS. iOS gives it a capsule of its own.
   textOnly: boolean;
   tintColor?: string;
@@ -154,6 +158,7 @@ const buttonItem = (
     disabled: props.disabled,
     prominent: props.variant === 'done' || props.variant === 'prominent',
     separate: Boolean(props.separateBackground || props.hidesSharedBackground),
+    bare: Boolean(props.hidesSharedBackground),
     // Judged by the iOS icon (`icon` or a Stack.Toolbar.Icon), not `md`: an SF Symbol button without `md` still shares
     // its neighbours' capsule on iOS, though Android can only show its label.
     textOnly: !props.icon && !iconPart,
@@ -175,7 +180,9 @@ const toItems = (children: ReactNode): Item[] =>
     if (child.type === ToolbarMenu) return [{ ...buttonItem(props as LucentToolbarMenuProps, key, true), hidden }];
     if (hidden) return [];
     if (child.type === ToolbarSpacer) {
-      return [{ kind: 'spacer', key, width: props.width as number | undefined, shares: Boolean(props.sharesBackground) }];
+      return [
+        { kind: 'spacer', key, width: props.width as number | undefined, shares: Boolean(props.sharesBackground) },
+      ];
     }
     if (child.type === ToolbarSearchBarSlot) {
       return [{ kind: 'search', key, separate: Boolean(props.hidesSharedBackground || props.separateBackground) }];
@@ -191,11 +198,17 @@ const toItems = (children: ReactNode): Item[] =>
 // iOS 26 puts neighbouring icon items on one shared glass capsule. A text button, a prominent item or a separate
 // background gets a capsule of its own. Spacers split capsules only in the bottom toolbar: in the navigation bar, iOS
 // ignores them, fixed or flexible.
-// `own`: an icon's capsule of its own, on this side of the capsule it splits off; `base`, that icon's key.
-type Group = GroupItem[] & { own?: 'start' | 'end'; base?: string };
+// `own`: an icon's capsule of its own, on this side of the capsule it splits off; `base`, that icon's key. `bare`: an
+// item with no glass (`hidesSharedBackground`).
+// In the bottom toolbar, iOS 27 ignores a button's `separateBackground` (simulator: it stays on its neighbours'
+// capsule), while `hidesSharedBackground` leaves it bare, its neighbours' capsule split around it.
+type Group = GroupItem[] & { own?: 'start' | 'end'; base?: string; bare?: boolean };
 const toGroups = (items: Item[], bottom: boolean) => {
   const groups: (Group | { spacer?: number; key: string })[] = [];
   let current: GroupItem[] = [];
+  // A fixed space that doesn't share its neighbours' background, waiting for what comes after it.
+  let pending: { key: string; width: number } | null = null;
+  const real = (group: GroupItem[]) => group.some((item) => !(item.kind === 'button' && item.ghost));
   const close = () => {
     // A shared fixed space with nothing after it on the capsule goes.
     while (current.length > 0 && current[current.length - 1].kind === 'gap') current.pop();
@@ -205,19 +218,97 @@ const toGroups = (items: Item[], bottom: boolean) => {
       current = [];
     }
   };
-  for (const item of items) {
+  const flush = () => {
+    if (!pending) return;
+    close();
+    current = [];
+    groups.push({ spacer: pending.width, key: pending.key });
+    pending = null;
+  };
+  items.forEach((item, at) => {
     if (item.kind === 'spacer') {
-      if (!bottom) continue;
+      if (!bottom) return;
+      flush();
       // A fixed space that shares its neighbours' background keeps them on one capsule, its width between them, as
       // iOS 26 does (simulator: 16pt more between the two icons).
-      if (item.shares && item.width !== undefined && current.length > 0) {
+      if (item.shares && item.width !== undefined && real(current)) {
         current.push({ kind: 'gap', key: item.key, width: item.width });
-        continue;
+        return;
+      }
+      // One that doesn't splits the capsule there. If an icon alone comes after it, that icon splits off the capsule
+      // before it as a capsule of its own, and melts back in once the space shares, as the navigation bar's buttons
+      // do (`SplitOff`).
+      if (item.width !== undefined && real(current)) {
+        pending = { key: item.key, width: item.width };
+        return;
       }
       close();
       current = [];
       groups.push({ spacer: item.width, key: item.key });
-    } else if (item.kind === 'button' && !item.prominent && !item.textOnly && item.separate) {
+      return;
+    }
+    if (pending) {
+      const next = items[at + 1];
+      const alone = !next || next.kind === 'spacer';
+      if (
+        alone &&
+        item.kind === 'button' &&
+        !item.prominent &&
+        !item.textOnly &&
+        !item.bare &&
+        !item.hidden &&
+        (item.md || item.image)
+      ) {
+        const space = pending;
+        pending = null;
+        // On the capsule before, at no width: the space's gap and the icon, ready to open as it melts back in.
+        current.push({ kind: 'gap', key: space.key, width: 0 });
+        current.push({ ...item, hidden: true, ghost: true, badge: undefined });
+        close();
+        current = [];
+        groups.push({ spacer: space.width, key: space.key });
+        // After the capsule it splits off, as a separate icon whose ghost goes on the capsule before it is.
+        const own: Group = [{ ...item, key: `${item.key}~own` }];
+        own.own = 'start';
+        own.base = item.key;
+        groups.push(own);
+        return;
+      }
+      flush();
+    }
+    if (bottom && ((item.kind === 'button' && item.bare) || (item.kind === 'view' && item.separate))) {
+      // An item with no glass splits the capsule it lands in. The icons before it split off as a capsule of their own,
+      // their ghosts starting the capsule after it, so going bare or back runs the navigation bar's split (`SplitOff`)
+      // rather than swapping capsules at once.
+      while (current.length > 0 && current[current.length - 1].kind === 'gap') current.pop();
+      const next = items[at + 1];
+      const splits =
+        real(current) &&
+        current.every(
+          (other) =>
+            other.kind === 'gap' || (other.kind === 'button' && !other.ghost && !other.prominent && !other.textOnly),
+        ) &&
+        next?.kind === 'button' &&
+        !next.bare &&
+        !next.prominent &&
+        !next.textOnly;
+      const bare: Group = [item];
+      bare.bare = true;
+      if (splits) {
+        const before = current;
+        const own: Group = before.map((other) => ({ ...other, key: `${other.key}~own` }));
+        own.own = 'end';
+        own.base = before[0].key;
+        groups.push(own, bare);
+        current = before.map((other) =>
+          other.kind === 'button' ? { ...other, hidden: true, ghost: true, badge: undefined } : { ...other, width: 0 },
+        );
+        return;
+      }
+      close();
+      current = [];
+      groups.push(bare);
+    } else if (item.kind === 'button' && !item.prominent && !item.textOnly && item.separate && !bottom) {
       // Its ghost goes on the capsule before it if there is one, else the one after.
       const after = !current.some((other) => !(other.kind === 'button' && other.ghost));
       current.push({ ...item, hidden: true, ghost: true, badge: undefined });
@@ -226,23 +317,32 @@ const toGroups = (items: Item[], bottom: boolean) => {
       own.own = after ? 'end' : 'start';
       own.base = item.key;
       groups.push(own);
-    } else if ((item.kind === 'button' && (item.prominent || item.textOnly)) || item.separate) {
+    } else if (
+      (item.kind === 'button' && (item.prominent || item.textOnly)) ||
+      (item.separate && !(bottom && item.kind === 'button'))
+    ) {
       close();
       current = [];
       groups.push([item]);
     } else {
       current.push(item);
     }
-  }
+  });
+  flush();
   close();
   return groups;
 };
 
-// A capsule's key that stays while ghosts come and go on it: its last real item's.
-const groupKey = (group: GroupItem[]) => {
-  const real = group.filter((item) => !(item.kind === 'button' && item.ghost));
-  return (real[real.length - 1] ?? group[group.length - 1]).key;
-};
+/**
+ * Whether a bottom toolbar has a button with no glass (`hidesSharedBackground`), which iOS keeps legible with its scroll
+ * edge. A bare custom view doesn't bring the edge (iOS 27 simulator): it brings its own look.
+ */
+export const hasBareItem = (children: ReactNode) =>
+  toItems(children).some((item) => item.kind === 'button' && item.bare && !item.hidden);
+
+// A capsule's key that stays while an icon splits off it or melts back in, at either end: its first item's, ghost or
+// not. One that splits off the front leaves its ghost there, under its own key; one off the end leaves the first.
+const groupKey = (group: GroupItem[]) => group[0].key;
 
 /**
  * An icon's own capsule, or the back button kept beside the leading items, splitting off its neighbour's capsule or
@@ -294,17 +394,53 @@ const CapsuleSwell = ({
   return <SwellContext value={swell}>{children(swell)}</SwellContext>;
 };
 
+/** A fixed space kept on a capsule, opening and closing on the split's spring as the item after it melts in or off. */
+const Gap = ({ width }: { width: number }) => {
+  const size = useSharedValue(width);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    size.set(withSpring(width, islandSplit.spring));
+  }, [width, size]);
+  const style = useAnimatedStyle(() => ({ width: Math.max(size.get(), 0) }));
+  return <Animated.View style={style} />;
+};
+
+/**
+ * The toolbar's slot as a magnifier's circle: its capsule takes the swell of a field drawing back into it, and settles
+ * with it (searchMotion.bottom.land), as the navigation bar's capsule takes its field back.
+ */
+const SearchLand = () => {
+  const bubble = useContext(SearchBubbleContext);
+  const swell = useContext(SwellContext);
+  useAnimatedReaction(
+    () => bubble?.land.get() ?? 0,
+    (now, was) => {
+      if (was === null || now === was) return;
+      swell?.set(now);
+    },
+  );
+  return null;
+};
+
 const ItemButton = ({
   item,
   color,
   metrics,
   grouped,
   edge = 'center',
+  joins = false,
 }: {
   item: ButtonItem;
   color: string;
   metrics: Metrics;
   grouped: boolean;
+  // Mounted into a capsule already showing, as a button swapped in for a view: it opens into it, as a hidden item
+  // showing does, rather than popping in at full width.
+  joins?: boolean;
   // Which side of its slot it keeps to as the slot opens or closes: the capsule's outer edge, for the first or last item
   // on it, so it rides that edge in and out as on iOS 27.
   edge?: 'start' | 'end' | 'center';
@@ -350,10 +486,11 @@ const ItemButton = ({
         : fillCentred;
   const target = item.hidden ? 0 : slot;
   // The slot goes from one width to the other as `progress` runs 0 to 1, a little past and back.
-  const fromWidth = useSharedValue(target ?? 0);
-  const toWidth = useSharedValue(target ?? 0);
+  const [opens] = useState(() => joins && !item.hidden && !item.ghost);
+  const fromWidth = useSharedValue(opens ? 0 : (target ?? 0));
+  const toWidth = useSharedValue(opens ? 0 : (target ?? 0));
   const progress = useSharedValue(1);
-  const shown = useSharedValue(item.hidden ? 0 : 1);
+  const shown = useSharedValue(item.hidden || opens ? 0 : 1);
   const swell = useContext(SwellContext);
   const melt = useContext(BarMeltContext);
   const type = useBarType();
@@ -368,7 +505,7 @@ const ItemButton = ({
     wasGhost.current = item.ghost;
     if (first.current) {
       first.current = false;
-      return;
+      if (!opens) return;
     }
     const { show, hide } = barItemMotion;
     splitting.set(split ? 1 : 0);
@@ -597,10 +734,21 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
       : []),
   ];
   const groups = toGroups(items, bottom);
+  // The toolbar's slot as a magnifier's circle and the field that grows out of it are one piece of glass: the circle's
+  // glass goes the frame the field's comes up over it, and is back the frame the field's lands in it.
+  const bubble = useContext(SearchBubbleContext);
+  const circlePresence = useDerivedValue<number>(() => (bubble && bubble.up.get() > 0.5 ? 0 : 1));
+  // The search field's capsule, whose whole span the field grows out of, its other items on it fading as it does.
+  const searchCapsule = useRef<ComponentRef<typeof View>>(null);
+  const measureCapsule = () =>
+    searchCapsule.current?.measureInWindow((x, _y, width) => {
+      if (routeKey) setCapsuleRect(routeKey, x - metrics.groupPadding, width + 2 * metrics.groupPadding);
+    });
   // Plain capsules share one piece of glass, so a held one can bridge to its neighbour. A tinted or search capsule keeps
   // its own glass, and with one there the row's others do too: glass isn't drawn inside glass.
   const capsules = groups.filter(
-    (group): group is GroupItem[] => Array.isArray(group) && !group.every((item) => item.kind === 'view'),
+    (group): group is GroupItem[] =>
+      Array.isArray(group) && !(group as Group).bare && !group.every((item) => item.kind === 'view'),
   );
   const backButton = useContext(BarBackButtonContext);
   const [backMounted, setBackMounted] = useState(Boolean(backButton?.shown));
@@ -640,6 +788,19 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
     (base?: string) => setLeaving((current) => current.filter((group) => group.base !== base)),
     [],
   );
+  // The capsules on screen as of the last render, which a new item joins rather than arrives with; none while the row
+  // first shows, whose items all come with it.
+  const capsuleKeys = groups
+    .filter((group): group is Group => Array.isArray(group) && !(group as Group).bare)
+    .map((group) => groupKey(group))
+    .join('|');
+  const [capsulesSeen, setCapsulesSeen] = useState<{ now: string; before: string | null }>({
+    now: capsuleKeys,
+    before: null,
+  });
+  if (capsulesSeen.now !== capsuleKeys) setCapsulesSeen({ now: capsuleKeys, before: capsulesSeen.now });
+  const known = capsulesSeen.now !== capsuleKeys ? capsulesSeen.now : capsulesSeen.before;
+  const knownCapsules = new Set(known?.split('|') ?? []);
   const render = (group: (typeof groups)[number], melting = false) => {
     if (!Array.isArray(group)) {
       // Only the bottom toolbar has spacers. A flexible one spreads the groups apart; a fixed one adds its width to
@@ -648,13 +809,20 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
         group.spacer === undefined ? styles.flexible : { width: group.spacer, marginHorizontal: -bar.groupGap / 2 };
       return <View key={group.key} style={spacer} />;
     }
-    const showing = group.filter((item) => !(item.kind === 'button' && item.hidden));
+    // A fixed space kept on it isn't an item: an icon with only a closed gap and a ghost beside it is alone, round.
+    const showing = group.filter((item) => item.kind !== 'gap' && !(item.kind === 'button' && item.hidden));
     // A capsule whose items are all hidden goes; one with some keeps its hidden items at no width.
     if (showing.length === 0) return null;
     const icons = showing.filter((item) => item.kind === 'button' && (item.md || item.image)).length;
     const prominent = group.length === 1 && group[0].kind === 'button' && group[0].prominent;
     const views = group.every((item) => item.kind === 'view');
-    const searching = group.some((item) => item.kind === 'search');
+    // The toolbar's slot as a field fills what the buttons leave; given a background of its own, or none, it's a
+    // magnifier in a circle of its own, as iOS 27 draws it (`slotIsButton`).
+    const searching = group.some((item) => item.kind === 'search' && !(bottom && item.separate));
+    const searchGroup = group.some((item) => item.kind === 'search');
+    const key = groupKey(group);
+    // On a capsule that was already showing, a new item opens into it.
+    const joins = !group.own && knownCapsules.has(key);
     const content = group.map((item, at) =>
       item.kind === 'button' ? (
         <ItemButton
@@ -664,29 +832,35 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
           color={color}
           metrics={metrics}
           grouped={showing.length > 1}
+          joins={joins}
           edge={group.length > 1 && at === 0 ? 'start' : group.length > 1 && at === group.length - 1 ? 'end' : 'center'}
         />
       ) : item.kind === 'search' ? (
         // The field takes what the group's buttons leave.
-        <View key={item.key} style={styles.search}>
-          {routeKey ? <SearchDisplay routeKey={routeKey} /> : null}
+        <View key={item.key} style={bottom && item.separate ? undefined : styles.search}>
+          {routeKey ? <SearchDisplay routeKey={routeKey} compact={bottom && item.separate} /> : null}
+          {bottom && item.separate ? <SearchLand /> : null}
         </View>
       ) : item.kind === 'gap' ? (
-        <View key={item.key} style={{ width: item.width }} />
+        <Gap key={item.key} width={item.width} />
       ) : (
         <View key={item.key}>{item.element}</View>
       ),
     );
     // A custom view brings its own look; only buttons sit on glass. iOS centres it in at least a button's width: a 40pt
     // avatar gets 2pt more on each side than a button would.
-    if (views)
+    if (views || (group as Group).bare)
       return (
-        <View key={groupKey(group)} style={[styles.view, { minWidth: metrics.height }]}>
+        <Animated.View
+          key={groupKey(group)}
+          // Swapped in after the row first showed, it fades in once the icons it split off have opened their place,
+          // rather than over them as they bud off (toolbar.bareIn).
+          entering={known !== null ? FadeIn.delay(toolbar.bareIn.delay).duration(toolbar.bareIn.duration) : undefined}
+          style={[styles.view, { minWidth: metrics.height }]}>
           {content}
-        </View>
+        </Animated.View>
       );
     const hiddenKey = group.map((item) => (item.kind === 'button' && item.hidden ? '1' : '0')).join('');
-    const key = groupKey(group);
     const capsule = (
       <CapsuleSwell key={key} hiddenKey={hiddenKey} showing={showing.length}>
         {(swell) => (
@@ -701,8 +875,12 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
             }
             height={metrics.height}
             grow={searching}
-            swell={swell}>
+            swell={swell}
+            // The field that grows out of it takes its glass over whole, the frame it comes up: one piece of glass.
+            presence={bottom && searchGroup ? circlePresence : undefined}>
             <View
+              ref={searching ? searchCapsule : undefined}
+              onLayout={searching && routeKey ? measureCapsule : undefined}
               style={[
                 styles.group,
                 searching && styles.search,

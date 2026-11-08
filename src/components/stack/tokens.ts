@@ -84,6 +84,19 @@ export const toolbar = {
   // Above the floating tab bar, inside NativeTabs, and above the keyboard while it's up.
   aboveTabBar: 8,
   aboveKeyboard: 8,
+  // A bare item swapped in fades in after this delay, by when the icons it splits off have opened their place
+  // (islandSplit), over this long.
+  bareIn: { delay: 120, duration: 200 },
+  // With an item on it that has no glass (\`hidesSharedBackground\`), iOS 27 blurs and washes what scrolls under the
+  // toolbar, as the navigation bar's scroll edge does, so the bare glyph stays legible: from this far above its capsules
+  // down to the screen's bottom, sharp at its top (simulator, iPhone 18 Pro: 11pt above, an 87pt band). Washed towards
+  // white (242 to 249 over grouped grey) or a near-black grey (black lifts to 12, a 28 card dims to 20), lightly blurred, with the navigation bar's hairline along its top (223 against 248 in light mode).
+  edge: {
+    above: 11,
+    blur: 5,
+    wash: { light: 'rgba(255, 255, 255, 0.54)', dark: 'rgba(18, 18, 18, 0.71)' },
+    fade: 250,
+  },
   // Between the toolbar's top and the end of content scrolled to the bottom.
   contentGap: 8,
 } as const;
@@ -389,20 +402,25 @@ export const searchMotion = {
     // and grows there whole by about 150ms, as big as the sagging field, as the field's end draws back to it, the two
     // overlapping a little, joined by a tight neck; at about 235ms the neck breaks at once and the gap between them opens.
     close: {
+      // It buds off this long after the field starts stretching, rather than at once, so the field's end isn't pulled
+      // into a long bump while it's still a circle; it stays well inside the field until the neck breaks at about the
+      // same moment as before (`at`, from when it starts).
+      budAfter: 90,
       spring: { duration: 260, dampingRatio: 1 },
       from: 0.35,
-      neck: { at: 202, overlap: 6, blend: 7 },
+      neck: { at: 112, overlap: 12, blend: 7 },
       // Its cross comes in blurred, readable by about 120ms and a little soft until the neck breaks.
       cross: { soft: 0.7, softBy: 120 },
-      // Closing, it shrinks into the field's end as a bump, gone by about 170ms, as the field draws back into it.
-      meltTime: 220,
-      // Its cross stays till it's nearly in, blurring away over about 150ms as iOS 27's does.
-      glyphGoneBy: 0.15,
+      // Closing, it melts into the field's end quickly, gone well before the field lands, as iOS 27's is: the field
+      // draws back as a plain pill.
+      meltTime: 130,
+      // Its cross goes as it starts melting in, gone by the time it's 70% of the way back.
+      glyphGoneBy: 0.7,
       // Its cross comes out of the field's end into the circle from this far in, and goes back in shrinking to this, as
       // the tab bar's search close button's does.
       glyphShift: 28,
       glyphScale: 0.6,
-      blurOut: 150,
+      blurOut: 80,
     },
     content: 60,
     blur: 10,
@@ -452,6 +470,14 @@ export const searchMotion = {
   // recordings: the field is full width by about 60%, the close button whole by about 90%, the toolbar's items gone
   // by 40%.
   bottom: {
+    // Into a magnifier's circle: the field's text goes over `circleEmpty` and its magnifier rides the glass into the
+    // circle. Out of one, it starts at the circle's size and widens over `circleStretch` as it rides the keyboard up.
+    circleEmpty: 60,
+    circleStretch: 300,
+    // A field drawing back into a magnifier's circle, at the bottom or among the toolbar's items: as the navigation
+    // bar's lands in its capsule (bar.land), it swells as it nears, from `from` of its stretch to `at`, up to `peak`,
+    // and the circle takes the swell over and settles on a looser spring, wobbling as it comes round.
+    land: { from: 0.3, at: 0.06, peak: 1.3, settle: { duration: 650, dampingRatio: 0.3 } },
     // In the toolbar's slot, the toolbar's items give way to the field as it grows out of the slot this far. The field's
     // own motion, out of what was tapped and back, is every search field's (`SearchMorph`, `searchMotion.bar`).
     melt: [0.1, 0.4],
@@ -463,11 +489,8 @@ export const searchMotion = {
     // The toolbar, beside a field in its slot, with no keyboard coming up (a hardware one): a clock stands in for it.
     fallback: 500,
     fallbackOver: 250,
-    // Closing, a field in the toolbar's slot fades where it is, its close button a little slower, and the toolbar comes
-    // back once the keyboard is nearly down (below a quarter of its way). Otherwise it draws back into what it came out
-    // of as it rides the keyboard down.
-    fieldOut: 50,
-    closeOut: 120,
+    // Closing, the field draws back into what it came out of as it rides the keyboard down; the toolbar's items come
+    // back once the keyboard is nearly down (below a quarter of its way).
     toolbarBack: [0.02, 0.25],
   },
   rowOut: 50,

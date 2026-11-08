@@ -25,6 +25,7 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
   Easing,
+  interpolate,
   useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -32,10 +33,11 @@ import Animated, {
   useSharedValue,
   withDelay,
   withSequence,
+  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import { cancelSearch } from './SearchBar.android';
 import {
@@ -144,9 +146,11 @@ interface SearchInputProps {
   iconScale?: SharedValue<number>;
   // 1 from the close button's press: the clear button fades from then, not once the text's cleared as the field lands.
   closing?: SharedValue<number>;
+  // How much its text shows, its magnifier staying: drawing back into a circle, the magnifier rides into it.
+  textShown?: SharedValue<number>;
 }
 
-const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing }: SearchInputProps) => {
+const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing, textShown }: SearchInputProps) => {
   const { props } = state;
   // Registered for the search bar's ref and for focusing; taken away only while it's still the one registered.
   const mine = useRef<ComponentRef<typeof TextInput> | null>(null);
@@ -180,41 +184,44 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing }: S
   }));
   const showIcon = props.shouldShowHintSearchIcon !== false;
   const type = useBarType();
+  const textStyle = useAnimatedStyle(() => ({ opacity: textShown?.get() ?? 1 }));
   return (
     <>
       <Magnifier color={colors.icon} show={showIcon} scale={iconScale} />
-      <TextInput
-        allowFontScaling={false}
-        ref={register}
-        value={state.text}
-        autoFocus={autoFocus ?? props.autoFocus}
-        placeholder={props.placeholder ?? 'Search'}
-        placeholderTextColor={colors.placeholder}
-        selectionColor={colors.tint}
-        cursorColor={colors.tint}
-        autoCapitalize={props.autoCapitalize === 'systemDefault' ? undefined : props.autoCapitalize}
-        keyboardType={props.inputType ? keyboardTypes[props.inputType] : undefined}
-        returnKeyType="search"
-        onChangeText={(text) => {
-          updateSearch(routeKey, { text });
-          props.onChangeText?.({ nativeEvent: { text } } as never);
-        }}
-        onFocus={(event) => {
-          if (!state.focused) props.onOpen?.();
-          updateSearch(routeKey, { focused: true });
-          props.onFocus?.(event as never);
-        }}
-        onBlur={(event) => {
-          props.onBlur?.(event as never);
-          // Like iOS, an empty field leaves search mode once it lets go of the keyboard; one with text stays.
-          if (!state.text && !drawingBack.has(routeKey)) {
-            updateSearch(routeKey, { focused: false });
-            props.onClose?.();
-          }
-        }}
-        onSubmitEditing={() => props.onSearchButtonPress?.({ nativeEvent: { text: state.text } } as never)}
-        style={[styles.input, type.search, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
-      />
+      <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, textStyle]}>
+        <TextInput
+          allowFontScaling={false}
+          ref={register}
+          value={state.text}
+          autoFocus={autoFocus ?? props.autoFocus}
+          placeholder={props.placeholder ?? 'Search'}
+          placeholderTextColor={colors.placeholder}
+          selectionColor={colors.tint}
+          cursorColor={colors.tint}
+          autoCapitalize={props.autoCapitalize === 'systemDefault' ? undefined : props.autoCapitalize}
+          keyboardType={props.inputType ? keyboardTypes[props.inputType] : undefined}
+          returnKeyType="search"
+          onChangeText={(text) => {
+            updateSearch(routeKey, { text });
+            props.onChangeText?.({ nativeEvent: { text } } as never);
+          }}
+          onFocus={(event) => {
+            if (!state.focused) props.onOpen?.();
+            updateSearch(routeKey, { focused: true });
+            props.onFocus?.(event as never);
+          }}
+          onBlur={(event) => {
+            props.onBlur?.(event as never);
+            // Like iOS, an empty field leaves search mode once it lets go of the keyboard; one with text stays.
+            if (!state.text && !drawingBack.has(routeKey)) {
+              updateSearch(routeKey, { focused: false });
+              props.onClose?.();
+            }
+          }}
+          onSubmitEditing={() => props.onSearchButtonPress?.({ nativeEvent: { text: state.text } } as never)}
+          style={[styles.input, type.search, { left: showIcon ? search.text : search.trailing, color: colors.text }]}
+        />
+      </Animated.View>
       <GestureDetector gesture={clear.gesture}>
         <View
           pointerEvents={state.text ? 'auto' : 'none'}
@@ -238,18 +245,34 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing }: S
 };
 
 /** The field's look without a text box: what it shows until it's tapped, in the toolbar or its slot. */
-export const SearchDisplay = ({ routeKey, bubble }: { routeKey: string; bubble?: SearchBubble }) => {
+export const SearchDisplay = ({
+  routeKey,
+  bubble,
+  compact = false,
+}: {
+  routeKey: string;
+  bubble?: SearchBubble;
+  // The toolbar's slot as a magnifier in a circle (`slotIsButton`), rather than a field.
+  compact?: boolean;
+}) => {
   const state = useSearch(routeKey);
   const shared = useContext(SearchBubbleContext);
   if (!state) return null;
-  return <SearchDisplayBody routeKey={routeKey} state={state} bubble={bubble ?? shared ?? undefined} />;
+  return (
+    <SearchDisplayBody routeKey={routeKey} state={state} bubble={bubble ?? shared ?? undefined} compact={compact} />
+  );
 };
 
 // Where each screen's field sits at rest, across the screen: focused, the field grows from there. The field up ahead of
 // time follows it as the toolbar lays out.
 const displayRects = new Map<string, { x: number; width: number }>();
 const rectListeners = new Set<() => void>();
-const setDisplayRect = (routeKey: string, x: number, width: number) => {
+// The keyboard's progress below which it's down.
+const keyboardDown = 0.02;
+// The toolbar capsule the field sits on, across the screen: the field's glass starts as all of it.
+const capsuleRects = new Map<string, { x: number; width: number }>();
+export const setCapsuleRect = (routeKey: string, x: number, width: number) => capsuleRects.set(routeKey, { x, width });
+export const setDisplayRect = (routeKey: string, x: number, width: number) => {
   const was = displayRects.get(routeKey);
   if (was && was.x === x && was.width === width) return;
   displayRects.set(routeKey, { x, width });
@@ -266,29 +289,56 @@ const SearchDisplayBody = ({
   routeKey,
   state,
   bubble,
+  compact,
 }: {
   routeKey: string;
   state: SearchState;
   bubble?: SearchBubble;
+  compact: boolean;
 }) => {
   const colors = useFieldColors(state.props);
+  const { color } = useLucentTheme();
   const showIcon = state.props.shouldShowHintSearchIcon !== false;
   const ref = useRef<ComponentRef<typeof View>>(null);
   const type = useBarType();
   // Out of a field up ahead of time, it hides while that field's glass is up over it.
-  const hideStyle = useAnimatedStyle(() => ({ opacity: bubble && bubble.up.get() > 0.5 ? 0 : 1 }));
+  const hideStyle = useAnimatedStyle(() => {
+    const showing = bubble && bubble.up.get() > 0.5 ? 0 : 1;
+    return { opacity: showing };
+  });
+  const open = () => {
+    state.props.onOpen?.();
+    // Out of a field up ahead of time, it starts growing at the press; search mode follows.
+    if (bubble?.starterRef.current) bubble.starterRef.current();
+    else updateSearch(routeKey, { focused: true });
+  };
+  const measure = () => ref.current?.measureInWindow((x, _y, width) => setDisplayRect(routeKey, x, width));
+  if (compact)
+    return (
+      // A magnifier in its circle, as the toolbar's other buttons are drawn, which the field grows out of.
+      <Pressable
+        ref={ref}
+        onLayout={measure}
+        accessibilityRole="search"
+        accessibilityLabel={state.props.placeholder ?? 'Search'}
+        onPress={open}
+        style={[styles.close, styles.compact, !bubble && state.focused && styles.gone]}>
+        <Animated.View style={hideStyle}>
+          <SymbolView
+            name={{ android: 'search' }}
+            size={search.buttonIcon}
+            tintColor={colorString(state.props.headerIconColor) ?? color.text}
+          />
+        </Animated.View>
+      </Pressable>
+    );
   return (
     <Pressable
       ref={ref}
-      onLayout={() => ref.current?.measureInWindow((x, _y, width) => setDisplayRect(routeKey, x, width))}
+      onLayout={measure}
       accessibilityRole="search"
       accessibilityLabel={state.props.placeholder ?? 'Search'}
-      onPress={() => {
-        state.props.onOpen?.();
-        // Out of a field up ahead of time, it starts growing at the press; search mode follows.
-        if (bubble?.starterRef.current) bubble.starterRef.current();
-        else updateSearch(routeKey, { focused: true });
-      }}
+      onPress={open}
       // Focused, the field above the keyboard shows it instead.
       style={[styles.display, !bubble && state.focused && styles.gone]}>
       <Animated.View style={[StyleSheet.absoluteFill, hideStyle]}>
@@ -315,6 +365,8 @@ const SearchDisplayBody = ({
  */
 export interface SearchBubble {
   up: SharedValue<number>;
+  // A field drawing back into a magnifier's circle swells as it lands, and the circle takes that over (bottom.land).
+  land: SharedValue<number>;
   // How far the field has grown out of what was tapped, 0 to 1: the toolbar's items go as it grows out of their slot.
   stretch: SharedValue<number>;
   starterRef: { current: (() => void) | null };
@@ -326,8 +378,9 @@ export const SearchBubbleContext = createContext<SearchBubble | null>(null);
 export const useSearchBubble = (): SearchBubble => {
   const up = useSharedValue<number>(searchMotion.bar.parked);
   const stretch = useSharedValue(0);
+  const land = useSharedValue(0);
   const starterRef = useRef<(() => void) | null>(null);
-  return useMemo(() => ({ up, stretch, starterRef }), [up, stretch]);
+  return useMemo(() => ({ up, stretch, land, starterRef }), [up, stretch, land]);
 };
 
 /** The search bar alone at the bottom, where iOS 26 puts it on a screen without a toolbar. */
@@ -362,13 +415,14 @@ export const SearchButton = ({
 }) => {
   const state = useSearch(routeKey);
   const { color } = useLucentTheme();
-  // Gone while the field that grows out of it is up, its glass taking the circle's place.
+  // Gone while the field that grows out of it is up, its glass taking the circle's place: the field's magnifier rides
+  // back into it and this one takes over the frame it lands.
   const hidden = useDerivedValue<number>(() => (bubble && bubble.up.get() > 0.5 ? 0 : 1));
   const hideStyle = useAnimatedStyle(() => ({ opacity: hidden.get() }));
   if (!state) return null;
   const size = inBar ? barItem.height : toolbar.height;
   return (
-    <BarCapsule height={size} presence={bubble ? hidden : undefined}>
+    <BarCapsule height={size} presence={bubble ? hidden : undefined} swell={bubble?.land}>
       <Pressable
         accessibilityRole="search"
         accessibilityLabel={state.props.placeholder ?? 'Search'}
@@ -516,8 +570,10 @@ const FocusedSearchBody = ({
   // Its sides in from the screen's start and end; the rest at rest is measured across the screen, left to right.
   const fromLeft = rect?.x ?? toolbar.margin;
   const fromRight = rect ? width - rect.x - rect.width : toolbar.margin;
-  const fromStart = from === 'button' ? circle : ahead > 0 ? fromLeft : fromRight;
-  const fromEnd = from === 'button' ? circle : ahead > 0 ? fromRight : fromLeft;
+  // A circle among the toolbar's items says where it is; the lone one at the bottom is centred.
+  const fromStart = from === 'button' && !rect ? circle : ahead > 0 ? fromLeft : fromRight;
+  const wide = from === 'slot' ? capsuleRects.get(routeKey) : undefined;
+  const fromEnd = from === 'button' && !rect ? circle : ahead > 0 ? fromRight : fromLeft;
   // Above the keyboard it takes nearly the screen's width, widening as the keyboard comes up; with the keyboard down
   // (searched, or a hardware one), it keeps the toolbar's margins, as iOS's does. A floating keyboard takes no room under
   // it, reporting no height as its progress jumps, so the field keeps its width there rather than snapping wider.
@@ -527,16 +583,42 @@ const FocusedSearchBody = ({
   });
   const ownStretch = useSharedValue(0);
   const stretch = bubble?.stretch ?? ownStretch;
+  // Drawing back into a circle, it swells as it nears it, and the circle takes the swell over and settles, wobbling as
+  // it comes round (bottom.land), as the navigation bar's capsule takes its field back.
+  const ownLand = useSharedValue(0);
+  const landSwell = bubble?.land ?? ownLand;
+  // Closing from the press, before `open` catches up a render later: the stretch falling is the field drawing back.
+  useAnimatedReaction(
+    () => stretch.get(),
+    (now, was) => {
+      if (from !== 'button' || was === null) return;
+      if (now > was) {
+        if (landSwell.get() !== 0) landSwell.set(0);
+        return;
+      }
+      const { from: start, at, peak, settle } = searchMotion.bottom.land;
+      if (now > at) landSwell.set(interpolate(now, [at, start], [peak, 0], 'clamp'));
+      else if (was > at) landSwell.set(withSpring(0, settle));
+    },
+  );
   // Mounted open, its glass shows from the first frame; the circle's is up ahead of time.
   const own = useSharedValue(1);
   const up = bubble?.up ?? own;
   // In the toolbar's slot, the field is the toolbar's glass until its other items have gone.
   const presence = up;
-  // Closing from the slot, it stays where it was as the keyboard goes; otherwise it rides the keyboard.
+  // It rides the keyboard, drawing back into the toolbar's slot as it goes down, as iOS 27's does (simulator).
   const pinned = useSharedValue(-1);
+  // Up ahead of time, closed, it's pinned at rest once the keyboard's down, until it opens and rides it again.
   useEffect(() => {
-    if (!open && from === 'slot') pinned.set(Math.max(rest, -keyboard.height.get() + toolbar.aboveKeyboard));
-  }, [open, from, rest, pinned, keyboard.height]);
+    if (open) pinned.set(-1);
+  }, [open, pinned]);
+  useAnimatedReaction(
+    () => from === 'slot' && !open && keyboard.progress.get() <= keyboardDown,
+    (rests) => {
+      if (rests) pinned.set(rest);
+    },
+    [open, from, rest],
+  );
   const bottom = useDerivedValue(() =>
     pinned.get() >= 0 ? pinned.get() : Math.max(rest, -keyboard.height.get() + toolbar.aboveKeyboard),
   );
@@ -569,13 +651,20 @@ const FocusedSearchBody = ({
           fromEnd={fromEnd}
           side={side}
           shift={from === 'button' ? toolbar.height / 2 - search.iconCentre : 0}
+          // Out of the toolbar's capsule, its glass starts as the whole capsule, keeping its start, and draws its end in
+          // for the close button as the capsule's other items blur away under it, as iOS 27's does (simulator).
+          wideStart={wide ? (ahead > 0 ? wide.x : width - wide.x - wide.width) : undefined}
+          wideEnd={wide ? (ahead > 0 ? width - wide.x - wide.width : wide.x) : undefined}
           clip={from === 'button'}
           keepsContent={from === 'slot' || (from === 'bottom' && Boolean(bubble))}
           // Out of the circle, the keyboard waits for the field to have grown, which it would otherwise come up over; up
           // ahead of time, it's focused once it's sharp, as the bar's field is.
-          focus={from === 'button' ? 'grown' : bubble ? 'sharp' : 'mount'}
-          fadesOut={from === 'slot'}
+          // Out of a circle, the keyboard comes up as the field buds off it, the field widening as it rides up, as iOS
+          // 27's does among a toolbar's items (simulator); the lone one at the bottom opens the same way.
+          focus={bubble ? 'sharp' : 'mount'}
+          land={from === 'button' ? landSwell : undefined}
           parks={Boolean(bubble)}
+          parksBy={from === 'slot' ? keyboard.progress : undefined}
           starterRef={bubble?.starterRef}
           tint={from === 'slot' ? tabsTint : undefined}
           stretch={stretch}
@@ -665,6 +754,9 @@ interface SearchMorphProps extends Omit<BarSearchProps, 'from'> {
   // The screen's insets, left and right, of what it grows out of, and of where it ends up.
   fromStart: number;
   fromEnd: number;
+  // Where its glass starts, wider than `fromStart`/`fromEnd`: its content starts at those, its glass at these.
+  wideStart?: number;
+  wideEnd?: number;
   side: SharedValue<number>;
   // How far the magnifier sits past its place in the field in what it grows out of: a circle's middle.
   shift?: number;
@@ -676,10 +768,11 @@ interface SearchMorphProps extends Omit<BarSearchProps, 'from'> {
   keepsContent?: boolean;
   // When it takes the keyboard: as it mounts, once it's sharp, or once it has grown.
   focus: 'mount' | 'sharp' | 'grown';
-  // In the toolbar's slot, it fades where it is closing, as iOS 27's does, rather than drawing back.
-  fadesOut?: boolean;
   // Up ahead of time, out of sight, it parks its glass once closed rather than being taken away.
   parks?: boolean;
+  // Parked only once this is down (the keyboard's progress): the toolbar's capsule it drew back into takes over where
+  // the toolbar rests, its items back around it.
+  parksBy?: SharedValue<number>;
   tint?: string;
 }
 
@@ -699,14 +792,16 @@ const SearchMorph = ({
   height,
   fromStart,
   fromEnd,
+  wideStart,
+  wideEnd,
   side,
   shift = 0,
   sags = false,
   clip = false,
   keepsContent = false,
   focus,
-  fadesOut = false,
   parks = false,
+  parksBy,
   tint,
   stretch: given,
   closing: givenClosing,
@@ -731,6 +826,32 @@ const SearchMorph = ({
   const ownOpened = useSharedValue(0);
   const opened = givenOpened ?? ownOpened;
   const shown = useSharedValue(0);
+  const textShown = useSharedValue(1);
+  // Parked, its content goes with its glass: what it grew out of takes over, showing its own.
+  const parkPending = useSharedValue(0);
+  const park = () => {
+    'worklet';
+    parkPending.set(0);
+    up.set(searchMotion.bar.parked);
+    shown.set(0);
+  };
+  // Once the keyboard's down, and after the render that ends search mode, which it sets off then: parked before it, the
+  // capsule taking over would wait out that render to show, leaving neither glass for a few frames.
+  const parkAfterRender = () =>
+    requestAnimationFrame(() =>
+      scheduleOnUI(() => {
+        'worklet';
+        if (parkPending.get() === 2) park();
+      }),
+    );
+  useAnimatedReaction(
+    () => parkPending.get() === 1 && (parksBy?.get() ?? 0) <= keyboardDown,
+    (now) => {
+      if (!now) return;
+      parkPending.set(2);
+      scheduleOnRN(parkAfterRender);
+    },
+  );
   // How far the field sags as it stretches, in points; its glass follows the capsules on the UI thread as they move by
   // layout.
   const sag = useSharedValue(0);
@@ -754,26 +875,20 @@ const SearchMorph = ({
     springingOpen.delete(routeKey);
     opened.set(0);
     closing.set(1);
-    // Out of a circle, the magnifier stays in it as the field draws back, its text cut away with the glass.
-    if (!clip && !keepsContent) shown.set(withTiming(0, { duration: motion.closeFade }));
+    // Into a circle, its text goes at once and its magnifier rides the glass into the circle's middle, growing to the
+    // circle's, where the circle's own takes over on the frame it lands: one magnifier throughout.
+    if (clip) textShown.set(withTiming(0, { duration: searchMotion.bottom.circleEmpty }));
+    else if (!keepsContent) shown.set(withTiming(0, { duration: motion.closeFade }));
     crossSharp.set(withTiming(0, { duration: motion.close.blurOut, easing: Easing.in(Easing.quad) }));
     const done = (finished?: boolean) => {
       'worklet';
       if (!finished) return;
-      // Parked, its content goes with its glass: what it grew out of takes over, showing its own.
       if (parks) {
-        up.set(searchMotion.bar.parked);
-        shown.set(0);
+        if (parksBy && parksBy.get() > keyboardDown) parkPending.set(1);
+        else park();
       }
       scheduleOnRN(pressed ? endPressed : onClosed);
     };
-    if (fadesOut) {
-      const { fieldOut, closeOut } = searchMotion.bottom;
-      up.set(withTiming(0, { duration: fieldOut }));
-      shown.set(withTiming(0, { duration: fieldOut }));
-      sharp.set(withDelay(closeOut, withTiming(0, { duration: 0 }, done)));
-      return;
-    }
     if (stretch.get() === 0) {
       done(true);
       return;
@@ -808,6 +923,8 @@ const SearchMorph = ({
     // screen a frame after a move does, so the motion starts a frame on, the field whole on its first frame as iOS's is.
     opened.set(1);
     closing.set(0);
+    parkPending.set(0);
+    textShown.set(1);
     up.set(1);
     sharp.set(clip || keepsContent ? 1 : 0);
     crossSharp.set(0);
@@ -818,12 +935,20 @@ const SearchMorph = ({
       next(
         withSequence(
           withTiming(soft, { duration: softBy, easing: Easing.out(Easing.quad) }),
-          withTiming(1, { duration: motion.close.neck.at - softBy, easing: Easing.in(Easing.quad) }),
+          withTiming(1, {
+            duration: motion.close.budAfter + motion.close.neck.at - softBy,
+            easing: Easing.in(Easing.quad),
+          }),
         ),
       ),
     );
     // A frame in already as it starts: the tap took one to get here, as iOS's first frame shows.
-    const stretching = aFrameIn(Easing.out(Easing.poly(4)), motion.stretch);
+    // Out of a circle it starts at the circle's size and widens as it rides the keyboard up, as iOS 27's does, rather
+    // than most of the way out on its first frames.
+    const stretching =
+      clip || wideStart !== undefined
+        ? aFrameIn(Easing.inOut(Easing.cubic), searchMotion.bottom.circleStretch)
+        : aFrameIn(Easing.out(Easing.poly(4)), motion.stretch);
     stretch.set(
       next(
         withSequence(
@@ -873,7 +998,7 @@ const SearchMorph = ({
         ),
       );
     }
-    row?.follow(Math.max(motion.stretch, motion.close.neck.at + islandSplit.neckBreak) + 50);
+    row?.follow(Math.max(motion.stretch, motion.close.budAfter + motion.close.neck.at + islandSplit.neckBreak) + 50);
   };
   const commitOpen = () => {
     if (!springingOpen.has(routeKey) || opened.get() !== 1) return;
@@ -912,8 +1037,12 @@ const SearchMorph = ({
   }, [open]);
   // How far in its glass is drawn at each end as it grows, from where it ends up to what it grows out of: its layout
   // stays where it ends up, and its glass follows on the UI thread.
-  const away = useDerivedValue(() => (1 - stretch.get()) * (fromStart - side.get()));
-  const endIn = useDerivedValue(() => (1 - stretch.get()) * Math.max(fromEnd - side.get(), 0));
+  // Out of a capsule wider than the field, its glass is all of the capsule and its content where the field's was in it.
+  const startAt = wideStart ?? fromStart;
+  const endAt = wideEnd ?? fromEnd;
+  const away = useDerivedValue(() => (1 - stretch.get()) * (startAt - side.get()));
+  const contentAway = useDerivedValue(() => (1 - stretch.get()) * (fromStart - side.get()));
+  const endIn = useDerivedValue(() => (1 - stretch.get()) * Math.max(endAt - side.get(), 0));
   const outset = useDerivedValue(() => room - closePlace.get() - endIn.get());
   // The close button rides the field's end, where that draws back away from its place.
   const slide = useDerivedValue(() => -endIn.get());
@@ -921,7 +1050,7 @@ const SearchMorph = ({
   const contentStyle = useAnimatedStyle(() => ({
     opacity: shown.get(),
     transform: [
-      { translateX: clip ? 0 : (away.get() + shift * (1 - stretch.get())) * ahead },
+      { translateX: clip ? 0 : (contentAway.get() + shift * (1 - stretch.get())) * ahead },
       { translateY: sag.get() / 2 },
       { scale: grow.get() },
     ],
@@ -956,6 +1085,7 @@ const SearchMorph = ({
         tint={tint}
         iconScale={clip ? iconScale : undefined}
         closing={closing}
+        textShown={textShown}
       />
     </AnimatedNativeGlassBlur>
   );
@@ -988,7 +1118,7 @@ const SearchMorph = ({
           size={height}
           gap={search.focused.gap}
           place={closePlace}
-          delay={FRAME}
+          delay={FRAME + searchMotion.bar.close.budAfter}
           spring={searchMotion.bar.close.spring}
           meltTime={searchMotion.bar.close.meltTime}
           from={searchMotion.bar.close.from}
@@ -1071,6 +1201,7 @@ const HeaderSearchBody = ({ routeKey, state, progress }: HeaderSearchProps & { s
             size={barItem.height}
             gap={search.focused.gap}
             place={closePlace}
+            delay={close.budAfter}
             spring={close.spring}
             from={close.from}
             neck={close.neck}
@@ -1129,6 +1260,7 @@ const styles = StyleSheet.create({
   clearBarDown: { transform: [{ rotate: '45deg' }] },
   clearBarUp: { transform: [{ rotate: '-45deg' }] },
   display: { flex: 1, alignSelf: 'stretch', minHeight: toolbar.height },
+  compact: { width: toolbar.height, height: toolbar.height },
   bottom: {
     position: 'absolute',
     left: toolbar.margin,

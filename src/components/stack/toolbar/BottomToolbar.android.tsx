@@ -1,5 +1,5 @@
-import { useContext, useEffect } from 'react';
-import { StyleSheet } from 'react-native';
+import { useContext, useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
   Extrapolation,
@@ -11,17 +11,20 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { useToolbarOffset } from './offset.android';
-import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { useTabBarReach } from '../../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { BarFillContext } from '../header/BarCapsule.android';
-import { BarItems } from '../header/BarItems.android';
+import { BarItems, hasBareItem } from '../header/BarItems.android';
+import { edgeGlass } from '../header/Header.android';
 import { BarMeltContext, meltLook } from '../header/melt.android';
 import { useSwipeMelt } from '../header/swipeMelt.android';
+import { slotIsButton } from '../search/SearchBar.android';
 import { SearchBubbleContext } from '../search/SearchField.android';
-import { searchMotion, toolbar } from '../tokens';
+import { barMotion, searchMotion, toolbar } from '../tokens';
 import type { LucentToolbarProps } from '../types';
 
 interface Props {
@@ -58,12 +61,14 @@ export const BottomToolbar = ({
   returning = false,
   stayDown = false,
 }: Props) => {
-  const { color } = useLucentTheme();
+  const { color, scheme } = useLucentTheme();
   const rest = useToolbarOffset();
   const tabBar = useTabBarReach();
   const { height: keyboard, progress } = useReanimatedKeyboardAnimation();
   const followKeyboard = !props.disableImePadding && !stayDown;
-  const tint = typeof props.tintColor === 'string' ? props.tintColor : (tintColor ?? color.text);
+  // `Stack.Toolbar`'s own `tintColor` changes nothing on iOS 27's glass toolbar (simulator): its plain items keep the
+  // label colour, and only an item's own `tintColor` colours it.
+  const tint = tintColor ?? color.text;
   // Its end items sit under the minimized bar's circles, as on iOS, where both are the same distance in.
   const side = tabBar ? tabBar.circle - toolbar.icon / 2 : toolbar.margin;
   // Between the circles' inner edges: what the minimized bar leaves showing.
@@ -82,7 +87,9 @@ export const BottomToolbar = ({
     right: inset.get(),
   }));
   // The row keeps its place inside the clip, so the items stay where they'd be without it.
-  const row = useAnimatedStyle(() => ({ marginHorizontal: side - inset.get() }));
+  // Room on each side too, inside the blur that holds them, which cuts what it holds to its bounds: a held capsule
+  // grows past its ends.
+  const row = useAnimatedStyle(() => ({ marginHorizontal: side - inset.get() - shadowRoom }));
   const { melt: swipeMelt, holdStyle } = useSwipeMelt(pushed);
   // In search mode its items go as the keyboard comes up (a clock standing in without one), and come back as it goes.
   const bubble = useContext(SearchBubbleContext);
@@ -91,11 +98,14 @@ export const BottomToolbar = ({
     const { fallback, fallbackOver } = searchMotion.bottom;
     clock.set(searching ? withDelay(fallback, withTiming(1, { duration: fallbackOver })) : 0);
   }, [searching, clock]);
+  const circle = slotIsButton(props);
   const away = useDerivedValue(() => {
     const { melt: going, toolbarBack } = searchMotion.bottom;
     // Out of the stack's field up ahead of time, they go as it grows out of their slot, and come back as its glass fades
     // or as the keyboard goes, whichever's later.
     if (bubble) {
+      // Out of a magnifier's circle, the circle takes the field's place the frame it lands: the rest are back by then.
+      if (circle && returning && bubble.up.get() <= 0.5) return 0;
       const field =
         interpolate(bubble.stretch.get(), going, [0, 1], Extrapolation.CLAMP) * Math.min(bubble.up.get(), 1);
       const typing = searching || returning ? interpolate(progress.get(), toolbarBack, [0, 1], Extrapolation.CLAMP) : 0;
@@ -113,22 +123,64 @@ export const BottomToolbar = ({
   // Faded and blurred, not swollen: grown about the middle of a row the screen's width, its ends would fly apart.
   const fade = useAnimatedStyle(() => ({ opacity: meltLook(melt.get()).opacity }));
 
+  // With a bare item on it, what scrolls under it blurs and washes, as under the navigation bar (toolbar.edge).
+  // Only while it shows: it's lifted glass, which draws what's behind it over whatever lies under it, the field above
+  // the keyboard too, at any opacity. Search mode takes the toolbar away, and the edge with it.
+  const bare = hasBareItem(props.children) && !searching && !returning;
+  const [edgeMounted, setEdgeMounted] = useState(bare);
+  if (bare && !edgeMounted) setEdgeMounted(true);
+  const edgeIn = useSharedValue(0);
+  useEffect(() => {
+    if (!edgeMounted) return;
+    edgeIn.set(
+      withTiming(bare ? 1 : 0, { duration: toolbar.edge.fade }, (done) => {
+        if (done && !bare) scheduleOnRN(setEdgeMounted, false);
+      }),
+    );
+  }, [bare, edgeMounted, edgeIn]);
+  const edgeStyle = useAnimatedStyle(() => ({
+    height: above + toolbar.height + toolbar.edge.above,
+    opacity: Math.min(edgeIn.get() * 4, 1) * meltLook(melt.get()).opacity,
+  }));
+  const edgeProps = useAnimatedProps(() => ({
+    blurRadius: edgeIn.get() * toolbar.edge.blur,
+    tint: edgeIn.get() > 0 ? toolbar.edge.wash[scheme] : 'rgba(0, 0, 0, 0)',
+  }));
+
   return (
-    <Animated.View pointerEvents={searching ? 'none' : 'box-none'} style={[styles.clip, clip, holdStyle]}>
-      <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.toolbar, row, fade]} animatedProps={meltBlur}>
-        <BarMeltContext value={melt}>
-          <BarFillContext value={typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined}>
-            <BarItems color={tint} bottom routeKey={routeKey}>
-              {props.children}
-            </BarItems>
-          </BarFillContext>
-        </BarMeltContext>
-      </AnimatedNativeGlassBlur>
-    </Animated.View>
+    <>
+      {edgeMounted ? (
+        <AnimatedNativeGlassView
+          {...edgeGlass}
+          lift
+          pointerEvents="none"
+          animatedProps={edgeProps}
+          style={[styles.edge, edgeStyle]}>
+          {/* A hairline along its top, as along the navigation bar's edge's bottom (iOS 27 simulator: one device pixel). */}
+          <Animated.View style={[styles.edgeLine, { backgroundColor: barMotion.edgeLine[scheme] }]} />
+        </AnimatedNativeGlassView>
+      ) : null}
+      {/* Its touches are taken by a cover in search mode, not by its own pointerEvents changing: a render that changes
+        the views its items' blur and fade ride would put those back for a frame (synchronous UI props). */}
+      <Animated.View pointerEvents="box-none" style={[styles.clip, clip, holdStyle]}>
+        <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.toolbar, row, fade]} animatedProps={meltBlur}>
+          <BarMeltContext value={melt}>
+            <BarFillContext value={typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined}>
+              <BarItems color={tint} bottom routeKey={routeKey}>
+                {props.children}
+              </BarItems>
+            </BarFillContext>
+          </BarMeltContext>
+        </AnimatedNativeGlassBlur>
+        {searching ? <View style={StyleSheet.absoluteFill} /> : null}
+      </Animated.View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
+  edge: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, elevation: 2 },
+  edgeLine: { position: 'absolute', top: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth },
   clip: {
     position: 'absolute',
     paddingVertical: shadowRoom,
@@ -139,5 +191,6 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: shadowRoom,
   },
 });

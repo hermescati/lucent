@@ -77,7 +77,7 @@ export const barTransparent = (options: NativeStackHeaderProps['options']) =>
 // The scroll edge: iOS 26 blurs the content away under the bar once it scrolls there. A flat pane of glass that only
 // blurs does the same, and draws in glass's order, so content glass scrolling up goes under it rather than over the bar.
 // Its blur and tint come in with the scroll; the soft edge's wash is `EdgeWash`, under it. The inline title goes inside it, to draw on top.
-const edgeGlass = {
+export const edgeGlass = {
   bezel: 0,
   refraction: 0,
   dispersion: 0,

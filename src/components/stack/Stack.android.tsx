@@ -27,7 +27,7 @@ import { useBarTop } from './header/barTop.android';
 import { useLargeBlock } from './header/barType.android';
 import { MenuHost } from './menu/Menu.android';
 import { backgroundOf, pageBackground } from './page.android';
-import { SearchBar, searchPlacement } from './search/SearchBar.android';
+import { SearchBar, searchPlacement, slotIsButton } from './search/SearchBar.android';
 import {
   BottomSearch,
   BottomSearchButton,
@@ -434,7 +434,13 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
           {focusShown || placement === 'button' || placement === 'bottom' || placement === 'slot' ? (
             <FocusedSearch
               routeKey={key}
-              from={placement === 'slot' ? 'slot' : placement === 'button' ? 'button' : 'bottom'}
+              from={
+                placement === 'slot' && !slotIsButton(bottomToolbar)
+                  ? 'slot'
+                  : placement === 'button' || placement === 'slot'
+                    ? 'button'
+                    : 'bottom'
+              }
               open={searching}
               onClosed={closeFocus}
               bubble={placement === 'button' || placement === 'bottom' || placement === 'slot' ? bubble : undefined}

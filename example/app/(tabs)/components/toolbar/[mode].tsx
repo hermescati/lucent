@@ -225,28 +225,33 @@ const Menus = ({ mode }: ScreenProps) => {
   );
 };
 
-const middles = ['Shared', 'separateBackground', 'hidesSharedBackground'] as const;
+// The middle item: a button, which shares its neighbours' capsule, or a status view with no glass, which splits the
+// capsule around it, as Photos' "3 Selected" does. `separateBackground` isn't offered: iOS 27's bottom toolbar ignores
+// it.
+const middles = ['Button', 'Status view'] as const;
 
 const Grouping = ({ mode }: ScreenProps) => {
+  const palette = usePalette();
   const [middle, setMiddle] = useState(0);
   const [shares, setShares] = useState(true);
   return (
     <Body mode={mode} title="Photo">
       <Stack.Toolbar>
         <Stack.Toolbar.Button icon="square.and.arrow.up" md="share" accessibilityLabel="Share" onPress={() => {}} />
-        <Stack.Toolbar.Button
-          icon="heart"
-          md="favorite"
-          accessibilityLabel="Favourite"
-          separateBackground={middle === 1}
-          hidesSharedBackground={middle === 2}
-          onPress={() => {}}
-        />
+        {middle === 0 ? (
+          <Stack.Toolbar.Button icon="heart" md="favorite" accessibilityLabel="Favourite" onPress={() => {}} />
+        ) : (
+          <Stack.Toolbar.View hidesSharedBackground>
+            <View style={styles.selectedBox}>
+              <Text style={[styles.selected, { color: palette.text }]}>3 Selected</Text>
+            </View>
+          </Stack.Toolbar.View>
+        )}
         <Stack.Toolbar.Button icon="info.circle" md="info" accessibilityLabel="Info" onPress={() => {}} />
         <Stack.Toolbar.Spacer width={16} sharesBackground={shares} />
         <Stack.Toolbar.Button icon="trash" md="delete" accessibilityLabel="Delete" onPress={() => {}} />
       </Stack.Toolbar>
-      <Section title="The heart">
+      <Section title="The middle item">
         <Choice labels={[...middles]} selectedIndex={middle} onSelect={setMiddle} />
       </Section>
       <Section title="The fixed space's sharesBackground">
@@ -390,4 +395,6 @@ const styles = StyleSheet.create({
   input: { fontSize: 17, paddingHorizontal: 16, paddingVertical: 11 },
   status: { fontSize: 13 },
   statusBox: { width: 160, height: 44, alignItems: 'center', justifyContent: 'center' },
+  selected: { fontSize: 15, fontWeight: '600' },
+  selectedBox: { width: 110, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
