@@ -66,7 +66,7 @@ export default function TabBarScreen() {
               { label: 'None', value: 'none' },
               { label: 'Playing', value: 'nowPlaying' },
               { label: 'Upload', value: 'upload' },
-              { label: 'Actions', value: 'actions' },
+              { label: 'Custom', value: 'timer' },
             ]}
             value={accessory}
             onChange={(next) => set({ accessory: next })}

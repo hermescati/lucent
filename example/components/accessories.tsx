@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
+  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -13,11 +14,13 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 
 import { usePalette } from '@/components/ui';
 
-// The bottom accessory takes any content, as iOS's does (UITabAccessory's contentView): these show three kinds. Each
-// reads its placement and draws a shorter copy once the bar minimizes.
+// The bottom accessory takes any content, as iOS's does (UITabAccessory's contentView): these show three kinds, two
+// in the system's own look and one entirely the app's. Each reads its placement and draws a shorter copy once the bar
+// minimizes.
 
 // Its class typings predate this React's; it's the same component.
 const MaskedView = MaskedViewClass as unknown as ComponentType<MaskedViewProps>;
@@ -159,7 +162,7 @@ export const NowPlaying = () => {
           </Text>
         )}
       </View>
-      <Pressable hitSlop={8} accessibilityLabel={player.playing ? 'Pause' : 'Play'} onPress={togglePlay}>
+      <Pressable style={styles.button} accessibilityLabel={player.playing ? 'Pause' : 'Play'} onPress={togglePlay}>
         <SymbolView
           name={player.playing ? { ios: 'pause.fill', android: 'pause' } : { ios: 'play.fill', android: 'play_arrow' }}
           size={20}
@@ -167,7 +170,7 @@ export const NowPlaying = () => {
         />
       </Pressable>
       {inline ? null : (
-        <Pressable hitSlop={8} accessibilityLabel="Next" onPress={nextTrack}>
+        <Pressable style={[styles.button, styles.next]} accessibilityLabel="Next" onPress={nextTrack}>
           <SymbolView name={{ ios: 'forward.fill', android: 'fast_forward' }} size={22} tintColor={text} />
         </Pressable>
       )}
@@ -261,7 +264,7 @@ export const Upload = () => {
         )}
       </View>
       <Pressable
-        hitSlop={8}
+        style={styles.button}
         accessibilityLabel={finished ? 'Upload again' : paused ? 'Resume' : 'Pause'}
         onPress={finished ? restartUpload : togglePause}>
         <SymbolView
@@ -280,35 +283,150 @@ export const Upload = () => {
   );
 };
 
-/** Actions for the screen, as in Notes: a primary one, and more beside it once there's room. */
-export const Actions = () => {
-  const placement = NativeTabs.BottomAccessory.usePlacement();
-  const { text } = usePalette();
+// The timer runs outside the accessory, as the upload does, so both placements' copies count the same seconds.
+const timerLength = 8 * 60;
+const timer = { left: timerLength, running: true };
+let timerTick: ReturnType<typeof setInterval> | null = null;
+const timerListeners = new Set<() => void>();
+const emitTimer = () => timerListeners.forEach((listener) => listener());
+const stopTick = () => {
+  if (timerTick) clearInterval(timerTick);
+  timerTick = null;
+};
+const runTick = () => {
+  stopTick();
+  timerTick = setInterval(() => {
+    timer.left = Math.max(timer.left - 1, 0);
+    if (timer.left === 0) {
+      timer.running = false;
+      stopTick();
+    }
+    emitTimer();
+  }, 1000);
+};
+const addMinute = () => {
+  timer.left += 60;
+  if (!timer.running) {
+    timer.running = true;
+    runTick();
+  }
+  emitTimer();
+};
+const stopOrRestart = () => {
+  if (timer.running) {
+    timer.running = false;
+    stopTick();
+  } else {
+    timer.left = timer.left === 0 ? timerLength : timer.left;
+    timer.running = true;
+    runTick();
+  }
+  emitTimer();
+};
+const subscribeTimer = (listener: () => void) => {
+  timerListeners.add(listener);
+  if (!timerTick && timer.running) runTick();
+  return () => {
+    timerListeners.delete(listener);
+    if (timerListeners.size === 0) stopTick();
+  };
+};
+const timerSnapshot = () => `${timer.left}:${timer.running}`;
+const clock = (seconds: number) =>
+  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const ringColor = '#FF9F0A';
+const stopColor = '#FF453A';
+
+// The time left as a ring that empties, gliding a second at a time.
+const Ring = ({ size, fraction }: { size: number; fraction: number }) => {
+  const stroke = size / 8;
+  const radius = (size - stroke) / 2;
+  const around = 2 * Math.PI * radius;
+  const shown = useSharedValue(fraction);
+  useEffect(() => {
+    shown.set(withTiming(fraction, { duration: 1000, easing: Easing.linear }));
+  }, [fraction, shown]);
+  const arcProps = useAnimatedProps(() => ({ strokeDashoffset: around * (1 - shown.get()) }));
   return (
-    <View style={[styles.row, styles.actions]}>
-      {placement === 'regular' ? (
-        <Pressable hitSlop={8} accessibilityLabel="Filter">
-          <SymbolView name={{ ios: 'line.3.horizontal.decrease', android: 'filter_list' }} size={20} tintColor={text} />
+    <Svg width={size} height={size} style={styles.ring}>
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={ringColor}
+        strokeOpacity={0.25}
+        strokeWidth={stroke}
+        fill="none"
+      />
+      <AnimatedCircle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={ringColor}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={around}
+        animatedProps={arcProps}
+        fill="none"
+      />
+    </Svg>
+  );
+};
+
+/**
+ * A kitchen timer, drawn entirely by the app: none of the system's symbols or row. A ring that empties, the time in
+ * large digits, a tinted pill to add a minute and a red button to stop. Minimized, the ring, the time and stop.
+ * Each control's target is its own 44pt, whatever its drawing.
+ */
+export const Timer = () => {
+  const placement = NativeTabs.BottomAccessory.usePlacement();
+  const { text, secondary } = usePalette();
+  useSyncExternalStore(subscribeTimer, timerSnapshot);
+  const { left, running } = timer;
+  const inline = placement === 'inline';
+  const fraction = Math.min(left / timerLength, 1);
+  return (
+    <View style={[styles.row, styles.timer]}>
+      <Ring size={inline ? 26 : 32} fraction={fraction} />
+      <View style={styles.timerStatus}>
+        {inline ? null : <Text style={[styles.timerLabel, { color: ringColor }]}>PASTA</Text>}
+        <Text style={[inline ? styles.clockSmall : styles.clock, { color: running ? text : secondary }]}>
+          {left === 0 ? 'Done' : clock(left)}
+        </Text>
+      </View>
+      {inline ? null : (
+        <Pressable style={styles.pillTarget} accessibilityLabel="Add a minute" onPress={addMinute}>
+          <View style={styles.pill}>
+            <Text style={styles.pillLabel}>+1 min</Text>
+          </View>
         </Pressable>
-      ) : null}
-      <Text style={[styles.title, styles.center, { color: text }]} numberOfLines={1}>
-        {placement === 'inline' ? '12 notes' : '12 notes, updated just now'}
-      </Text>
-      <Pressable hitSlop={8} accessibilityLabel="New note">
-        <SymbolView name={{ ios: 'square.and.pencil', android: 'edit_square' }} size={20} tintColor={text} />
+      )}
+      <Pressable
+        style={[styles.button, inline ? null : styles.next]}
+        accessibilityLabel={running ? 'Stop' : left === 0 ? 'Start again' : 'Resume'}
+        onPress={stopOrRestart}>
+        <View style={[styles.stop, { backgroundColor: running ? stopColor : ringColor }]}>
+          <View style={running ? styles.stopGlyph : styles.playGlyph} />
+        </View>
       </Pressable>
     </View>
   );
 };
 
-export const accessories = { nowPlaying: NowPlaying, upload: Upload, actions: Actions } as const;
+export const accessories = { nowPlaying: NowPlaying, upload: Upload, timer: Timer } as const;
 export type AccessoryKind = 'none' | keyof typeof accessories;
 
 const styles = StyleSheet.create({
-  row: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },
-  actions: { paddingHorizontal: 18 },
+  // The trailing buttons' 44pt targets reach past their glyphs, so the row's end padding gives that back: the glyphs sit
+  // where they would with 14pt.
+  row: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingStart: 14, paddingEnd: 2 },
+  // Each action a 44pt square, Apple's least for something to tap, its glyph in the middle.
+  button: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  // Beside another button, the two targets meet rather than leaving the row's gap between them.
+  next: { marginStart: -10 },
   art: { width: 32, height: 32, borderRadius: 6 },
-  title: { flex: 1, fontSize: 15, fontWeight: '600' },
   label: { fontSize: 15, fontWeight: '600' },
   artist: { fontSize: 12 },
   marquee: { overflow: 'hidden' },
@@ -318,7 +436,27 @@ const styles = StyleSheet.create({
   opaque: { backgroundColor: 'black' },
   // Wide enough that the title lays out on one line at its own width, clipped by the marquee.
   slide: { flexDirection: 'row', width: 4000 },
-  center: { textAlign: 'center' },
+  timer: { paddingStart: 12 },
+  ring: { transform: [{ rotate: '-90deg' }] },
+  timerStatus: { flex: 1, justifyContent: 'center' },
+  timerLabel: { fontSize: 11, lineHeight: 13, fontWeight: '800', letterSpacing: 1 },
+  clock: { fontSize: 20, lineHeight: 24, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  clockSmall: { fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  // The pill draws 30pt tall; its target is the row's 44.
+  pillTarget: { height: 44, justifyContent: 'center' },
+  pill: { height: 30, paddingHorizontal: 12, borderRadius: 15, justifyContent: 'center', backgroundColor: ringColor },
+  pillLabel: { color: '#1C1C1E', fontSize: 14, fontWeight: '700' },
+  stop: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  stopGlyph: { width: 10, height: 10, borderRadius: 2, backgroundColor: 'white' },
+  playGlyph: {
+    marginStart: 2,
+    borderLeftWidth: 10,
+    borderTopWidth: 6,
+    borderBottomWidth: 6,
+    borderLeftColor: 'white',
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+  },
   status: { flex: 1, gap: 4, justifyContent: 'center' },
   track: { height: 3, borderRadius: 1.5, overflow: 'hidden' },
   progress: { width: '100%', height: '100%', backgroundColor: '#0A84FF', transformOrigin: 'left' },

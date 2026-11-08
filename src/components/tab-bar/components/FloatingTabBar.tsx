@@ -30,6 +30,7 @@ import {
   rowInset,
   screenGroup,
   tabBarGroup,
+  accessoryGroup,
   tick,
 } from '../helpers/bar';
 import { mirror, mirrored } from '../helpers/mirror';
@@ -185,6 +186,19 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   };
 
   const press = useBarPress({ ...state, ...search, selectTab, reselect });
+  // Whether the bottom accessory draws over the bar: from the moment the bar starts to minimize until it opens again,
+  // so its buttons keep their touches in the bar's row. While the search circle or the minimized pill is held, and
+  // until it settles, the bar comes back over it, as iOS's glass does: dragged into the accessory, they pass in front.
+  const [accessoryOver, setAccessoryOver] = useState(state.collapse?.target.get() === 1);
+  useAnimatedReaction(
+    () =>
+      state.collapse?.target.get() === 1 &&
+      Math.abs(state.searchPress.press.get()) < 0.002 &&
+      Math.abs(state.minimizedPress.press.get()) < 0.002,
+    (over, previous) => {
+      if (over !== previous) scheduleOnRN(setAccessoryOver, over);
+    },
+  );
   useLensPhysics({ ...state, ...press });
   const lens = useLensStyles(state);
   const lensWidthStyle = useAnimatedStyle(() => ({ width: state.lensBase.get() }));
@@ -350,6 +364,8 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
         {...lensEdge}
         group={tabBarGroup}
         underlay={screenGroup}
+        // Dragged up over the bottom accessory, it shows the accessory through it.
+        overlay={props.accessory !== undefined ? accessoryGroup : undefined}
         inset={glass.lensPad}
         refractionYScale={glass.lensRefractionYScale}
         cornerRadius={lensFullHeight / 2}
@@ -372,7 +388,10 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
 
   const content = (
     <>
+      {/* Under the bar, as iOS's is: the bar and its search circle pass over it. Minimized, in the bar's row, it comes
+          over the bar instead, as iOS's does dropping in, so the bar's frame doesn't take its touches. */}
       <BottomAccessoryBar
+        over={accessoryOver}
         span={barSpan}
         left={barLeft}
         bottom={bottom}

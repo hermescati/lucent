@@ -14,9 +14,16 @@ import android.view.View
 import android.view.ViewGroup
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
+import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 
 class GlassBackdropView(context: Context, appContext: AppContext) :
-  ExpoView(context, appContext), GlassSupport.Listener {
+  ExpoView(context, appContext), GlassSupport.Listener, ReactPointerEventsView {
+  // React's pointerEvents, which only its own views read on their own: "box-none" for a backdrop laid over other views,
+  // as the bottom accessory's is over the tab bar's row. Left "auto", it takes touches on its empty parts, so a screen's
+  // backdrop keeps taps on its background from reaching a screen under it.
+  override var pointerEvents: PointerEvents = PointerEvents.AUTO
+
   internal val node: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassBackdrop") else null
   internal val outNode: RenderNode? =

@@ -3,6 +3,7 @@ package expo.modules.lucent
 import android.graphics.Color
 import android.os.Build
 import android.view.RoundedCorner
+import com.facebook.react.uimanager.PointerEvents
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -59,6 +60,9 @@ class LucentModule : Module() {
       Prop("offscreen") { view: GlassBackdropView, value: Boolean? -> view.offscreen = value ?: false }
       Prop("saturation") { view: GlassBackdropView, value: Float? -> view.saturation = value ?: 1f }
       Prop("brightness") { view: GlassBackdropView, value: Float? -> view.brightness = value ?: 1f }
+      Prop("pointerEvents") { view: GlassBackdropView, value: String? ->
+        view.pointerEvents = PointerEvents.parsePointerEvents(value)
+      }
     }
 
     View(PredictiveBackView::class) {
@@ -83,6 +87,10 @@ class LucentModule : Module() {
 
     View(GlassView::class) {
       Name("LucentGlassView")
+
+      Prop("pointerEvents") { view: GlassView, value: String? ->
+        view.pointerEvents = PointerEvents.parsePointerEvents(value)
+      }
       Events("onBackdropLuma")
 
       Prop("sampleBackdrop") { view: GlassView, value: Boolean? -> view.sampleBackdrop = value ?: false }

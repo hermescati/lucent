@@ -34,6 +34,8 @@ export type SearchFieldFit = ReturnType<typeof searchFieldFit>;
 
 export const tabBarGroup = 'tabbar';
 export const screenGroup = 'default';
+// The bottom accessory, which the tab bar's lens shows through it when dragged up over it.
+export const accessoryGroup = 'tabbar-accessory';
 export const revealGroup = 'tabbar-reveal';
 
 export const clamp01 = (value: number) => {

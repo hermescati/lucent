@@ -440,7 +440,16 @@ export const motion = {
     expand: { duration: 380, dampingRatio: 0.78 },
     show: 270,
     hide: 150,
-    pressX: 8.7,
-    pressY: 1,
+    // Pressed, it moves as every glass shape does (core/glass/useShapePress): iOS 27's grows as much (simulator).
+    // Dragged off it, it pulls after the finger. Past an end it eases in and then holds: its middle follows up to
+    // `shift` and it stretches up to `stretch` longer, most of it within `reach` (iOS: 4pt and 1.3% with the finger 87pt
+    // past). It builds over that reach at about a glass button's pace: iOS's 2.3pt at 19pt past, built that quickly,
+    // read as a jump once the finger came down past an end from above. Above or below it, it keeps going: per point, `stretch` taller and as much
+    // narrower, its middle following `shift` (iOS: 7% and 4pt at 634pt above; a little more here, so a finger at the top of
+    // a shorter Android screen ends where iOS's does at the top of its own: about 8% narrower).
+    pull: {
+      side: { shift: 4, stretch: 0.014, reach: 50 },
+      up: { shift: 0.0075, stretch: 0.00015 },
+    },
   },
 } as const;

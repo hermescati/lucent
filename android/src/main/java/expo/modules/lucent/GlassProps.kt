@@ -2,11 +2,17 @@ package expo.modules.lucent
 
 import android.content.Context
 import android.graphics.Color
+import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 
 /** The props JS sets on a glass view, and the sizes derived from them. */
-abstract class GlassProps(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+abstract class GlassProps(context: Context, appContext: AppContext) :
+  ExpoView(context, appContext), ReactPointerEventsView {
+  // React's pointerEvents, which only its own views read on their own: glass drawn as a part of a bigger control, its
+  // stretch padding reaching past it, passes "none" so that padding doesn't take the touches of what's beside it.
+  override var pointerEvents: PointerEvents = PointerEvents.AUTO
   var group: String = GlassRegistry.DEFAULT_GROUP
   var underlay: String? = null
   var overlay: String? = null
