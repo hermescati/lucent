@@ -413,7 +413,9 @@ const BareSlot = ({ opens, minWidth, children }: { opens: boolean; minWidth: num
   const [natural, setNatural] = useState(0);
   const [opening] = useState(opens);
   const open = useSharedValue(opening ? 0 : 1);
-  const shown = useSharedValue(opening ? 0 : 1);
+  // Coming in from all but nothing, not nothing: Android leaves a view at no opacity out of what TalkBack can reach,
+  // and that's the opacity React keeps for it while the fade runs on the UI thread.
+  const shown = useSharedValue(opening ? searchMotion.bar.parked : 1);
   useLayoutEffect(() => {
     if (!opening || natural === 0) return;
     open.set(withSpring(1, islandSplit.spring));
@@ -424,7 +426,8 @@ const BareSlot = ({ opens, minWidth, children }: { opens: boolean; minWidth: num
   return (
     <Animated.View exiting={FadeOut.duration(toolbar.bareIn.duration)} style={[styles.view, slotStyle]}>
       <Animated.View
-        // Measured at its own size while its slot opens around it, kept in the slot's middle.
+        // At its own size while its slot opens around it, kept in the slot's middle and spilling past its sides until
+        // it's open: laid out, not floated over it, which would leave it out of what TalkBack reaches.
         style={[opening && styles.bareContent, { minWidth }, contentStyle]}
         onLayout={opening && natural === 0 ? (event) => setNatural(event.nativeEvent.layout.width) : undefined}>
         {children}
@@ -645,6 +648,8 @@ const ItemButton = ({
         disabled={item.disabled || item.hidden}
         accessibilityRole="button"
         accessibilityLabel={item.accessibilityLabel}
+        // A button that opens a menu says so, as VoiceOver's menu buttons do.
+        accessibilityHint={menu ? 'Shows a menu' : undefined}
         accessibilityState={{ disabled: item.disabled, selected: item.selected }}
         style={({ pressed }) => [
           styles.item,
@@ -721,6 +726,8 @@ interface Props {
   bottom?: boolean;
   // The screen, for a `Stack.Toolbar.SearchBarSlot`'s field.
   routeKey?: string;
+  // Taken away by search mode: out of TalkBack's reach while it's gone.
+  away?: boolean;
 }
 
 /**
@@ -747,7 +754,7 @@ export const BarBackButtonContext = createLucentContext<{ element: ReactNode; sh
 );
 
 /** A `Stack.Toolbar`'s items for one side of the bar, grouped onto glass capsules as iOS 26 does. */
-export const BarItems = ({ children, color, bottom = false, routeKey }: Props) => {
+export const BarItems = ({ children, color, bottom = false, routeKey, away = false }: Props) => {
   const { scheme, solid } = useLucentTheme();
   const tabsTint = useTabsTint();
   const metrics = bottom ? toolbar : barItem;
@@ -1005,11 +1012,13 @@ export const BarItems = ({ children, color, bottom = false, routeKey }: Props) =
   });
   const content = [back, ...grouped];
   const row = bridged ? (
-    <BarGlassRow style={rowStyle} height={metrics.height}>
+    <BarGlassRow style={rowStyle} height={metrics.height} hidden={away}>
       {content}
     </BarGlassRow>
   ) : (
-    <View style={rowStyle}>{content}</View>
+    <View style={rowStyle} importantForAccessibility={away ? 'no-hide-descendants' : 'auto'}>
+      {content}
+    </View>
   );
   return row;
 };
@@ -1061,6 +1070,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { lineHeight: badgeMetrics.size, includeFontPadding: false },
   view: { alignItems: 'center', justifyContent: 'center' },
-  bareContent: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  bareContent: { flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
   badgeAnchor: { position: 'absolute', top: 0, left: 0, right: 0, height: 0 },
 });

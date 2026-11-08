@@ -141,6 +141,8 @@ interface RowProps {
   presence?: SharedValue<number>;
   // Its capsules glow under a finger, which takes the touch: off for a row up out of sight over another.
   pressable?: boolean;
+  // Out of TalkBack's reach, as while search mode has taken the bottom toolbar away.
+  hidden?: boolean;
 }
 
 /**
@@ -148,7 +150,7 @@ interface RowProps {
  * into its neighbour and a neck of glass joins them, which breaks as it lets go. The row's `BarCapsule`s become shapes in
  * it. Only for untinted capsules, and no more than the shader draws.
  */
-export const BarGlassRow = ({ children, style, height, presence: own, pressable = true }: RowProps) => {
+export const BarGlassRow = ({ children, style, height, presence: own, pressable = true, hidden }: RowProps) => {
   const side = useContext(BarGlassPresenceContext);
   const presence = own ?? side ?? undefined;
   const material = useBarMaterial();
@@ -286,6 +288,7 @@ export const BarGlassRow = ({ children, style, height, presence: own, pressable 
         pressGlowSpread={glassPress.groupGlowSpread}
         pressShapes={visible.map((shape) => (pressable && shape.interactive ? glowFor(shape.width, false) : 0))}
         onLayout={(event) => laidOut.set(event.nativeEvent.layout.height)}
+        importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
         style={style}>
         {children}
       </AnimatedNativeGlassView>

@@ -227,6 +227,8 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing, tex
           pointerEvents={state.text ? 'auto' : 'none'}
           style={styles.clear}
           accessible={Boolean(state.text)}
+          // Out of TalkBack's reach while it's hidden, with no text to clear, as VoiceOver finds none then.
+          importantForAccessibility={state.text ? 'yes' : 'no-hide-descendants'}
           accessibilityRole="button"
           accessibilityLabel="Clear text"
           accessibilityActions={[{ name: 'activate' }]}
@@ -1302,12 +1304,12 @@ const styles = StyleSheet.create({
   headerContent: { position: 'absolute', top: 0, bottom: 0, left: 0 },
   barRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: search.focused.gap },
   barField: { flex: 1, flexDirection: 'row' },
-  // At the row's end, out of the field's layout.
+  // At the row's end, out of the field's layout. Only as wide as the button: Android orders siblings for TalkBack by where
+  // they start, and spanning the row from its start, it was read before the field.
   barClose: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'flex-end',

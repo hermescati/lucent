@@ -175,7 +175,7 @@ export const BottomToolbar = ({
         <AnimatedNativeGlassBlur pointerEvents="box-none" style={[styles.toolbar, row, fade]} animatedProps={meltBlur}>
           <BarMeltContext value={melt}>
             <BarFillContext value={typeof props.backgroundColor === 'string' ? props.backgroundColor : undefined}>
-              <BarItems color={tint} bottom routeKey={routeKey}>
+              <BarItems color={tint} bottom routeKey={routeKey} away={searching}>
                 {props.children}
               </BarItems>
             </BarFillContext>

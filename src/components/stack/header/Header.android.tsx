@@ -877,6 +877,8 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
     <>
       <Animated.View
         pointerEvents={hidden ? 'none' : 'box-none'}
+        // Gone in search mode, out of TalkBack's reach too, as VoiceOver can't reach iOS's hidden bar.
+        importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
         style={[styles.header, { height, paddingTop: top }, shownStyle]}>
         {transparent && washStops ? <EdgeWash color={background ?? wash} stops={washStops} under={under} /> : null}
         {transparent ? null : (
