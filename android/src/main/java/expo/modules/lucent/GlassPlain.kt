@@ -284,12 +284,14 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     // than meeting a hard line.
     if (fallbackFade > 0f) {
       plainPath.computeBounds(fadeBounds, true)
-      val fadeTop = max(fadeBounds.top, fadeBounds.bottom - fallbackFade * density)
-      fillPaint.shader = LinearGradient(
-        0f, fadeTop, 0f, fadeBounds.bottom,
-        solid.toArgb(), Color.argb(0f, solid.red(), solid.green(), solid.blue()),
-        Shader.TileMode.CLAMP,
-      )
+      val clear = Color.argb(0f, solid.red(), solid.green(), solid.blue())
+      fillPaint.shader = if (fallbackFadeTop) {
+        val fadeEnd = min(fadeBounds.bottom, fadeBounds.top + fallbackFade * density)
+        LinearGradient(0f, fadeBounds.top, 0f, fadeEnd, clear, solid.toArgb(), Shader.TileMode.CLAMP)
+      } else {
+        val fadeTop = max(fadeBounds.top, fadeBounds.bottom - fallbackFade * density)
+        LinearGradient(0f, fadeTop, 0f, fadeBounds.bottom, solid.toArgb(), clear, Shader.TileMode.CLAMP)
+      }
     }
     canvas.drawPath(plainPath, fillPaint)
     fillPaint.shader = null

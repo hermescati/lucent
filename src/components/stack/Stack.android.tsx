@@ -424,6 +424,7 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
                     searching={searching && placement === 'slot'}
                     returning={focusShown && !searching && placement === 'slot'}
                     stayDown={Boolean(search?.focused) && (placement === 'header' || placement === 'barButton')}
+                    background={backgroundOf(options, colors.background)}
                   />
                 </SearchBubbleContext>
               </ScreenHiddenContext>

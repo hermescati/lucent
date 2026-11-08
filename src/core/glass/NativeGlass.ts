@@ -150,6 +150,8 @@ export interface NativeGlassViewProps extends ViewProps {
   fallbackRimWidth?: number;
   // Drawn solid, how many points at its bottom it fades out over, to clear.
   fallbackFade?: number;
+  // Fading at its top instead.
+  fallbackFadeTop?: boolean;
   fallbackShadow?: ColorValue;
   fallbackShadowRadius?: number;
   fallbackShadowOffset?: number;

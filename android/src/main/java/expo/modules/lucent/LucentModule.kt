@@ -250,6 +250,7 @@ class LucentModule : Module() {
       Prop("fallbackRim") { view: GlassView, value: Color? -> view.fallbackRim = value ?: TRANSPARENT }
       Prop("fallbackRimWidth") { view: GlassView, value: Float? -> view.fallbackRimWidth = value ?: 0f }
       Prop("fallbackFade") { view: GlassView, value: Float? -> view.fallbackFade = value ?: 0f }
+      Prop("fallbackFadeTop") { view: GlassView, value: Boolean? -> view.fallbackFadeTop = value ?: false }
       Prop("fallbackShadow") { view: GlassView, value: Color? -> view.fallbackShadow = value ?: TRANSPARENT }
       Prop("fallbackShadowRadius") { view: GlassView, value: Float? -> view.fallbackShadowRadius = value ?: 0f }
       Prop("fallbackShadowOffset") { view: GlassView, value: Float? -> view.fallbackShadowOffset = value ?: 0f }

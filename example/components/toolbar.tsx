@@ -180,7 +180,7 @@ export const toolbarModes: ToolbarMode[] = [
     uikit: 'UIBarButtonItem.sharesBackground, hidesSharedBackground; a fixed space that shares its background (iOS 26)',
     code: `<Stack.Toolbar>
   <Stack.Toolbar.Button icon="square.and.arrow.up" md="share" />
-  {/* A button shares the capsule; a view with no glass splits it */}
+  {/* A button shares the capsule; a bare button or a view with no glass splits it */}
   <Stack.Toolbar.View hidesSharedBackground>
     <Text>3 Selected</Text>
   </Stack.Toolbar.View>
@@ -189,7 +189,7 @@ export const toolbarModes: ToolbarMode[] = [
   <Stack.Toolbar.Button icon="trash" md="delete" />
 </Stack.Toolbar>`,
     support: 'both',
-    gap: "Neighbouring icon buttons share one capsule. A fixed Spacer sets the next item apart, as Photos sets delete apart, unless it shares the background. A view with hidesSharedBackground has no glass, so the capsule splits around it. A button with it is bare too, and the toolbar then blurs what scrolls under it to keep the glyph legible. separateBackground does nothing in the bottom toolbar on iOS 27, so it isn't shown here.",
+    gap: "Neighbouring icon buttons share one capsule. A fixed Spacer sets the next item apart, as Photos sets delete apart, unless it shares the background. A view with hidesSharedBackground has no glass, so the capsule splits around it. A button with it (Bare button) is bare too, and the toolbar then blurs what scrolls under it to keep the glyph legible, with a hairline along its top. separateBackground does nothing in the bottom toolbar on iOS 27, so it isn't shown here.",
   },
   {
     slug: 'spacing',

@@ -169,6 +169,8 @@ abstract class GlassProps(context: Context, appContext: AppContext) :
   var fallbackRimWidth = 0f
   // Drawn solid, how many points at its bottom it fades out over, to clear.
   var fallbackFade = 0f
+  // Fading at its top instead, as the bottom toolbar's edge does, what scrolls under it dissolving into it from above.
+  var fallbackFadeTop = false
   var fallbackShadow: Color = TRANSPARENT
   var fallbackShadowRadius = 0f
   var fallbackShadowOffset = 0f

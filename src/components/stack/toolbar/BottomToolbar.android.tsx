@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
   Extrapolation,
@@ -39,6 +39,8 @@ interface Props {
   returning?: boolean;
   // Stays down under the keyboard, as iOS's does while a field in the navigation bar has it.
   stayDown?: boolean;
+  // The page's colour, which the solid fallback paints its edge in.
+  background?: ColorValue;
 }
 
 // Room above and below the items inside the clip, for their shadows and a held item's growing glass.
@@ -60,8 +62,9 @@ export const BottomToolbar = ({
   searching = false,
   returning = false,
   stayDown = false,
+  background,
 }: Props) => {
-  const { color, scheme } = useLucentTheme();
+  const { color, scheme, solid } = useLucentTheme();
   const rest = useToolbarOffset();
   const tabBar = useTabBarReach();
   const { height: keyboard, progress } = useReanimatedKeyboardAnimation();
@@ -139,7 +142,9 @@ export const BottomToolbar = ({
     );
   }, [bare, edgeMounted, edgeIn]);
   const edgeStyle = useAnimatedStyle(() => ({
-    height: above + toolbar.height + toolbar.edge.above,
+    // Solid, the page's colour up to the toolbar's top, fading to clear over the navigation bar's solid fade above it,
+    // as that bar's edge does below it.
+    height: above + toolbar.height + (solid ? barMotion.solidFade : toolbar.edge.above),
     opacity: Math.min(edgeIn.get() * 4, 1) * meltLook(melt.get()).opacity,
   }));
   const edgeProps = useAnimatedProps(() => ({
@@ -152,12 +157,16 @@ export const BottomToolbar = ({
       {edgeMounted ? (
         <AnimatedNativeGlassView
           {...edgeGlass}
+          fallback={solid ? background : undefined}
+          fallbackFade={barMotion.solidFade}
+          fallbackFadeTop
           lift
           pointerEvents="none"
           animatedProps={edgeProps}
           style={[styles.edge, edgeStyle]}>
-          {/* A hairline along its top, as along the navigation bar's edge's bottom (iOS 27 simulator: one device pixel). */}
-          <Animated.View style={[styles.edgeLine, { backgroundColor: barMotion.edgeLine[scheme] }]} />
+          {/* A hairline along its top, as along the navigation bar's edge's bottom (iOS 27 simulator: one device pixel).
+            Solid, it fades instead, as that bar's does. */}
+          {solid ? null : <Animated.View style={[styles.edgeLine, { backgroundColor: barMotion.edgeLine[scheme] }]} />}
         </AnimatedNativeGlassView>
       ) : null}
       {/* Its touches are taken by a cover in search mode, not by its own pointerEvents changing: a render that changes

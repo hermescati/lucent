@@ -225,10 +225,10 @@ const Menus = ({ mode }: ScreenProps) => {
   );
 };
 
-// The middle item: a button, which shares its neighbours' capsule, or a status view with no glass, which splits the
-// capsule around it, as Photos' "3 Selected" does. `separateBackground` isn't offered: iOS 27's bottom toolbar ignores
-// it.
-const middles = ['Button', 'Status view'] as const;
+// The middle item: a button, which shares its neighbours' capsule; a bare button (`hidesSharedBackground`), which splits
+// it and brings the toolbar's scroll edge; or a status view with no glass, which splits the capsule around it, as Photos'
+// "3 Selected" does. `separateBackground` isn't offered: iOS 27's bottom toolbar ignores it.
+const middles = ['Button', 'Bare button', 'Status view'] as const;
 
 const Grouping = ({ mode }: ScreenProps) => {
   const palette = usePalette();
@@ -238,8 +238,14 @@ const Grouping = ({ mode }: ScreenProps) => {
     <Body mode={mode} title="Photo">
       <Stack.Toolbar>
         <Stack.Toolbar.Button icon="square.and.arrow.up" md="share" accessibilityLabel="Share" onPress={() => {}} />
-        {middle === 0 ? (
-          <Stack.Toolbar.Button icon="heart" md="favorite" accessibilityLabel="Favourite" onPress={() => {}} />
+        {middle < 2 ? (
+          <Stack.Toolbar.Button
+            icon="heart"
+            md="favorite"
+            accessibilityLabel="Favourite"
+            hidesSharedBackground={middle === 1}
+            onPress={() => {}}
+          />
         ) : (
           <Stack.Toolbar.View hidesSharedBackground>
             <View style={styles.selectedBox}>
