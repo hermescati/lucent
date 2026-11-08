@@ -102,12 +102,13 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
   }, [target, labelled, fromWidth, toWidth, progress, shown, swell]);
   const bodyStyle = useAnimatedStyle(() => {
     const width = fromWidth.get() + (toWidth.get() - fromWidth.get()) * progress.get();
-    // The chevron moves from the circle's middle to its place before a label.
+    return { width: Math.max(width, 0) };
+  });
+  // The chevron moves from the circle's middle to its place before a label. Inside the press, so all of the circle takes
+  // a tap, its padding too.
+  const inset = useAnimatedStyle(() => {
     const alone = (barItem.icon - backButton.chevronWidth) / 2 - backButton.aloneShift;
-    return {
-      width: Math.max(width, 0),
-      paddingStart: alone + (backButton.leading - alone) * shown.get(),
-    };
+    return { paddingStart: alone + (backButton.leading - alone) * shown.get() };
   });
   const labelStyle = useAnimatedStyle(() => ({
     opacity: shown.get() * shown.get(),
@@ -123,22 +124,24 @@ export const BackButton = ({ label, displayMode = 'default', color, onPress, his
           accessibilityRole="button"
           accessibilityLabel={label ? `Back to ${label}` : 'Back'}
           style={styles.press}>
-          <Chevron color={color} />
-          {shownText !== undefined ? (
-            <Animated.Text
-              numberOfLines={1}
-              allowFontScaling={false}
-              importantForAccessibility={labelled ? 'auto' : 'no-hide-descendants'}
-              style={[
-                styles.label,
-                type.item,
-                { color, width: Math.ceil(shownText === label ? widths.label : widths.back) + 1 },
-                styles.labelAfter,
-                labelStyle,
-              ]}>
-              {shownText}
-            </Animated.Text>
-          ) : null}
+          <Animated.View style={[styles.row, inset]}>
+            <Chevron color={color} />
+            {shownText !== undefined ? (
+              <Animated.Text
+                numberOfLines={1}
+                allowFontScaling={false}
+                importantForAccessibility={labelled ? 'auto' : 'no-hide-descendants'}
+                style={[
+                  styles.label,
+                  type.item,
+                  { color, width: Math.ceil(shownText === label ? widths.label : widths.back) + 1 },
+                  styles.labelAfter,
+                  labelStyle,
+                ]}>
+                {shownText}
+              </Animated.Text>
+            ) : null}
+          </Animated.View>
         </Pressable>
       </Animated.View>
       {displayMode === 'default' && label ? (
@@ -163,7 +166,8 @@ const styles = StyleSheet.create({
   // Clipped, so the label goes as the capsule closes over it. Alone, iOS sits the chevron 1.5pt left of the circle's
   // centre, so it looks centred.
   body: { height: barItem.height, overflow: 'hidden' },
-  press: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  press: { flex: 1 },
+  row: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   // Whole as the capsule closes over it, never cut short.
   labelAfter: { marginStart: backButton.gap, flexShrink: 0, transformOrigin: I18nManager.isRTL ? 'right' : 'left' },
   // The labels at their own widths, unseen, to decide which fits.

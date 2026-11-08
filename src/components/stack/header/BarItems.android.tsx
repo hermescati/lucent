@@ -57,6 +57,7 @@ import {
   barMotion,
   bar,
   islandSplit,
+  reachTo,
   searchMotion,
   toolbar,
 } from '../tokens';
@@ -651,6 +652,7 @@ const ItemButton = ({
         // A button that opens a menu says so, as VoiceOver's menu buttons do.
         accessibilityHint={menu ? 'Shows a menu' : undefined}
         accessibilityState={{ disabled: item.disabled, selected: item.selected }}
+        hitSlop={{ top: reachTo(metrics.height), bottom: reachTo(metrics.height) }}
         style={({ pressed }) => [
           styles.item,
           { height: metrics.height },

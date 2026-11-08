@@ -30,6 +30,13 @@ export const barMargin = (width: number) => (width >= bar.wideFrom ? bar.wideMar
 
 export { barItemMotion, islandReturn, islandSplit } from '../../core/motion/island';
 
+/**
+ * Android's smallest touch target, 48dp: a control drawn smaller, as iOS's 44pt bar items are, takes touches this far
+ * past its edges, its look staying iOS's.
+ */
+export const touchTarget = 48;
+export const reachTo = (size: number) => Math.max(0, (touchTarget - size) / 2);
+
 export const barItem = {
   height: 44,
   // A lone icon button is a circle this wide; in a group, icons sit `groupIcon` apart, centre to centre.

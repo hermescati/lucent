@@ -58,7 +58,7 @@ import { systemTint } from '../../../theme/colors';
 import { BarCapsule, BarGlassRow, SplitScaleContext, useBarGlassRow } from '../header/BarCapsule.android';
 import { Split } from '../header/Split.android';
 import { useBarType } from '../header/barType.android';
-import { barItem, barMargin, islandSplit, search, searchMotion, toolbar } from '../tokens';
+import { barItem, barMargin, islandSplit, reachTo, search, searchMotion, toolbar } from '../tokens';
 import { useToolbarOffset } from '../toolbar/offset.android';
 import type { LucentSearchBarProps } from '../types';
 
@@ -171,7 +171,7 @@ const SearchInput = ({ routeKey, state, autoFocus, tint, iconScale, closing, tex
       props.onChangeText?.({ nativeEvent: { text: '' } } as never);
       focusInput(routeKey);
     },
-    hitSlop: 8,
+    hitSlop: reachTo(search.clearSize),
   });
   const closeStyle = useAnimatedStyle(() => ({
     opacity:
@@ -434,6 +434,7 @@ export const SearchButton = ({
           if (bubble?.starterRef.current) bubble.starterRef.current();
           else updateSearch(routeKey, { focused: true });
         }}
+        hitSlop={reachTo(size)}
         style={[styles.close, { width: size, height: size }]}>
         <Animated.View style={bubble ? hideStyle : undefined}>
           <SymbolView
