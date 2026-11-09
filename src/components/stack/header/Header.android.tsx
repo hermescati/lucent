@@ -34,7 +34,7 @@ import { BarBackButtonContext, BarSearchButtonContext } from './BarItems.android
 import { Split } from './Split.android';
 import { useBarTop } from './barTop.android';
 import { useBarType, useLargeBlock } from './barType.android';
-import { BarMeltContext } from './melt.android';
+import { BarMeltContext, meltLook } from './melt.android';
 import { displayCornerRadius } from '../../../core/display/corner.android';
 import { useTabSearchActive } from '../../../core/tabs/TabBarReach';
 import { backgroundOf } from '../page.android';
@@ -650,9 +650,13 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const goBack = useContext(StackBackContext);
   const swipe = useContext(SwipeProgressContext);
   const { width } = useWindowDimensions();
-  // Both screens have a back button when there's a screen below the one below.
-  const backStays = navigation.getState().index >= 2;
   const { melt, holdStyle, crossStyle, meltStyle, meltBlur } = useSwipeMelt(Boolean(back));
+  // Whether the screen this one moves against has a back button too, so the button stays put rather than melting: on
+  // top, the one below has one if it isn't the first; below, the one on top always has one. Settled at the start of
+  // each push or swipe and kept until the next, by the screen's own place in the stack, not the stack's top: that drops
+  // as a pop lands, and the button would melt in again on the screen it stayed on.
+  const position = navigation.getState().routes.findIndex((entry) => entry.key === route.key);
+  const backStays = useSharedValue(position >= 2);
   // The title comes in once the screen does: as a push slides it in, or, for a screen shown another way, once the bar
   // is up.
   const screenHidden = useContext(ScreenHiddenContext);
@@ -672,12 +676,25 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   // Beside `Stack.Toolbar`'s leading items, the back button goes on their glass, to split off it and melt back into it.
   const backOnBar =
     back !== undefined && Boolean((options.headerLeft as { lucentBarItems?: boolean } | undefined)?.lucentBarItems);
+  useAnimatedReaction(
+    () => swipe?.phase.get() ?? swipePhase.idle,
+    (phase, previous) => {
+      if (previous === null || phase === previous || phase === swipePhase.idle || !role) return;
+      backStays.set(role === 'below' ? position >= 1 : position >= 2);
+    },
+  );
+  // Staying, the same button in the same place: the one going hides as the other shows. Otherwise it melts with the
+  // screen's other buttons. Either way it's the one view, so it isn't drawn again as the stack changes.
   const backStyle = useAnimatedStyle(() => {
+    if (!backStays.get()) {
+      const look = meltLook(melt.get());
+      return { opacity: look.opacity, transform: [{ scale: look.scale }] };
+    }
     const phase = swipe?.phase.get() ?? swipePhase.idle;
-    if (!role || phase === swipePhase.idle) return { opacity: 1 };
-    if (role === 'top') return { opacity: phase === swipePhase.going ? 0 : 1 };
-    return { opacity: phase === swipePhase.going ? 1 : 0 };
+    const shown = !role || phase === swipePhase.idle || (role === 'top') !== (phase === swipePhase.going);
+    return { opacity: shown ? 1 : 0, transform: [{ scale: 1 }] };
   });
+  const backBlur = useAnimatedProps(() => ({ radius: backStays.get() ? 0 : meltLook(melt.get()).blur }));
 
   const titleColor =
     colorString(StyleSheet.flatten(options.headerTitleStyle)?.color) ??
@@ -992,24 +1009,19 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
             style={[styles.side, holdStyle, leadStyle]}
             onLayout={measure('left')}>
             <BarReturnContext value={returning}>
-              {back && backStays && !backOnBar ? (
+              {back && !backOnBar ? (
                 <BackSplit shown={showBack} beside={Boolean(left)}>
-                  <Animated.View pointerEvents="box-none" style={backStyle}>
+                  <AnimatedNativeGlassBlur pointerEvents="box-none" style={backStyle} animatedProps={backBlur}>
                     {backButton}
-                  </Animated.View>
+                  </AnimatedNativeGlassBlur>
                 </BackSplit>
               ) : null}
-              {/* Only with something in it: an empty one would count the side's gap after a back button that stays. */}
-              {(showBack && !backStays) || left ? (
+              {/* Only with something in it: an empty one would count the side's gap after the back button. */}
+              {left ? (
                 <AnimatedNativeGlassBlur
                   pointerEvents="box-none"
                   style={[styles.side, meltStyle]}
                   animatedProps={meltBlur}>
-                  {back && !backStays && !backOnBar ? (
-                    <BackSplit shown={showBack} beside={Boolean(left)}>
-                      {backButton}
-                    </BackSplit>
-                  ) : null}
                   <BarBackButtonContext value={backOnBar ? { element: backButton, shown: showBack } : null}>
                     {left}
                   </BarBackButtonContext>
