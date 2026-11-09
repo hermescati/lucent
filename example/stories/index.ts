@@ -26,6 +26,12 @@ export const stories: Story[] = [
 
 export const findStory = (slug: string) => stories.find((story) => story.slug === slug);
 
+/**
+ * The stories listed in the catalogue and search. The rest are left out until their components are redone, each story
+ * rewritten with its component and listed here again; their links still open them.
+ */
+const listed: Story[] = [];
+
 export interface Entry {
   name: string;
   summary: string;
@@ -57,7 +63,7 @@ const screens: Entry[] = [
 
 /** Every entry, in no particular order: what search looks through. */
 export const entries: Entry[] = [
-  ...stories.map((story) => ({
+  ...listed.map((story) => ({
     name: story.name,
     summary: story.summary,
     href: `/components/${story.slug}` as Href,
@@ -73,8 +79,7 @@ const groups: { group: Group; title: string }[] = [
   { group: 'materials', title: 'Materials' },
 ];
 
-/** The catalogue's sections, in order, each with its entries. */
-export const catalogue = groups.map(({ group, title }) => ({
-  title,
-  entries: entries.filter((entry) => entry.group === group),
-}));
+/** The catalogue's sections, in order, each with its entries; a section with none isn't shown. */
+export const catalogue = groups
+  .map(({ group, title }) => ({ title, entries: entries.filter((entry) => entry.group === group) }))
+  .filter(({ entries }) => entries.length > 0);
