@@ -518,13 +518,13 @@ half4 main(float2 coord) {
     float floor = tone.x * tone.w;
     float lift = clamp((base - floor) / max(1.0 - floor, 0.01), 0.0, 1.0);
     float3 tinted = 1.0 - (1.0 - float3(colorTint.rgb)) * (1.0 - colorTintModel.y * lift) - colorTintModel.x * (1.0 - base);
-    col = mix(col, clamp(tinted, float3(0.0), float3(1.0)), float(colorTint.a));
+    // Dimmed (the screen a swipe back uncovers): the backdrop comes in dimmed already, so only the tint is.
+    col = mix(col, clamp(tinted, float3(0.0), float3(1.0)) * (1.0 - dim), float(colorTint.a));
   }
   if (adaptive > 0.0) {
     float e = smoothstep(0.35, 0.75, luma(col));
     col = mix(col, mix(col, float3(1.0 - e), 0.14 + 0.08 * e), adaptive);
   }
-  col *= 1.0 - dim;
   if (glowStrength > 0.0) {
     float2 gd = (coord - glowCenter) / max(glowSpread, 1.0);
     // A pulled press lights its whole stretched shape, not the outline it had before the pull.
