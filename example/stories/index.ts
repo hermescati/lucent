@@ -54,6 +54,12 @@ const screens: Entry[] = [
     group: 'navigation',
   },
   {
+    name: 'Lists',
+    summary: 'List, ListItem and FieldGroup: settings, pickers, swipe actions and pull to refresh',
+    href: '/components/lists',
+    group: 'views',
+  },
+  {
     name: 'Tab Bar',
     summary: 'NativeTabs: the floating glass bar this app runs in',
     href: '/components/tab-bar',
