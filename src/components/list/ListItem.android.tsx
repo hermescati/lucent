@@ -1,8 +1,16 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
+import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
 import { Children, isValidElement, useContext, useState, type ReactNode } from 'react';
 import { I18nManager, PixelRatio, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import Svg, { Polyline } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -67,10 +75,89 @@ const Checkmark = ({ color }: { color: string }) => {
   );
 };
 
-/** One action's button: a coloured capsule with its icon, its label under it. */
-const ActionButton = ({ action, onDone }: { action: SwipeAction; onDone: () => void }) => {
+// A tick as a full swipe arms or disarms, as iOS's does.
+const tick = () => {
+  performAndroidHapticsAsync(AndroidHaptics.Segment_Tick);
+};
+
+// How far the row slides to show `count` buttons: each one and the gaps around them.
+const openWidth = (count: number) =>
+  count > 0 ? count * list.swipe.width + (count - 1) * list.swipe.gap + list.swipe.gap + list.swipe.edge : 0;
+
+/** The row's swipe state, which its buttons draw from. */
+interface SwipeState {
+  // The finger's slide (positive reveals the leading actions), how armed a full swipe is (0 to 1), and whether the row
+  // is closing.
+  offset: SharedValue<number>;
+  armed: SharedValue<number>;
+  closing: SharedValue<boolean>;
+  rowWidth: number;
+}
+
+// The row's slide as drawn: the finger's, and the jump an armed full swipe makes.
+const shownOffset = (offset: number, armed: number) => {
+  'worklet';
+  return offset + Math.sign(offset) * armed * list.swipe.armJump;
+};
+
+/**
+ * One action's button: a coloured capsule with its icon, its label under it. It pops in once the row uncovers its slot
+ * and shrinks away as the row closes; the outermost one stretches into the room past the buttons and, with a full
+ * swipe armed, moves its icon to its leading end, and the others fade as it grows.
+ */
+const ActionButton = ({
+  action,
+  side,
+  index,
+  count,
+  swipe,
+  onDone,
+}: {
+  action: SwipeAction;
+  side: 'leading' | 'trailing';
+  index: number;
+  count: number;
+  swipe: SwipeState;
+  onDone: () => void;
+}) => {
   const colors = useListColors();
   const fill = action.tintColor ?? (action.destructive ? colors.destructive : '#8E8E93');
+  const { offset, armed, closing, rowWidth } = swipe;
+  const { width, edge, popFrom, pop, drop } = list.swipe;
+  const outermost = index === 0;
+  const open = openWidth(count);
+  const sign = side === 'leading' ? 1 : -1;
+  // Where this button's slot is uncovered: the edge and the buttons up to it.
+  const uncovered = edge + (index + 1) * width;
+  const shown = useSharedValue(0);
+  useAnimatedReaction(
+    () => !closing.get() && offset.get() * sign >= uncovered,
+    (now, before) => {
+      if (now === before) return;
+      shown.set(now ? withSpring(1, pop) : withTiming(0, { duration: drop }));
+    },
+  );
+  const capsule = useAnimatedStyle(() => {
+    const slid = Math.abs(shownOffset(offset.get(), armed.get()));
+    const past = Math.max(0, slid - open);
+    const p = shown.get();
+    return {
+      width: outermost ? width + past : width,
+      opacity: Math.min(1, p * 3) * (outermost ? 1 : Math.max(0, 1 - past / (rowWidth || 1))),
+      transform: [{ scale: popFrom + (1 - popFrom) * p }],
+    };
+  });
+  // Toward the row: the icon's way to its capsule's leading end.
+  const towardRow = (side === 'leading' ? 1 : -1) * (mirrored ? -1 : 1);
+  const icon = useAnimatedStyle(() => {
+    if (!outermost) return {};
+    const slid = Math.abs(shownOffset(offset.get(), armed.get()));
+    const room = Math.max(0, slid - open) / 2;
+    return { transform: [{ translateX: towardRow * room * armed.get() }] };
+  });
+  const label = useAnimatedStyle(() => ({
+    opacity: (outermost ? 1 - armed.get() : 1) * Math.min(1, shown.get() * 3),
+  }));
   return (
     <Pressable
       accessibilityRole="button"
@@ -80,21 +167,19 @@ const ActionButton = ({ action, onDone }: { action: SwipeAction; onDone: () => v
         action.onPress();
       }}
       style={styles.action}>
-      <View style={[styles.capsule, { backgroundColor: fill }]}>
+      <Animated.View style={[styles.capsule, { backgroundColor: fill }, capsule]}>
         {action.icon?.md ? (
-          <MaterialSymbol name={action.icon.md} size={list.swipe.iconSize} tintColor="#FFFFFF" />
+          <Animated.View style={icon}>
+            <MaterialSymbol name={action.icon.md} size={list.swipe.iconSize} tintColor="#FFFFFF" />
+          </Animated.View>
         ) : null}
-      </View>
-      <Text numberOfLines={1} style={[styles.actionLabel, { color: colors.caption }]}>
+      </Animated.View>
+      <Animated.Text numberOfLines={1} style={[styles.actionLabel, { color: colors.caption }, label]}>
         {action.label}
-      </Text>
+      </Animated.Text>
     </Pressable>
   );
 };
-
-// How far the row slides to show `count` buttons: each one and the gaps around them.
-const openWidth = (count: number) =>
-  count > 0 ? count * list.swipe.width + (count - 1) * list.swipe.gap + list.swipe.gap + list.swipe.edge : 0;
 
 /**
  * `@expo/ui`'s `ListItem`, drawn as iOS 27 draws a list row: the headline with a second line under it, a leading view,
@@ -136,16 +221,26 @@ export const ListItem = ({
   // The row's slide: positive reveals the leading actions, negative the trailing ones (flipped right to left).
   const offset = useSharedValue(0);
   const start = useSharedValue(0);
+  const armed = useSharedValue(0);
+  const closing = useSharedValue(false);
+  const swipe: SwipeState = { offset, armed, closing, rowWidth };
   const leadingOpen = openWidth(leadingActions.length);
   const trailingOpen = openWidth(trailingActions.length);
-  const close = () => offset.set(withSpring(0, list.swipe.spring));
+  const close = () => {
+    closing.set(true);
+    armed.set(withSpring(0, list.swipe.spring));
+    offset.set(withSpring(0, list.swipe.spring));
+  };
   // One row open at a time in a list: another opening closes this one.
   const openRow = useContext(OpenRowContext);
   const [id] = useState(nextRowId);
   useAnimatedReaction(
     () => openRow?.get() ?? -1,
     (open) => {
-      if (open !== id && offset.get() !== 0) offset.set(withSpring(0, list.swipe.spring));
+      if (open === id || offset.get() === 0) return;
+      closing.set(true);
+      armed.set(withSpring(0, list.swipe.spring));
+      offset.set(withSpring(0, list.swipe.spring));
     },
   );
   const run = (action: SwipeAction | undefined) => {
@@ -158,6 +253,7 @@ export const ListItem = ({
     failOffsetY: [-10, 10],
     onActivate: () => {
       start.set(offset.get());
+      closing.set(false);
       openRow?.set(id);
     },
     onUpdate: (event) => {
@@ -170,26 +266,37 @@ export const ListItem = ({
       const past = Math.abs(next) - open;
       if (past > 0 && !full) next = Math.sign(next) * (open + past * 0.3);
       offset.set(next);
+      // Far enough across, a full swipe arms: the row jumps on and a tick marks it, and disarms the same way back.
+      const now = full && open > 0 && Math.abs(next) > (rowWidth || 1) * list.swipe.fullSwipe;
+      if (now !== armed.get() > 0.5) {
+        armed.set(withSpring(now ? 1 : 0, list.swipe.spring));
+        scheduleOnRN(tick);
+      }
     },
     onDeactivate: (event) => {
       const now = offset.get();
       const velocity = mirrored ? -event.velocityX : event.velocityX;
       const open = now > 0 ? leadingOpen : trailingOpen;
-      const width = rowWidth || 1;
-      // Dragged most of the way across, the outermost action runs.
-      if (full && open > 0 && Math.abs(now) > width * list.swipe.fullSwipe) {
-        offset.set(withSpring(0, list.swipe.spring));
-        scheduleOnRN(run, now > 0 ? leadingActions[0] : trailingActions[0]);
+      // Let go armed, the row slides the rest of the way out and the outermost action runs.
+      if (armed.get() > 0.5) {
+        const action = now > 0 ? leadingActions[0] : trailingActions[0];
+        offset.set(
+          withTiming(Math.sign(now) * (rowWidth || 1), { duration: list.swipe.commit }, (finished) => {
+            if (finished) scheduleOnRN(run, action);
+          }),
+        );
         return;
       }
       const flung = Math.abs(velocity) > 500 && Math.sign(velocity) === Math.sign(now);
       const keep = open > 0 && (Math.abs(now) > open / 2 || flung);
+      if (!keep) closing.set(true);
       offset.set(withSpring(keep ? Math.sign(now) * open : 0, list.swipe.spring));
     },
   });
-  const slide = useAnimatedStyle(() => ({
-    transform: [{ translateX: mirrored ? -offset.get() : offset.get() }],
-  }));
+  const slide = useAnimatedStyle(() => {
+    const shown = shownOffset(offset.get(), armed.get());
+    return { transform: [{ translateX: mirrored ? -shown : shown }] };
+  });
   // Slid aside, the row sits on a grey fill with rounded ends, as iOS 27's does.
   const slidFill = useAnimatedStyle(() => ({ opacity: Math.min(Math.abs(offset.get()) / 24, 1) }));
   const leadingShown = useAnimatedStyle(() => ({ opacity: offset.get() > 0 ? 1 : 0 }));
@@ -291,13 +398,31 @@ export const ListItem = ({
     <View onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}>
       <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
         {leadingActions.map((action, index) => (
-          <ActionButton key={`${action.label}-${index}`} action={action} onDone={close} />
+          <ActionButton
+            key={`${action.label}-${index}`}
+            action={action}
+            side="leading"
+            index={index}
+            count={leadingActions.length}
+            swipe={swipe}
+            onDone={close}
+          />
         ))}
       </Animated.View>
       <Animated.View style={[styles.actions, styles.actionsTrailing, trailingShown]} pointerEvents="box-none">
-        {[...trailingActions].reverse().map((action, index) => (
-          <ActionButton key={`${action.label}-${index}`} action={action} onDone={close} />
-        ))}
+        {trailingActions
+          .map((action, index) => (
+            <ActionButton
+              key={`${action.label}-${index}`}
+              action={action}
+              side="trailing"
+              index={index}
+              count={trailingActions.length}
+              swipe={swipe}
+              onDone={close}
+            />
+          ))
+          .reverse()}
       </Animated.View>
       <GestureDetector gesture={pan}>
         <Animated.View style={slide}>

@@ -1,5 +1,5 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
-import { Button, HStack, Image, SwipeActions, Text } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, RNHostView, SwipeActions, Text } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   disabled as disabledModifier,
@@ -55,9 +55,17 @@ export const ListItem = ({
   ...props
 }: ListItemProps) => {
   const { slot, rest } = trailingSlot(children);
-  // SwiftUI draws text only in a `Text`: a bare string in its stack would crash it.
+  // SwiftUI draws text only in a `Text`: a bare string in its stack would crash it. A React Native view has no size of
+  // its own there and would stretch across the row, so it's hosted at its laid-out size, as `@expo/ui`'s row does.
   const given = slot ?? trailing;
-  const own = typeof given === 'string' || typeof given === 'number' ? <Text>{given}</Text> : given;
+  const own =
+    typeof given === 'string' || typeof given === 'number' ? (
+      <Text>{given}</Text>
+    ) : isValidElement(given) ? (
+      <RNHostView matchContents>{given}</RNHostView>
+    ) : (
+      given
+    );
   const end =
     own != null || detail != null || accessory ? (
       <HStack spacing={6}>

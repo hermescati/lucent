@@ -36,8 +36,16 @@ export const list = {
     labelSize: 12,
     labelGap: 2,
     iconSize: 22,
-    // How far past its buttons a row can be dragged before a full swipe runs the outermost one, of the row's width.
-    fullSwipe: 0.6,
+    // Each button pops in once the row has slid past its slot (the edge and the buttons up to it, gaps aside), from
+    // this scale, and all shrink away together as the row closes.
+    popFrom: 0.35,
+    pop: { duration: 300, dampingRatio: 1 },
+    drop: 170,
+    // Dragged past this much of the row's width, a full swipe is armed: the row jumps on by `armJump`, the outermost
+    // button's icon moves to its leading end and its label fades; let go there, it runs.
+    fullSwipe: 0.79,
+    armJump: 45,
+    commit: 200,
     spring: { duration: 380, dampingRatio: 0.9 },
   },
   // Pull to refresh: the spinner shows as the content comes down, and lets go into a refresh past `threshold`, held
