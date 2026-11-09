@@ -133,4 +133,4 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
 - Reordering, measured on the simulator: a row dragged by its handle lifts at once, 85% opaque on a card that reaches 11 further out at its leading end, with a soft shadow. Rows slide aside as its middle crosses their edges, and let go it settles into its place. Screen readers get Move up and Move down actions in edit mode.
 - Multi-select, measured on the simulator: with `selection`, edit mode puts a selection circle in the delete control's place and a tap toggles the row (on iOS too, where Lucent's row then isn't a button, so SwiftUI's list takes the tap). A selected row's circle fills with the accent and a white tick and the row turns grey, without the separators beside it; deselected, the fill fades.
 - Secondary text and chevrons are iOS's translucent label colours, so they darken on a selected row as iOS's do.
-- Not yet: scrolling the list as a dragged row nears its top or bottom.
+- A dragged row near the list's visible top or bottom (below the navigation bar, above the tab bar or toolbar) scrolls the list, faster the deeper it goes into the last 50, as iOS's does.

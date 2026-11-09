@@ -19,7 +19,7 @@ const scrollToTop = (ref: AnimatedRef<Animated.ScrollView>) => {
   scrollTo(ref, 0, 0, true);
 };
 
-export type TabScrollViewProps = Omit<HeaderScrollViewProps, 'scrollRef' | 'bottomInset' | 'onScroll'> & {
+export type TabScrollViewProps = Omit<HeaderScrollViewProps, 'bottomInset' | 'onScroll'> & {
   onScroll?: ReturnType<typeof useAnimatedScrollHandler>;
 };
 
@@ -27,8 +27,10 @@ export type TabScrollViewProps = Omit<HeaderScrollViewProps, 'scrollRef' | 'bott
  * A tab's scroll view: it minimizes the tab bar as it scrolls, clears the tab bar's reach, and goes back to the top when
  * its tab is tapped again; in a Lucent stack on Android, the header follows it too (`HeaderScrollView`).
  */
-export const TabScrollView = ({ onScroll, ...props }: TabScrollViewProps) => {
-  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+export const TabScrollView = ({ onScroll, scrollRef: givenRef, ...props }: TabScrollViewProps) => {
+  // A caller's own ref, as a list's that scrolls itself while a row is dragged, or this one's.
+  const ownRef = useAnimatedRef<Animated.ScrollView>();
+  const scrollRef = givenRef ?? ownRef;
   const tabScroll = useTabBarScroll();
   const handler = useComposedEventHandler([tabScroll ?? null, onScroll ?? null]);
 

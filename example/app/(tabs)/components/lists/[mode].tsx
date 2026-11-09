@@ -181,7 +181,24 @@ const Inbox = ({ mode }: ScreenProps) => {
   );
 };
 
-const campaigns = ['Spring sale', 'Germany offer', 'Retargeting', 'Brand search', 'Newsletter', 'Black Friday'];
+const campaigns = [
+  'Spring sale',
+  'Germany offer',
+  'Retargeting',
+  'Brand search',
+  'Newsletter',
+  'Black Friday',
+  'Summer push',
+  'App installs',
+  'Lookalikes',
+  'Holiday bundle',
+  'France offer',
+  'Video views',
+  'Lead forms',
+  'Winback',
+  'Cyber Monday',
+  'Spain offer',
+];
 
 // SwiftUI's `move(fromOffsets:toOffset:)`: the destination counts places before the moved rows are taken out.
 const moved = <T,>(items: T[], from: number[], to: number) => {

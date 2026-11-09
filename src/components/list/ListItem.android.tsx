@@ -16,6 +16,7 @@ import Svg, { Polyline } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import {
+  ListAutoScrollContext,
   ListEditContext,
   ListScrollGestureContext,
   ListSelectionContext,
@@ -333,6 +334,30 @@ export const ListItem = ({
   const laidOut = reorder?.keys ?? [];
   const placed = useSharedValue(0);
   const liftedFrom = useSharedValue(0);
+  // How far the list has scrolled under the dragged row since it lifted, which keeps the row under the finger.
+  const auto = useContext(ListAutoScrollContext);
+  const scrolledFrom = useSharedValue(0);
+  // The dragged row's place among the others, as iOS's: past each one whose far edge its middle has crossed. Worked
+  // out as the finger moves and as the list scrolls under it.
+  useAnimatedReaction(
+    () => (group && group.active.get() === myKey ? group.drag.get() + (auto ? auto.scrollY.get() : 0) : null),
+    (now) => {
+      if (now === null || !group) return;
+      const heights = group.heights.get();
+      const order = group.order.get();
+      const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
+      const middle = liftedFrom.get() + group.drag.get() + scrolled + (heights[myKey] ?? 0) / 2;
+      const others = order.filter((key) => key !== myKey);
+      let y = 0;
+      let at = 0;
+      for (const key of others) {
+        const height = heights[key] ?? 0;
+        if (y + height < middle) at += 1;
+        y += height;
+      }
+      if (order.indexOf(myKey) !== at) group.order.set([...others.slice(0, at), myKey, ...others.slice(at)]);
+    },
+  );
   const lift = useSharedValue(0);
   useAnimatedReaction(
     () => (group ? slotAt(group.order.get(), group.heights.get(), myKey) : 0),
@@ -343,7 +368,9 @@ export const ListItem = ({
   );
   const moved = useAnimatedStyle(() => {
     if (!group || (!group.moving.get() && group.active.get() !== myKey)) return { transform: [{ translateY: 0 }] };
-    const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() : placed.get();
+    // The list's scroll read here, not in a helper: a style only follows the shared values it reads itself.
+    const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
+    const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
     return {
       opacity: 1 - (1 - list.edit.lift.opacity) * lift.get(),
       // Lifted, over the rows it passes.
@@ -359,9 +386,11 @@ export const ListItem = ({
     enabled: editing && Boolean(group),
     minDistance: 0,
     block: scrollGesture ?? undefined,
-    onActivate: () => {
+    onActivate: (event) => {
       if (!group) return;
       liftedFrom.set(placed.get());
+      scrolledFrom.set(auto?.scrollY.get() ?? 0);
+      auto?.finger.set(event.absoluteY);
       group.drag.set(0);
       group.active.set(myKey);
       group.moving.set(true);
@@ -371,24 +400,13 @@ export const ListItem = ({
     onUpdate: (event) => {
       if (!group) return;
       group.drag.set(event.translationY);
-      // Its place among the others, as iOS's: past each one whose far edge its middle has crossed.
-      const heights = group.heights.get();
-      const order = group.order.get();
-      const middle = liftedFrom.get() + event.translationY + (heights[myKey] ?? 0) / 2;
-      const others = order.filter((key) => key !== myKey);
-      let y = 0;
-      let at = 0;
-      for (const key of others) {
-        const height = heights[key] ?? 0;
-        if (y + height < middle) at += 1;
-        y += height;
-      }
-      if (order.indexOf(myKey) !== at) group.order.set([...others.slice(0, at), myKey, ...others.slice(at)]);
+      auto?.finger.set(event.absoluteY);
     },
     onDeactivate: () => {
       if (!group) return;
       const order = group.order.get();
-      placed.set(liftedFrom.get() + group.drag.get());
+      auto?.finger.set(-1);
+      placed.set(liftedFrom.get() + group.drag.get() + (auto ? auto.scrollY.get() - scrolledFrom.get() : 0));
       group.active.set('');
       placed.set(
         withSpring(slotAt(order, group.heights.get(), myKey), list.edit.drop, (finished) => {

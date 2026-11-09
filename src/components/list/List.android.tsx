@@ -1,11 +1,15 @@
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
 import { createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
+import { ScrollView, StyleSheet, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   interpolate,
+  measure,
+  scrollTo,
+  useAnimatedRef,
   useAnimatedScrollHandler,
+  useFrameCallback,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
@@ -15,6 +19,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 
 import {
+  ListAutoScrollContext,
   ListEditContext,
   ListForEach,
   ListScrollGestureContext,
@@ -26,9 +31,10 @@ import {
 } from './section.android';
 import { list } from './tokens';
 import type { ListProps } from './types';
-import { useHeaderOffset, useHeaderSnap } from '../../core/header/scroll';
+import { useHeaderInset, useHeaderOffset, useHeaderSnap, useToolbarInset } from '../../core/header/scroll';
 import { ListScrollViewContext } from '../../core/scroll';
 import { Spinner } from '../../core/spinner';
+import { useTabBarReach } from '../../core/tabs/TabBarReach';
 
 /** The scroll view the screen gives lists (`ListScrollViewContext`), with Lucent's background and no overscroll glow. */
 export const ListScroll = ({
@@ -46,6 +52,35 @@ export const ListScroll = ({
 }) => {
   const Scroll = useContext(ListScrollViewContext);
   const scrollY = useSharedValue(0);
+  // Scrolled from the UI thread while a row is dragged near the list's visible ends, under the bars.
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const finger = useSharedValue(-1);
+  const contentHeight = useSharedValue(0);
+  const autoScroll = useMemo(() => ({ finger, scrollY }), [finger, scrollY]);
+  const barTop = useHeaderInset();
+  const toolbar = useToolbarInset();
+  const tabBar = useTabBarReach();
+  const scrolling = useFrameCallback((frame) => {
+    const y = finger.get();
+    const box = measure(scrollRef);
+    if (y < 0 || !box) return;
+    const { zone, speed } = list.edit.autoScroll;
+    const top = box.pageY + barTop;
+    const bottom = box.pageY + box.height - Math.max(tabBar?.reach.get() ?? 0, toolbar);
+    const deep = y > bottom - zone ? (y - bottom + zone) / zone : y < top + zone ? (y - top - zone) / zone : 0;
+    if (deep === 0) return;
+    const step = Math.max(-1, Math.min(1, deep)) * speed * ((frame.timeSincePreviousFrame ?? 16) / 1000);
+    const next = Math.max(0, Math.min(contentHeight.get() - box.height, scrollY.get() + step));
+    if (Math.abs(next - scrollY.get()) < 0.01) return;
+    scrollY.set(next);
+    scrollTo(scrollRef, 0, next, false);
+  }, false);
+  useAnimatedReaction(
+    () => finger.get() >= 0,
+    (dragging, before) => {
+      if (dragging !== before) scheduleOnRN(scrolling.setActive, dragging);
+    },
+  );
   const openRow = useSharedValue(-1);
   // How far the content is pulled down past its top, whether a refresh is running, and how many of the spinner's spokes
   // are drawn (a refresh starts as the last one is). `fading` is the spinner going once a refresh is done.
@@ -94,7 +129,9 @@ export const ListScroll = ({
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
-      scrollY.set(event.contentOffset.y);
+      // While a dragged row scrolls the list, the offset it scrolled to stands: scroll events arrive a frame or more
+      // behind, and would pull the row back and forth under the finger.
+      if (finger.get() < 0) scrollY.set(event.contentOffset.y);
     },
     // Scrolling closes a row's open actions, as iOS's does.
     onBeginDrag: () => {
@@ -162,6 +199,10 @@ export const ListScroll = ({
       onScroll: onScroll as unknown as ScrollViewProps['onScroll'],
       scrollEventThrottle: 16,
       onLayout: (event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height),
+      onContentSizeChange: (_: number, h: number) => contentHeight.set(h),
+      scrollRef,
+      // The plain scroll view takes the ref itself; the screen's own take it as `scrollRef`.
+      ...(Scroll === ScrollView ? { ref: scrollRef } : null),
     },
     onRefresh ? (
       <View>
@@ -177,19 +218,21 @@ export const ListScroll = ({
     ),
   );
   return (
-    <OpenRowContext value={openRow}>
-      <ListScrollGestureContext value={native}>
-        {onRefresh ? (
-          <GestureDetector gesture={pan}>
-            <View style={styles.fill}>
-              <GestureDetector gesture={native}>{scroll}</GestureDetector>
-            </View>
-          </GestureDetector>
-        ) : (
-          <GestureDetector gesture={native}>{scroll}</GestureDetector>
-        )}
-      </ListScrollGestureContext>
-    </OpenRowContext>
+    <ListAutoScrollContext value={autoScroll}>
+      <OpenRowContext value={openRow}>
+        <ListScrollGestureContext value={native}>
+          {onRefresh ? (
+            <GestureDetector gesture={pan}>
+              <View style={styles.fill}>
+                <GestureDetector gesture={native}>{scroll}</GestureDetector>
+              </View>
+            </GestureDetector>
+          ) : (
+            <GestureDetector gesture={native}>{scroll}</GestureDetector>
+          )}
+        </ListScrollGestureContext>
+      </OpenRowContext>
+    </ListAutoScrollContext>
   );
 };
 

@@ -34,6 +34,17 @@ export const ListScrollGestureContext = createLucentContext<ReturnType<typeof us
   null,
 );
 
+/**
+ * A dragged row and the list scrolling under it: the finger's height on the screen (-1 when no row is dragged), which
+ * scrolls the list near its visible ends, and how far the list has scrolled, which the dragged row adds to stay under it.
+ */
+export interface ListAutoScroll {
+  finger: SharedValue<number>;
+  scrollY: SharedValue<number>;
+}
+
+export const ListAutoScrollContext = createLucentContext<ListAutoScroll | null>('ListAutoScroll', null);
+
 /** Where a row sits in its section: the last one draws no separator under it. */
 export const RowLastContext = createLucentContext<boolean>('ListRowLast', true);
 

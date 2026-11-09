@@ -72,6 +72,9 @@ export const list = {
     // Selecting (measured): a 22 circle in the delete control's place, ringed in grey or filled with the accent and a
     // white tick; a selected row turns grey and loses the separators beside it. Deselected, the fill fades.
     select: { circle: 22, ring: 1.5, tick: { width: 10, height: 8, stroke: 1.8 }, fade: 120 },
+    // A dragged row near the list's visible top or bottom (under the bars) scrolls it, faster the deeper into this zone,
+    // as iOS's does (measured: from about 50 above the tab bar, about 140 a second 7 in and 220 at 16).
+    autoScroll: { zone: 50, speed: 700 },
   },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its

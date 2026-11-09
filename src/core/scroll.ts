@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react';
 import { ScrollView, type ScrollViewProps } from 'react-native';
+import type Animated from 'react-native-reanimated';
+import type { AnimatedRef } from 'react-native-reanimated';
 
 import { createLucentContext } from '../theme/context';
 
@@ -9,4 +11,10 @@ import { createLucentContext } from '../theme/context';
  * list on a screen behaves as a SwiftUI list does under UIKit's bars. The root entry, which a list is in, never
  * imports the navigation entry's peers.
  */
-export const ListScrollViewContext = createLucentContext<ComponentType<ScrollViewProps>>('ListScrollView', ScrollView);
+/** A list's scroll view props, with the animated ref a navigation entry's own scroll view takes for it. */
+export type ListScrollViewProps = ScrollViewProps & { scrollRef?: AnimatedRef<Animated.ScrollView> };
+
+export const ListScrollViewContext = createLucentContext<ComponentType<ListScrollViewProps>>(
+  'ListScrollView',
+  ScrollView,
+);
