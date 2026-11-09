@@ -15,7 +15,15 @@ import Animated, {
 import Svg, { Polyline } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { ListStyleContext, nextRowId, OpenRowContext, RowLastContext, useListColors } from './section.android';
+import {
+  ListEditContext,
+  ListStyleContext,
+  nextRowId,
+  OpenRowContext,
+  RowEditContext,
+  RowLastContext,
+  useListColors,
+} from './section.android';
 import { list } from './tokens';
 import type { ListItemProps, SwipeAction } from './types';
 import { MaterialSymbol } from '../../core/icons/MaterialSymbol';
@@ -84,6 +92,34 @@ const tick = () => {
 // How far the row slides to show `count` buttons: each one and the gaps around them.
 const openWidth = (count: number) =>
   count > 0 ? count * list.swipe.width + (count - 1) * list.swipe.gap + list.swipe.gap + list.swipe.edge : 0;
+
+/** Edit mode's delete control: a red circle with a white minus. */
+const DeleteControl = ({ color }: { color: string }) => {
+  const { control, minus } = list.edit;
+  return (
+    <View
+      style={[
+        styles.deleteControl,
+        { width: control, height: control, borderRadius: control / 2, backgroundColor: color },
+      ]}>
+      <View
+        style={{ width: minus.width, height: minus.height, borderRadius: minus.height / 2, backgroundColor: '#FFFFFF' }}
+      />
+    </View>
+  );
+};
+
+/** Edit mode's reorder handle: three grey lines. */
+const ReorderHandle = ({ color }: { color: string }) => {
+  const { width, line, gap } = list.edit.handle;
+  return (
+    <View style={{ gap }}>
+      {[0, 1, 2].map((index) => (
+        <View key={index} style={{ width, height: line, borderRadius: line / 2, backgroundColor: color }} />
+      ))}
+    </View>
+  );
+};
 
 /** The row's swipe state, which its buttons draw from. */
 interface SwipeState {
@@ -213,8 +249,42 @@ export const ListItem = ({
   // the title too little room to fit a word.
   const stacked = scale >= list.stackedFrom;
 
-  const leadingActions = swipeActions?.leading ?? [];
-  const trailingActions = swipeActions?.trailing ?? [];
+  // Edit mode: a row its `List.ForEach` can delete makes room for the delete control, one it can move shows the handle.
+  // Its content takes its edit-mode place at once and is drawn moving there, so only transforms run per frame.
+  const edit = useContext(ListEditContext);
+  const rowEdit = useContext(RowEditContext);
+  const editing = edit?.editing ?? false;
+  const editProgress = edit?.progress;
+  const editStart = rowEdit.onDelete ? list.edit.shift : 0;
+  const editEnd = rowEdit.movable ? list.edit.handleRoom : 0;
+  const along = mirrored ? -1 : 1;
+  const from = editing ? 1 : 0;
+  const startMoved = useAnimatedStyle(() => ({
+    transform: [{ translateX: along * editStart * ((editProgress?.get() ?? 0) - from) }],
+  }));
+  const endMoved = useAnimatedStyle(() => ({
+    transform: [{ translateX: -along * editEnd * ((editProgress?.get() ?? 0) - from) }],
+  }));
+  const controlIn = useAnimatedStyle(() => {
+    const p = editProgress?.get() ?? 0;
+    return { opacity: p > 0.001 ? 1 : 0, transform: [{ translateX: along * editStart * (p - 1) }] };
+  });
+  const handleIn = useAnimatedStyle(() => {
+    const p = editProgress?.get() ?? 0;
+    return { opacity: p, transform: [{ translateX: along * list.edit.shift * (1 - p) }] };
+  });
+
+  // A row its `List.ForEach` can delete gets SwiftUI's Delete action: swiped to from the trailing edge unless the row
+  // has trailing actions of its own, and in edit mode the only action, which the delete control opens.
+  const deleteAction: SwipeAction | undefined = rowEdit.onDelete
+    ? { label: 'Delete', icon: { sf: 'trash.fill', md: 'delete' }, destructive: true, onPress: rowEdit.onDelete }
+    : undefined;
+  const leadingActions = editing ? [] : (swipeActions?.leading ?? []);
+  const trailingActions = editing
+    ? deleteAction
+      ? [deleteAction]
+      : []
+    : (swipeActions?.trailing ?? (deleteAction ? [deleteAction] : []));
   const full = swipeActions?.allowsFullSwipe ?? true;
   // The row's slide: positive reveals the leading actions, negative the trailing ones (flipped right to left).
   const offset = useSharedValue(0);
@@ -245,6 +315,12 @@ export const ListItem = ({
   );
   // Out the rest of the way: fast from the start, as the row is already moving.
   const slideOut = { duration: list.swipe.commit, easing: Easing.out(Easing.cubic) };
+  // Edit mode's delete control opens the row's Delete action, as a swipe would.
+  const revealDelete = () => {
+    closing.set(false);
+    openRow?.set(id);
+    offset.set(withSpring(-trailingOpen, list.swipe.spring));
+  };
   const run = (action: SwipeAction | undefined) => {
     close();
     action?.onPress();
@@ -277,7 +353,7 @@ export const ListItem = ({
     collapse(action);
   };
   const pan = usePanGesture({
-    enabled: !disabled && (leadingActions.length > 0 || trailingActions.length > 0),
+    enabled: !disabled && !editing && (leadingActions.length > 0 || trailingActions.length > 0),
     activeOffsetX: [-10, 10],
     failOffsetY: [-10, 10],
     onActivate: () => {
@@ -344,6 +420,8 @@ export const ListItem = ({
 
   const textColor = destructive ? colors.destructive : colors.text;
   const separatorStart = list.rowPadding + (leading != null ? leadingWidth + list.leadingGap : 0);
+  // From the text's start, wherever edit mode has it.
+  const separatorAt = useAnimatedStyle(() => ({ start: separatorStart + editStart * (editProgress?.get() ?? 0) }));
   const content = (pressed: boolean) => (
     <View
       style={[
@@ -351,15 +429,23 @@ export const ListItem = ({
         { minHeight: list.rowMinHeight * scale },
         pressed && !disabled ? { backgroundColor: colors.pressed } : null,
       ]}>
-      <View style={[styles.inner, disabled && styles.disabled]}>
+      <View
+        style={[
+          styles.inner,
+          {
+            paddingStart: list.rowPadding + (editing ? editStart : 0),
+            paddingEnd: list.rowPadding + (editing ? editEnd : 0),
+          },
+          disabled && styles.disabled,
+        ]}>
         {leading != null ? (
-          <View
-            style={styles.leading}
+          <Animated.View
+            style={[styles.leading, startMoved]}
             onLayout={(event: LayoutChangeEvent) => setLeadingWidth(event.nativeEvent.layout.width)}>
             {leading}
-          </View>
+          </Animated.View>
         ) : null}
-        <View style={styles.texts}>
+        <Animated.View style={[styles.texts, startMoved]}>
           {slots.headline.length > 0 ? (
             slots.headline.every(textual) ? (
               <Text style={[styles.title, { color: textColor }]}>{slots.headline}</Text>
@@ -375,36 +461,55 @@ export const ListItem = ({
             )
           ) : null}
           {detail != null && stacked ? <Text style={[styles.title, { color: colors.secondary }]}>{detail}</Text> : null}
-        </View>
+        </Animated.View>
         {trailing != null ? (
-          <View style={styles.trailing}>
+          <Animated.View style={[styles.trailing, endMoved]}>
             {textual(trailing) ? <Text style={[styles.title, { color: colors.text }]}>{trailing}</Text> : trailing}
-          </View>
+          </Animated.View>
         ) : null}
         {detail != null && !stacked ? (
-          <Text numberOfLines={1} style={[styles.title, styles.detail, { color: colors.secondary }]}>
+          <Animated.Text numberOfLines={1} style={[styles.title, styles.detail, { color: colors.secondary }, endMoved]}>
             {detail}
-          </Text>
+          </Animated.Text>
         ) : null}
         {accessory === 'disclosure' ? (
-          <View style={styles.chevron}>
+          <Animated.View style={[styles.chevron, endMoved]}>
             <Chevron color={colors.chevron} />
-          </View>
+          </Animated.View>
         ) : accessory === 'checkmark' ? (
-          <View style={styles.checkmark}>
+          <Animated.View style={[styles.checkmark, endMoved]}>
             <Checkmark color={color.tint} />
-          </View>
+          </Animated.View>
         ) : null}
       </View>
+      {edit && rowEdit.onDelete ? (
+        <Animated.View
+          pointerEvents={editing ? 'box-none' : 'none'}
+          style={[styles.editSlot, styles.controlSlot, controlIn]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete"
+            hitSlop={list.edit.controlAt - list.edit.control / 2}
+            onPress={revealDelete}>
+            <DeleteControl color={colors.destructive} />
+          </Pressable>
+        </Animated.View>
+      ) : null}
+      {edit && rowEdit.movable ? (
+        <Animated.View pointerEvents="none" style={[styles.editSlot, styles.handleSlot, handleIn]}>
+          <ReorderHandle color={colors.handle} />
+        </Animated.View>
+      ) : null}
       {last ? null : (
-        <View
+        <Animated.View
           style={[
             styles.separator,
             {
-              start: separatorStart,
-              end: style === 'plain' ? list.rowPadding : 0,
+              // iOS 27 ends them short of the row's end, inset grouped and plain alike.
+              end: list.rowPadding,
               backgroundColor: style === 'plain' ? colors.plainSeparator : colors.separator,
             },
+            separatorAt,
           ]}
         />
       )}
@@ -506,6 +611,10 @@ const styles = StyleSheet.create({
   chevron: { marginStart: list.detailGap, marginEnd: list.chevron.end },
   checkmark: { marginStart: list.detailGap },
   separator: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
+  editSlot: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
+  controlSlot: { start: list.edit.controlAt - list.edit.control / 2 },
+  handleSlot: { end: list.edit.handle.end },
+  deleteControl: { alignItems: 'center', justifyContent: 'center' },
   flipped: { transform: [{ scaleX: -1 }] },
   actions: {
     position: 'absolute',

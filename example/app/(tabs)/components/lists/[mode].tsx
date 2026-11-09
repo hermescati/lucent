@@ -181,6 +181,42 @@ const Inbox = ({ mode }: ScreenProps) => {
   );
 };
 
+const campaigns = ['Spring sale', 'Germany offer', 'Retargeting', 'Brand search', 'Newsletter', 'Black Friday'];
+
+// SwiftUI's `move(fromOffsets:toOffset:)`: the destination counts places before the moved rows are taken out.
+const moved = <T,>(items: T[], from: number[], to: number) => {
+  const taking = items.filter((_, index) => from.includes(index));
+  const before = items.slice(0, to).filter((_, index) => !from.includes(index));
+  const after = items.slice(to).filter((_, index) => !from.includes(index + to));
+  return [...before, ...taking, ...after];
+};
+
+// Mail's or Reminders' edit mode: Edit in the bar puts the rows in edit mode, each with a delete control and a reorder
+// handle; out of it, a row swipes to delete.
+const Edit = ({ mode }: ScreenProps) => {
+  const [editing, setEditing] = useState(false);
+  const [items, setItems] = useState(campaigns);
+  return (
+    <>
+      <Stack.Screen options={{ title: mode.name }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button onPress={() => setEditing((now) => !now)}>
+          {editing ? 'Done' : 'Edit'}
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      <List editMode={editing}>
+        <List.ForEach
+          data={items}
+          keyExtractor={(item) => item}
+          onDelete={(indices) => setItems((now) => now.filter((_, index) => !indices.includes(index)))}
+          onMove={(from, to) => setItems((now) => moved(now, from, to))}>
+          {({ item }) => <ListItem supportingText="Active">{item}</ListItem>}
+        </List.ForEach>
+      </List>
+    </>
+  );
+};
+
 const zones = Array.from({ length: 400 }, (_, i) => ({ id: String(i), name: `Zone ${i + 1}`, offset: (i % 27) - 12 }));
 
 // A long list, as a timezone picker is: rows rendered as they scroll in.
@@ -209,5 +245,6 @@ const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   settings: Settings,
   picker: Picker,
   inbox: Inbox,
+  edit: Edit,
   long: Long,
 };

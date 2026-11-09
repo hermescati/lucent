@@ -26,6 +26,11 @@ export const listModes: ListMode[] = [
     summary: 'Swipe actions on each row, and pull to refresh',
   },
   {
+    slug: 'edit',
+    name: 'Edit',
+    summary: 'Edit mode: delete controls and reorder handles, with swipe to delete',
+  },
+  {
     slug: 'long',
     name: 'Long list',
     summary: 'List.ForEach over 400 rows, rendered as they scroll in',

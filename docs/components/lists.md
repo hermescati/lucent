@@ -71,15 +71,21 @@ Swipe actions and pull to refresh:
 
 ## `List`
 
-| Prop        | Type                        | Default          | Notes                                                                    |
-| ----------- | --------------------------- | ---------------- | ------------------------------------------------------------------------ |
-| `children`  | `ReactNode`                 | —                | Rows, `FieldGroup.Section`s, or `List.ForEach`.                          |
-| `onRefresh` | `() => Promise<void>`       | —                | Pull to refresh; the spinner shows until the promise settles.            |
-| `listStyle` | `'insetGrouped' \| 'plain'` | `'insetGrouped'` | **Lucent.** Rows on rounded cards, or edge to edge, as SwiftUI's styles. |
-| `testID`    | `string`                    | —                |                                                                          |
-| `style`     | `StyleProp<ViewStyle>`      | —                | **Lucent.** Layout only.                                                 |
+| Prop                | Type                        | Default          | Notes                                                                                   |
+| ------------------- | --------------------------- | ---------------- | --------------------------------------------------------------------------------------- |
+| `children`          | `ReactNode`                 | —                | Rows, `FieldGroup.Section`s, or `List.ForEach`.                                         |
+| `onRefresh`         | `() => Promise<void>`       | —                | Pull to refresh; the spinner shows until the promise settles.                           |
+| `listStyle`         | `'insetGrouped' \| 'plain'` | `'insetGrouped'` | **Lucent.** Rows on rounded cards, or edge to edge, as SwiftUI's styles.                |
+| `editMode`          | `boolean`                   | `false`          | **Lucent.** SwiftUI's edit mode: delete controls and reorder handles; see below.        |
+| `selection`         | `string[]`                  | —                | **Lucent.** The selected rows' keys, as SwiftUI's `List(selection:)`. Android: not yet. |
+| `onSelectionChange` | `(keys: string[]) => void`  | —                | **Lucent.** Called as rows are selected in edit mode. Android: not yet.                 |
+| `testID`            | `string`                    | —                |                                                                                         |
+| `style`             | `StyleProp<ViewStyle>`      | —                | **Lucent.** Layout only.                                                                |
 
-`List.ForEach` takes `@expo/ui`'s `data`, `keyExtractor` and render function. On Android it draws every row at once, so keep it to a few hundred rows.
+`List.ForEach` takes `@expo/ui`'s `data`, `keyExtractor` and render function, and SwiftUI's `onDelete` and `onMove`. On Android it draws every row at once, so keep it to a few hundred rows.
+
+- `onDelete(indices)`: its rows get SwiftUI's Delete action, swiped to from the trailing edge unless a row has trailing actions of its own, and a delete control in edit mode that opens it.
+- `onMove(from, to)`: its rows show a reorder handle in edit mode. The destination counts places before the row is taken out, as SwiftUI's. Android: the handle shows, dragging it is not yet built.
 
 ## `ListItem`
 
@@ -122,4 +128,6 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
   - Let go, the content rests 60 down while it runs; once done, the spinner shrinks and fades, then the content goes back.
 - Screen readers read each row as a button, a ticked row as selected, and its swipe actions as custom actions.
 - At accessibility text sizes a row's value moves under its title, as iOS's Settings rows do, so neither breaks mid-word.
-- Not yet: multi-select (edit mode) and reordering.
+- Edit mode, measured on the simulator: rows its `List.ForEach` can delete move their content 40 along for a red delete control, and rows it can move show a reorder handle that slides in from the end as it fades in. All on one spring, about 0.35s each way. Swipes are off while editing.
+- Separators end 16 short of the row's end, inset grouped and plain alike, as iOS 27's.
+- Not yet: dragging rows to reorder, and multi-select.

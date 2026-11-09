@@ -52,6 +52,19 @@ export const list = {
     remove: 120,
     spring: { duration: 380, dampingRatio: 0.9 },
   },
+  // Edit mode (SwiftUI's, measured on the simulator): a row that can be deleted moves its content `shift` along for the
+  // delete control, a red circle centred `controlAt` in with a white minus; one that can be moved shows the reorder
+  // handle, three lines `handle.end` from the row's end, sliding in from it as it fades in, and its content ends
+  // `handleRoom` from the row's end. All of it on one spring (critically damped, about 0.35s in and out).
+  edit: {
+    shift: 40,
+    control: 21,
+    controlAt: 28,
+    minus: { width: 10, height: 1.5 },
+    handle: { width: 21, line: 1, gap: 3.8, end: 18 },
+    handleRoom: 47,
+    spring: { duration: 350, dampingRatio: 1 },
+  },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
   // spokes as the content comes down (spokes drawn against pull, in `spokes`) and the refresh starts as the last one is
@@ -85,6 +98,7 @@ export const listColors = {
     chevron: '#C5C5C7',
     destructive: '#FF383C',
     pressed: '#E5E5EA',
+    handle: '#C8C8CA',
   },
   dark: {
     page: '#000000',
@@ -98,5 +112,6 @@ export const listColors = {
     chevron: '#5A5A5E',
     destructive: '#FF4245',
     pressed: '#2C2C2E',
+    handle: '#5A5A5E',
   },
 } as const;

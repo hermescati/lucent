@@ -1,5 +1,5 @@
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
-import { createElement, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -14,7 +14,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { ListForEach, ListStyleContext, OpenRowContext, sectionsOf, useListColors } from './section.android';
+import {
+  ListEditContext,
+  ListForEach,
+  ListStyleContext,
+  OpenRowContext,
+  sectionsOf,
+  useListColors,
+} from './section.android';
 import { list } from './tokens';
 import type { ListProps } from './types';
 import { useHeaderOffset, useHeaderSnap } from '../../core/header/scroll';
@@ -187,18 +194,33 @@ export const ListScroll = ({
  * grey, or plain, edge to edge; with `onRefresh`, a pull down from the top shows the spinner and lets go into a refresh
  * the returned promise ends.
  */
-export const List = ({ children, onRefresh, listStyle = 'insetGrouped', testID, style }: ListProps) => {
+export const List = ({
+  children,
+  onRefresh,
+  listStyle = 'insetGrouped',
+  editMode = false,
+  testID,
+  style,
+}: ListProps) => {
   const colors = useListColors();
+  // Into and out of edit mode on one spring, every row together.
+  const editProgress = useSharedValue(editMode ? 1 : 0);
+  useEffect(() => {
+    editProgress.set(withSpring(editMode ? 1 : 0, list.edit.spring));
+  }, [editMode, editProgress]);
+  const edit = useMemo(() => ({ editing: editMode, progress: editProgress }), [editMode, editProgress]);
   return (
-    <ListStyleContext value={listStyle}>
-      <ListScroll
-        background={listStyle === 'plain' ? colors.plain : colors.page}
-        onRefresh={onRefresh}
-        style={style}
-        testID={testID}>
-        {sectionsOf(children)}
-      </ListScroll>
-    </ListStyleContext>
+    <ListEditContext value={edit}>
+      <ListStyleContext value={listStyle}>
+        <ListScroll
+          background={listStyle === 'plain' ? colors.plain : colors.page}
+          onRefresh={onRefresh}
+          style={style}
+          testID={testID}>
+          {sectionsOf(children)}
+        </ListScroll>
+      </ListStyleContext>
+    </ListEditContext>
   );
 };
 

@@ -22,9 +22,28 @@ export interface ListProps extends ExpoListProps {
   listStyle?: ListStyle;
   /** Lucent. Layout only: margins, alignment and size. */
   style?: StyleProp<ViewStyle>;
+  /**
+   * Lucent. Edit mode, as SwiftUI's `editMode` environment: rows show a delete control where their `List.ForEach` has
+   * `onDelete`, a reorder handle where it has `onMove`, and a selection circle where the list has `selection`.
+   * @default false
+   */
+  editMode?: boolean;
+  /** Lucent. The selected rows' keys (their `List.ForEach` `keyExtractor`), as SwiftUI's `List(selection:)`. */
+  selection?: string[];
+  /** Lucent. Called with the selected keys as rows are tapped in edit mode. */
+  onSelectionChange?: (selection: string[]) => void;
 }
 
-export type ListForEachProps<T> = ExpoListForEachProps<T>;
+/** `@expo/ui`'s `List.ForEach`, with SwiftUI's `onDelete` and `onMove`. */
+export interface ListForEachProps<T> extends ExpoListForEachProps<T> {
+  /** Called with the deleted rows' indices: from a swipe, or edit mode's delete control. */
+  onDelete?: (indices: number[]) => void;
+  /**
+   * Called as a row is dragged to a new place in edit mode, with its index and where it goes: the destination counts
+   * places before the row is taken out, so it can equal `data.length`.
+   */
+  onMove?: (sourceIndices: number[], destination: number) => void;
+}
 
 /** An SF Symbol on iOS and a Material Symbol on Android, as in `NativeTabs.Trigger.Icon`. */
 export interface ListIcon {

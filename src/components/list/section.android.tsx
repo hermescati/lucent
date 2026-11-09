@@ -21,18 +21,43 @@ export const nextRowId = () => (rows += 1);
 /** Where a row sits in its section: the last one draws no separator under it. */
 export const RowLastContext = createLucentContext<boolean>('ListRowLast', true);
 
+/** The list's edit mode: whether it's on, and how far rows have moved into it (0 to 1). */
+export interface ListEdit {
+  editing: boolean;
+  progress: SharedValue<number>;
+}
+
+export const ListEditContext = createLucentContext<ListEdit | null>('ListEdit', null);
+
+/** What a row can do in edit mode, from its `List.ForEach`: be deleted, and be moved. */
+export interface RowEdit {
+  onDelete?: () => void;
+  movable: boolean;
+}
+
+export const RowEditContext = createLucentContext<RowEdit>('ListRowEdit', { movable: false });
+
+// A `List.ForEach` row, with what its `onDelete` and `onMove` let it do.
+const editableRow = <T,>(
+  { data, keyExtractor, children: render, onDelete, onMove }: ListForEachProps<T>,
+  item: T,
+  index: number,
+) => (
+  <RowEditContext
+    key={keyExtractor(item, index)}
+    value={{ onDelete: onDelete ? () => onDelete([index]) : undefined, movable: Boolean(onMove) && data.length > 1 }}>
+    {render({ item, index })}
+  </RowEditContext>
+);
+
 export const useListColors = () => listColors[useLucentTheme().scheme === 'dark' ? 'dark' : 'light'];
 
 export const SectionHeader = UniversalFieldGroup.SectionHeader;
 export const SectionFooter = UniversalFieldGroup.SectionFooter;
 
 // `List.ForEach`'s rows, drawn all at once: Android's list scrolls in one view, so a section can number its rows.
-export const ListForEach = <T,>({ data, keyExtractor, children }: ListForEachProps<T>) => (
-  <>
-    {data.map((item, index) => (
-      <Fragment key={keyExtractor(item, index)}>{children({ item, index })}</Fragment>
-    ))}
-  </>
+export const ListForEach = <T,>(props: ListForEachProps<T>) => (
+  <>{props.data.map((item, index) => editableRow(props, item, index))}</>
 );
 
 // A section's rows, flattened out of fragments and `List.ForEach`, its header and footer taken out.
@@ -47,10 +72,8 @@ const rowsOf = (children: ReactNode) => {
       else if (child.type === SectionFooter) footer = child.props.children;
       else if (child.type === Fragment) walk(child.props.children);
       else if (child.type === ListForEach || child.type === UniversalList.ForEach) {
-        const { data, keyExtractor, children: render } = child.props as unknown as ListForEachProps<unknown>;
-        data.forEach((item, index) =>
-          rows.push(<Fragment key={keyExtractor(item, index)}>{render({ item, index })}</Fragment>),
-        );
+        const props = child.props as unknown as ListForEachProps<unknown>;
+        props.data.forEach((item, index) => rows.push(editableRow(props, item, index)));
       } else rows.push(child);
     });
   walk(children);
