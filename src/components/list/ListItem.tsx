@@ -1,6 +1,12 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
 import { Button, HStack, Image, SwipeActions, Text } from '@expo/ui/swift-ui';
-import { disabled as disabledModifier, font, foregroundStyle, tint } from '@expo/ui/swift-ui/modifiers';
+import {
+  accessibilityAddTraits,
+  disabled as disabledModifier,
+  font,
+  foregroundStyle,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import { Children, isValidElement, type ReactNode } from 'react';
 import { PlatformColor } from 'react-native';
 
@@ -97,7 +103,12 @@ export const ListItem = ({
       {...props}
       supportingText={supporting}
       trailing={end}
-      modifiers={[...(disabled ? [disabledModifier(true)] : []), ...(modifiers ?? [])]}>
+      modifiers={[
+        ...(disabled ? [disabledModifier(true)] : []),
+        // The ticked choice reads as selected, as a checkmarked cell does with VoiceOver.
+        ...(accessory === 'checkmark' ? [accessibilityAddTraits(['isSelected'])] : []),
+        ...(modifiers ?? []),
+      ]}>
       {headline}
     </UniversalListItem>
   );

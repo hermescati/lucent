@@ -12,6 +12,8 @@ export const list = {
   // second line 72, a 29pt icon's row 55.
   rowMinHeight: 52,
   rowPaddingVertical: 13,
+  // From this text size (about where iOS's accessibility sizes begin) a row's value goes under its title.
+  stackedFrom: 1.35,
   // The headline (body) and a second line under it (subheadline), 2 apart.
   title: { fontSize: 17, lineHeight: 22 },
   supporting: { fontSize: 15, lineHeight: 20 },

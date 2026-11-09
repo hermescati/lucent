@@ -43,6 +43,10 @@ export const RowIcon = ({ ios, android, color }: { ios: SFSymbol; android: Andro
   </View>
 );
 
+/** An unread message's blue dot, read out as "Unread". */
+export const UnreadDot = () => <View accessible accessibilityLabel="Unread" style={styles.dot} />;
+
 const styles = StyleSheet.create({
   icon: { width: 29, height: 29, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF' },
 });

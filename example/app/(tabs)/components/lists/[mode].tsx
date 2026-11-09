@@ -3,7 +3,7 @@ import { Stack } from 'expo-lucent/navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 
-import { findListMode, RowIcon, type ListMode } from '@/components/lists';
+import { findListMode, RowIcon, UnreadDot, type ListMode } from '@/components/lists';
 import { Page, Paragraph } from '@/components/ui';
 
 export default function ListModeScreen() {
@@ -147,7 +147,7 @@ const Inbox = ({ mode }: ScreenProps) => {
           <ListItem
             key={message.id}
             supportingText={message.body}
-            trailing={message.read ? undefined : '●'}
+            trailing={message.read ? undefined : <UnreadDot />}
             onPress={() => toggleRead(message.id)}
             swipeActions={{
               leading: [

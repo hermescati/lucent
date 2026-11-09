@@ -1,9 +1,10 @@
-import { createElement, useCallback, useContext, type ReactNode } from 'react';
+import { createElement, useCallback, useContext, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
   useAnimatedScrollHandler,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -36,6 +37,15 @@ export const ListScroll = ({
   // How far the content is pulled down past its top, and whether a refresh is running.
   const pull = useSharedValue(0);
   const refreshingNow = useSharedValue(false);
+  // The spinner is there only while the content is pulled down or refreshing: turning, unseen, it would keep the UI
+  // thread busy for nothing.
+  const [spinning, setSpinning] = useState(false);
+  useAnimatedReaction(
+    () => pull.get() > 0.5 || refreshingNow.get(),
+    (now, before) => {
+      if (now !== before) scheduleOnRN(setSpinning, now);
+    },
+  );
   const { threshold, rest, resistance, spring } = list.refresh;
 
   const finish = useCallback(() => {
@@ -104,7 +114,7 @@ export const ListScroll = ({
     onRefresh ? (
       <View>
         <Animated.View pointerEvents="none" style={[styles.spinner, { height: rest }, spinnerStyle]}>
-          <Spinner />
+          {spinning ? <Spinner /> : null}
         </Animated.View>
         <Animated.View style={contentStyle}>{children}</Animated.View>
       </View>

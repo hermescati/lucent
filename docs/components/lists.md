@@ -112,5 +112,6 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
 - The value and chevron follow the Settings app: the chevron ends 20 inside the card, 12 after the value.
 - Swipe actions are iOS 27's capsules beside the row, with their labels under them. The row slides aside onto a grey fill. One row is open at a time, and a tap or a scroll closes it.
 - Pull to refresh pulls the content down with resistance and shows iOS's spinner. Its trigger distance is set by feel: iOS's couldn't be measured, because a held drag can't be scripted on the simulator.
-- Screen readers read each row as a button, and its swipe actions as custom actions.
+- Screen readers read each row as a button, a ticked row as selected, and its swipe actions as custom actions.
+- At accessibility text sizes a row's value moves under its title, as iOS's Settings rows do, so neither breaks mid-word.
 - Not yet: multi-select (edit mode) and reordering.

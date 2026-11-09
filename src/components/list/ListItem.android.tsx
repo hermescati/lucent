@@ -126,6 +126,9 @@ export const ListItem = ({
   const [rowWidth, setRowWidth] = useState(0);
   // Rows grow with the text size, as iOS's do.
   const scale = PixelRatio.getFontScale();
+  // At accessibility text sizes iOS stacks a row's value under its title rather than beside it, where it would leave
+  // the title too little room to fit a word.
+  const stacked = scale >= list.stackedFrom;
 
   const leadingActions = swipeActions?.leading ?? [];
   const trailingActions = swipeActions?.trailing ?? [];
@@ -224,13 +227,14 @@ export const ListItem = ({
               supporting
             )
           ) : null}
+          {detail != null && stacked ? <Text style={[styles.title, { color: colors.secondary }]}>{detail}</Text> : null}
         </View>
         {trailing != null ? (
           <View style={styles.trailing}>
             {textual(trailing) ? <Text style={[styles.title, { color: colors.text }]}>{trailing}</Text> : trailing}
           </View>
         ) : null}
-        {detail != null ? (
+        {detail != null && !stacked ? (
           <Text numberOfLines={1} style={[styles.title, styles.detail, { color: colors.secondary }]}>
             {detail}
           </Text>
@@ -271,7 +275,7 @@ export const ListItem = ({
         onPress?.();
       }}
       accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected: accessory === 'checkmark' }}
       accessibilityActions={[...leadingActions, ...trailingActions].map((action) => ({
         name: action.label,
         label: action.label,
