@@ -69,6 +69,9 @@ export const list = {
     lift: { duration: 150, opacity: 0.85, widen: 11, radius: 10, shadow: '0px 0px 30px rgba(0, 0, 0, 0.25)' },
     move: { duration: 250, dampingRatio: 1 },
     drop: { duration: 330, dampingRatio: 1 },
+    // Selecting (measured): a 22 circle in the delete control's place, ringed in grey or filled with the accent and a
+    // white tick; a selected row turns grey and loses the separators beside it. Deselected, the fill fades.
+    select: { circle: 22, ring: 1.5, tick: { width: 10, height: 8, stroke: 1.8 }, fade: 120 },
   },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
@@ -98,12 +101,15 @@ export const listColors = {
     separator: '#E8E8E8',
     plainSeparator: '#E8E8E8',
     text: '#000000',
-    secondary: '#8A8A8E',
+    // iOS's secondary and tertiary labels, translucent: #8A8A8E and #C5C5C7 on white, darker on a selected row's grey.
+    secondary: 'rgba(60, 60, 67, 0.6)',
     caption: '#85858B',
-    chevron: '#C5C5C7',
+    chevron: 'rgba(60, 60, 67, 0.3)',
     destructive: '#FF383C',
     pressed: '#E5E5EA',
     handle: '#C8C8CA',
+    selectRing: '#C5C5C7',
+    selected: '#D1D1D6',
   },
   dark: {
     page: '#000000',
@@ -112,11 +118,13 @@ export const listColors = {
     separator: '#38383B',
     plainSeparator: '#2A2A2C',
     text: '#FFFFFF',
-    secondary: '#98989F',
+    secondary: 'rgba(235, 235, 245, 0.6)',
     caption: '#8D8D93',
-    chevron: '#5A5A5E',
+    chevron: 'rgba(235, 235, 245, 0.3)',
     destructive: '#FF4245',
     pressed: '#2C2C2E',
     handle: '#5A5A5E',
+    selectRing: '#5A5A5E',
+    selected: '#3A3A3C',
   },
 } as const;

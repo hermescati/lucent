@@ -1,6 +1,6 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
-import { Children, isValidElement, useContext, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useContext, useEffect, useState, type ReactNode } from 'react';
 import { I18nManager, PixelRatio, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -18,6 +18,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import {
   ListEditContext,
   ListScrollGestureContext,
+  ListSelectionContext,
   ListStyleContext,
   nextRowId,
   OpenRowContext,
@@ -106,6 +107,34 @@ const DeleteControl = ({ color }: { color: string }) => {
       <View
         style={{ width: minus.width, height: minus.height, borderRadius: minus.height / 2, backgroundColor: '#FFFFFF' }}
       />
+    </View>
+  );
+};
+
+/** A selecting row's circle: a grey ring, filled with the accent and a white tick as the row is selected. */
+const SelectCircle = ({ ring, fill, filled }: { ring: string; fill: string; filled: SharedValue<number> }) => {
+  const { circle, ring: stroke, tick } = list.edit.select;
+  const fillIn = useAnimatedStyle(() => ({ opacity: filled.get() }));
+  const inset = tick.stroke / 2;
+  return (
+    <View style={{ width: circle, height: circle, borderRadius: circle / 2, borderWidth: stroke, borderColor: ring }}>
+      <Animated.View
+        style={[
+          styles.selectFill,
+          { width: circle, height: circle, borderRadius: circle / 2, backgroundColor: fill },
+          fillIn,
+        ]}>
+        <Svg width={tick.width} height={tick.height}>
+          <Polyline
+            points={`${inset},${tick.height * 0.55} ${tick.width * 0.38},${tick.height - inset} ${tick.width - inset},${inset}`}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth={tick.stroke}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      </Animated.View>
     </View>
   );
 };
@@ -267,7 +296,17 @@ export const ListItem = ({
   const rowEdit = useContext(RowEditContext);
   const editing = edit?.editing ?? false;
   const editProgress = edit?.progress;
-  const editStart = rowEdit.onDelete ? list.edit.shift : 0;
+  // A list with `selection` selects in edit mode: a circle takes the delete control's place, and a tap toggles the row.
+  const selection = useContext(ListSelectionContext);
+  const selectable = Boolean(selection && rowEdit.key !== undefined);
+  const selecting = editing && selectable;
+  const selected = selectable && selection!.selected.includes(rowEdit.key!);
+  const nextSelected = selectable && rowEdit.nextKey !== undefined && selection!.selected.includes(rowEdit.nextKey);
+  const filled = useSharedValue(selected ? 1 : 0);
+  useEffect(() => {
+    filled.set(selected ? 1 : withTiming(0, { duration: list.edit.select.fade }));
+  }, [selected, filled]);
+  const editStart = rowEdit.onDelete || selectable ? list.edit.shift : 0;
   const editEnd = rowEdit.movable ? list.edit.handleRoom : 0;
   const along = mirrored ? -1 : 1;
   const from = editing ? 1 : 0;
@@ -521,6 +560,7 @@ export const ListItem = ({
         styles.row,
         { minHeight: list.rowMinHeight * scale },
         pressed && !disabled ? { backgroundColor: colors.pressed } : null,
+        selecting && selected ? { backgroundColor: colors.selected } : null,
       ]}>
       <View
         style={[
@@ -575,7 +615,11 @@ export const ListItem = ({
           </Animated.View>
         ) : null}
       </View>
-      {edit && rowEdit.onDelete ? (
+      {edit && selectable ? (
+        <Animated.View pointerEvents="none" style={[styles.editSlot, styles.selectSlot, controlIn]}>
+          <SelectCircle ring={colors.selectRing} fill={color.tint} filled={filled} />
+        </Animated.View>
+      ) : edit && rowEdit.onDelete ? (
         <Animated.View
           pointerEvents={editing ? 'box-none' : 'none'}
           style={[styles.editSlot, styles.controlSlot, controlIn]}>
@@ -598,7 +642,7 @@ export const ListItem = ({
           </Animated.View>
         </GestureDetector>
       ) : null}
-      {last ? null : (
+      {last || (selecting && (selected || nextSelected)) ? null : (
         <Animated.View
           style={[
             styles.separator,
@@ -617,15 +661,16 @@ export const ListItem = ({
   const row = (
     <Pressable
       testID={testID}
-      disabled={disabled || !onPress}
+      disabled={disabled || (!onPress && !selecting)}
       onPress={() => {
         // A tap while a row's actions are open closes them, as iOS's does, rather than pressing the row.
         if (openRow && openRow.get() !== -1) return openRow.set(-1);
         if (Math.abs(offset.get()) > 1) return close();
+        if (selecting) return selection!.toggle(rowEdit.key!);
         onPress?.();
       }}
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityState={{ disabled, selected: accessory === 'checkmark' }}
+      accessibilityRole={onPress || selecting ? 'button' : undefined}
+      accessibilityState={{ disabled, selected: selecting ? selected : accessory === 'checkmark' }}
       accessibilityActions={[
         ...[...leadingActions, ...trailingActions].map((action) => ({ name: action.label, label: action.label })),
         ...(editing && reorder ? [moveUp, moveDown] : []),
@@ -735,6 +780,14 @@ const styles = StyleSheet.create({
   separator: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
   editSlot: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
   controlSlot: { start: list.edit.controlAt - list.edit.control / 2 },
+  selectSlot: { start: list.edit.controlAt - list.edit.select.circle / 2 },
+  selectFill: {
+    position: 'absolute',
+    top: -list.edit.select.ring,
+    start: -list.edit.select.ring,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // The handle takes touches a little around it.
   handleSlot: { end: list.edit.handle.end - 12, paddingHorizontal: 12 },
   deleteControl: { alignItems: 'center', justifyContent: 'center' },

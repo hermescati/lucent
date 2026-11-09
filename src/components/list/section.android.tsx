@@ -76,9 +76,20 @@ export interface RowEdit {
   onDelete?: () => void;
   movable: boolean;
   reorder?: { group: ReorderGroup; key: string; index: number; keys: string[] };
+  // Its key, for selection, and the next row's, whose selection hides the separator between them.
+  key?: string;
+  nextKey?: string;
 }
 
 export const RowEditContext = createLucentContext<RowEdit>('ListRowEdit', { movable: false });
+
+/** A list's selection in edit mode: the selected keys, and a row's tap toggling its own. */
+export interface ListSelection {
+  selected: string[];
+  toggle: (key: string) => void;
+}
+
+export const ListSelectionContext = createLucentContext<ListSelection | null>('ListSelection', null);
 
 // A `List.ForEach` row, with what its `onDelete` and `onMove` let it do.
 const editableRow = <T,>(
@@ -97,6 +108,8 @@ const editableRow = <T,>(
         onDelete: onDelete ? () => onDelete([index]) : undefined,
         movable,
         reorder: movable && group ? { group, key, index, keys } : undefined,
+        key,
+        nextKey: keys[index + 1],
       }}>
       {render({ item, index })}
     </RowEditContext>

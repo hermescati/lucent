@@ -10,6 +10,7 @@ import {
 import type { ReactElement } from 'react';
 import { StyleSheet } from 'react-native';
 
+import { ListSelectableContext } from './selectable';
 import type { ListForEachProps, ListProps } from './types';
 
 /** SwiftUI's `List`, hosted for the screen: it fills its room and scrolls itself, under the bars. */
@@ -23,21 +24,23 @@ export const List = ({
   testID,
   style,
 }: ListProps) => (
-  <Host style={[styles.fill, style]}>
-    <SwiftList
-      testID={testID}
-      selection={selection}
-      onSelectionChange={onSelectionChange ? (keys) => onSelectionChange(keys.map(String)) : undefined}
-      modifiers={[
-        listStyleModifier(listStyle),
-        environment('editMode', editMode ? 'active' : 'inactive'),
-        // Into and out of edit mode with SwiftUI's default animation, as `EditButton` toggles it.
-        animation(Animation.default, editMode),
-        ...(onRefresh ? [refreshable(onRefresh)] : []),
-      ]}>
-      {children}
-    </SwiftList>
-  </Host>
+  <ListSelectableContext value={editMode && selection !== undefined}>
+    <Host style={[styles.fill, style]}>
+      <SwiftList
+        testID={testID}
+        selection={selection}
+        onSelectionChange={onSelectionChange ? (keys) => onSelectionChange(keys.map(String)) : undefined}
+        modifiers={[
+          listStyleModifier(listStyle),
+          environment('editMode', editMode ? 'active' : 'inactive'),
+          // Into and out of edit mode with SwiftUI's default animation, as `EditButton` toggles it.
+          animation(Animation.default, editMode),
+          ...(onRefresh ? [refreshable(onRefresh)] : []),
+        ]}>
+        {children}
+      </SwiftList>
+    </Host>
+  </ListSelectableContext>
 );
 
 // SwiftUI's own, which takes `onDelete` and `onMove` as well.

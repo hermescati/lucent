@@ -31,6 +31,11 @@ export const listModes: ListMode[] = [
     summary: 'Edit mode: delete controls and reorder handles, with swipe to delete',
   },
   {
+    slug: 'select',
+    name: 'Select',
+    summary: 'Multi-select: Select puts the rows in edit mode with selection circles',
+  },
+  {
     slug: 'long',
     name: 'Long list',
     summary: 'List.ForEach over 400 rows, rendered as they scroll in',

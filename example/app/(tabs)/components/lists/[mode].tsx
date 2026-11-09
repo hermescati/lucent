@@ -217,6 +217,35 @@ const Edit = ({ mode }: ScreenProps) => {
   );
 };
 
+// Mail's Select: the rows take selection circles, and a tap ticks a row rather than opening it.
+const Select = ({ mode }: ScreenProps) => {
+  const [selecting, setSelecting] = useState(false);
+  const [selection, setSelection] = useState<string[]>([]);
+  return (
+    <>
+      <Stack.Screen options={{ title: selection.length > 0 ? `${selection.length} selected` : mode.name }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          onPress={() => {
+            setSelecting((now) => !now);
+            setSelection([]);
+          }}>
+          {selecting ? 'Done' : 'Select'}
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      <List editMode={selecting} selection={selection} onSelectionChange={setSelection}>
+        <List.ForEach data={campaigns} keyExtractor={(item) => item}>
+          {({ item }) => (
+            <ListItem supportingText="Active" accessory="disclosure" onPress={() => {}}>
+              {item}
+            </ListItem>
+          )}
+        </List.ForEach>
+      </List>
+    </>
+  );
+};
+
 const zones = Array.from({ length: 400 }, (_, i) => ({ id: String(i), name: `Zone ${i + 1}`, offset: (i % 27) - 12 }));
 
 // A long list, as a timezone picker is: rows rendered as they scroll in.
@@ -246,5 +275,6 @@ const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   picker: Picker,
   inbox: Inbox,
   edit: Edit,
+  select: Select,
   long: Long,
 };

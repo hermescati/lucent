@@ -1,5 +1,5 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
-import { Button, HStack, Image, RNHostView, SwipeActions, Text } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, RNHostView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   disabled as disabledModifier,
@@ -7,9 +7,10 @@ import {
   foregroundStyle,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import { Children, isValidElement, type ReactNode } from 'react';
+import { Children, isValidElement, useContext, type ReactElement, type ReactNode } from 'react';
 import { PlatformColor } from 'react-native';
 
+import { ListSelectableContext } from './selectable';
 import type { ListItemProps, SwipeAction } from './types';
 
 // A `<ListItem.Trailing>` among the children: taken out, so the row's own trailing content (detail, accessory) can go
@@ -106,17 +107,38 @@ export const ListItem = ({
     ) : (
       supportingText
     );
+  const rowModifiers = [
+    ...(disabled ? [disabledModifier(true)] : []),
+    // The ticked choice reads as selected, as a checkmarked cell does with VoiceOver.
+    ...(accessory === 'checkmark' ? [accessibilityAddTraits(['isSelected'])] : []),
+    ...(modifiers ?? []),
+  ];
+  // Selecting, the row is no button, so the list takes the tap: laid out as `@expo/ui`'s row lays it out.
+  const selectable = useContext(ListSelectableContext);
+  if (selectable) {
+    const leadingSlot = Children.toArray(headline).find(
+      (child) => isValidElement(child) && child.type === UniversalListItem.Leading,
+    ) as ReactElement<{ children?: ReactNode }> | undefined;
+    const title = Children.toArray(headline).filter(
+      (child) => !(isValidElement(child) && child.type === UniversalListItem.Leading),
+    );
+    const lead = leadingSlot?.props.children ?? props.leading;
+    return (
+      <HStack spacing={12} modifiers={rowModifiers}>
+        {isValidElement(lead) ? <RNHostView matchContents>{lead}</RNHostView> : null}
+        <VStack alignment="leading" spacing={2}>
+          {title.map((child, index) =>
+            typeof child === 'string' || typeof child === 'number' ? <Text key={index}>{child}</Text> : child,
+          )}
+          {supporting}
+        </VStack>
+        <Spacer />
+        {end}
+      </HStack>
+    );
+  }
   const row = (
-    <UniversalListItem
-      {...props}
-      supportingText={supporting}
-      trailing={end}
-      modifiers={[
-        ...(disabled ? [disabledModifier(true)] : []),
-        // The ticked choice reads as selected, as a checkmarked cell does with VoiceOver.
-        ...(accessory === 'checkmark' ? [accessibilityAddTraits(['isSelected'])] : []),
-        ...(modifiers ?? []),
-      ]}>
+    <UniversalListItem {...props} supportingText={supporting} trailing={end} modifiers={rowModifiers}>
       {headline}
     </UniversalListItem>
   );

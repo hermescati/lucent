@@ -18,6 +18,7 @@ import {
   ListEditContext,
   ListForEach,
   ListScrollGestureContext,
+  ListSelectionContext,
   ListStyleContext,
   OpenRowContext,
   sectionsOf,
@@ -202,10 +203,24 @@ export const List = ({
   onRefresh,
   listStyle = 'insetGrouped',
   editMode = false,
+  selection,
+  onSelectionChange,
   testID,
   style,
 }: ListProps) => {
   const colors = useListColors();
+  // With `selection`, edit mode selects: rows show circles and a tap toggles them.
+  const selecting = useMemo(
+    () =>
+      selection === undefined
+        ? null
+        : {
+            selected: selection,
+            toggle: (key: string) =>
+              onSelectionChange?.(selection.includes(key) ? selection.filter((k) => k !== key) : [...selection, key]),
+          },
+    [selection, onSelectionChange],
+  );
   // Into and out of edit mode on one spring, every row together.
   const editProgress = useSharedValue(editMode ? 1 : 0);
   useEffect(() => {
@@ -214,15 +229,17 @@ export const List = ({
   const edit = useMemo(() => ({ editing: editMode, progress: editProgress }), [editMode, editProgress]);
   return (
     <ListEditContext value={edit}>
-      <ListStyleContext value={listStyle}>
-        <ListScroll
-          background={listStyle === 'plain' ? colors.plain : colors.page}
-          onRefresh={onRefresh}
-          style={style}
-          testID={testID}>
-          {sectionsOf(children)}
-        </ListScroll>
-      </ListStyleContext>
+      <ListSelectionContext value={selecting}>
+        <ListStyleContext value={listStyle}>
+          <ListScroll
+            background={listStyle === 'plain' ? colors.plain : colors.page}
+            onRefresh={onRefresh}
+            style={style}
+            testID={testID}>
+            {sectionsOf(children)}
+          </ListScroll>
+        </ListStyleContext>
+      </ListSelectionContext>
     </ListEditContext>
   );
 };
