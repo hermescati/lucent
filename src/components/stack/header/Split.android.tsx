@@ -14,6 +14,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { SplitScaleContext, useBarGlassRow } from './BarCapsule.android';
+import { splitGlyph, splitNeck, splitScale } from '../../../core/motion/island';
 import { bar, islandSplit } from '../tokens';
 
 interface Props {
@@ -120,7 +121,7 @@ export const Split = ({
   useAnimatedReaction(
     () => [apart.get(), held.get()] as const,
     ([now, holding]) => {
-      const thinning = islandSplit.blend * Math.sin(Math.PI * Math.min(Math.max(now, 0), 1));
+      const thinning = splitNeck(now);
       row?.splitBlend.set(neck && holding > 0 ? neck.blend * holding : thinning);
     },
   );
@@ -172,13 +173,8 @@ export const Split = ({
   });
   // Its size goes to the capsule, and its glyph's fade with it (`SplitScaleContext`): only the glyph fades, the row draws
   // the glass.
-  const scale = useDerivedValue(() => from + (1 - from) * Math.min(Math.max(apart.get(), 0), 1));
-  const glyph = useDerivedValue(() => {
-    const now = Math.min(Math.max(apart.get(), 0), 1);
-    const out = drive ? drive.get() === 1 : shown;
-    const from = out ? islandSplit.iconFrom : (glyphGoneBy ?? islandSplit.iconMeltFrom);
-    return Math.min(Math.max((now - from) / (1 - from), 0), 1);
-  });
+  const scale = useDerivedValue(() => splitScale(apart.get(), from));
+  const glyph = useDerivedValue(() => splitGlyph(apart.get(), drive ? drive.get() === 1 : shown, glyphGoneBy));
   const out = useDerivedValue<number>(() => ((drive ? drive.get() === 1 : shown) ? 1 : 0));
   const look = useMemo(() => ({ scale, glyph, apart, out }), [scale, glyph, apart, out]);
   return (

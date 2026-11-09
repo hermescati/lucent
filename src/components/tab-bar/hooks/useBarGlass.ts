@@ -2,7 +2,7 @@ import { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 
 import { glassPress } from '../../../core/glass/presets';
 import { leanBy } from '../../../core/glass/useShapePress';
-import { barItemMotion } from '../../../core/motion/island';
+import { barItemMotion, splitNeck, splitScale } from '../../../core/motion/island';
 import { useSolidGlass } from '../../../theme/solid';
 import { glass } from '../../../theme/tokens';
 import { pillWidthAt, slotCenterAt } from '../helpers/slots';
@@ -225,7 +225,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
       shiftY: dragged.shiftY + leaned.shiftY,
     };
     const splitX = lerp(width - fullHeight / 2, circleX, apart) + pulled.shiftX * apart;
-    const splitRadius = fieldRadius * lerp(motion.searchSplit.from, 1, clamp01(apart));
+    const splitRadius = fieldRadius * splitScale(apart);
     // Held by its clear button, the field swells about its middle.
     const held = fieldPress.press.get() * settled;
     const fieldGrow = held * motion.fieldPressGrow;
@@ -248,7 +248,7 @@ export const useBarGlass = (bar: BarState & SearchMorph & LensStyles) => {
             clamp01(1 - (lastIndex - lensPosition.get()) / glass.lensPinchSideReach) *
               (1 - lerp(motion.endMelt, 1, push.get()))),
         glass.pressBlend * searchPress.press.get(),
-        motion.searchSplit.blend * Math.sin(Math.PI * clamp01(apart)),
+        splitNeck(apart),
         (hasSearch ? glass.meltBlend : 0) *
           shine.get() *
           (1 - settled) *

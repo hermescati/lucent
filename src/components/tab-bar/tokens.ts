@@ -171,8 +171,6 @@ export const motion = {
     searchDrag: { duration: 220, dampingRatio: 1 },
     searchKeyboardMorph: { duration: 170, dampingRatio: 1 },
     searchKeyboardAbsorb: { duration: 140, dampingRatio: 1 },
-    searchDipIn: islandReturn.dipIn,
-    searchDipOut: islandReturn.dipOut,
     closeFlash: { duration: 300, dampingRatio: 1 },
     stretch: { duration: 340, dampingRatio: 0.55 },
     jellyLead: { duration: 240, dampingRatio: 0.75 },

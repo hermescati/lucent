@@ -17,7 +17,7 @@ import { BarMeltContext, meltLook } from './melt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { regularMaterial, useGlassMaterial } from '../../../core/glass/material';
 import { glassPress } from '../../../core/glass/presets';
-import { islandReturn } from '../../../core/motion/island';
+import { returnGrown } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { createLucentContext } from '../../../theme/context';
 import { bar, barItem, barItemMotion } from '../tokens';
@@ -367,7 +367,7 @@ export const BarCapsule = ({
   // off a search field's start.
   const backBlur = useAnimatedProps(() => {
     const now = Math.min(back?.scale.get() ?? 1, 1);
-    const grown = Math.min(Math.max((now - islandReturn.from) / (1 - islandReturn.from), 0), 1);
+    const grown = returnGrown(now);
     return { radius: (1 - grown) * barItemMotion.blur };
   });
   const style = [styles.capsule, { height, minWidth: height }, grow && styles.grow];

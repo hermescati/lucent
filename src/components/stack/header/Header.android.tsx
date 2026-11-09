@@ -43,6 +43,7 @@ import { getHeader } from './store.android';
 import { useSwipeMelt } from './swipeMelt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
 import { headerOffset, searchLift } from '../../../core/header/scroll.android';
+import { withReturnDip } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
 import { BarSearch, HeaderSearch, SearchButton } from '../search/SearchField.android';
@@ -485,7 +486,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   const comeBack = useCallback(() => {
     returnScale.set(islandReturn.from);
     returnScale.set(withSpring(1, islandReturn.spring));
-    returnDip.set(withSequence(withSpring(islandReturn.dip, islandReturn.dipIn), withSpring(0, islandReturn.dipOut)));
+    returnDip.set(withReturnDip());
   }, [returnScale, returnDip]);
   // As a field that rose into the row goes back down out of its way, or as one opened from the magnifier draws back
   // into the trailing capsule, its back button budding off its start; the magnifier comes back last.
@@ -512,7 +513,7 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
       const { from, spring } = searchMotion.bar.backReturn;
       returnScale.set(from);
       returnScale.set(withSpring(1, spring));
-      returnDip.set(withSequence(withSpring(islandReturn.dip, islandReturn.dipIn), withSpring(0, islandReturn.dipOut)));
+      returnDip.set(withReturnDip());
       const { delay, duration } = searchMotion.bar.magnifierIn;
       magnifierBack.set(withDelay(delay, withTiming(1, { duration })));
     },
