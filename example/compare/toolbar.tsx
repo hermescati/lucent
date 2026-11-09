@@ -1,9 +1,16 @@
 import { Stack, useHeaderInset, useHeaderScroll } from 'expo-lucent/navigation';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View, useColorScheme } from 'react-native';
-import Animated, { useAnimatedRef } from 'react-native-reanimated';
+import Animated, { scrollTo, useAnimatedRef, type AnimatedRef } from 'react-native-reanimated';
+import { scheduleOnUI } from 'react-native-worklets';
 
 import { filled, type Comparison } from './types';
+
+// Scrolled on the UI thread, where the scroll view's animated ref is read.
+const scrollDown = (ref: AnimatedRef<Animated.ScrollView>, y: number) => {
+  'worklet';
+  scrollTo(ref, 0, y, false);
+};
 
 const none = () => {};
 
@@ -15,7 +22,7 @@ const Content = ({ scrolled }: { scrolled?: boolean }) => {
   useEffect(() => {
     if (!scrolled) return;
     // After the bars have settled the content's insets, which would undo an earlier offset.
-    const id = setTimeout(() => scroll.current?.scrollTo({ y: 200, animated: false }), 600);
+    const id = setTimeout(() => scheduleOnUI(scrollDown, scroll, 200), 600);
     return () => clearTimeout(id);
   }, [scrolled, inset]);
   return (

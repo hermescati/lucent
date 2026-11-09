@@ -1,9 +1,16 @@
 import { Stack, useHeaderInset, useHeaderScroll } from 'expo-lucent/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { Image, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import Animated, { useAnimatedRef } from 'react-native-reanimated';
+import Animated, { scrollTo, useAnimatedRef, type AnimatedRef } from 'react-native-reanimated';
+import { scheduleOnUI } from 'react-native-worklets';
 
 import { filled, type Comparison } from './types';
+
+// Scrolled on the UI thread, where the scroll view's animated ref is read.
+const scrollDown = (ref: AnimatedRef<Animated.ScrollView>, y: number) => {
+  'worklet';
+  scrollTo(ref, 0, y, false);
+};
 
 const none = () => {};
 
@@ -33,7 +40,7 @@ const Content = ({ scrolled, header }: { scrolled?: boolean; header?: ReactNode 
     if (!scrolled) return;
     // After the bar has settled the content's inset (on Android, once the header has measured itself, which moves the
     // content); an earlier offset is undone by it. The capture waits longer than this.
-    const id = setTimeout(() => scroll.current?.scrollTo({ y: 320, animated: false }), 600);
+    const id = setTimeout(() => scheduleOnUI(scrollDown, scroll, 320), 600);
     return () => clearTimeout(id);
   }, [scrolled, inset]);
   return (

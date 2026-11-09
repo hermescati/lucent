@@ -2,11 +2,14 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, type ScrollViewProps } from 'react-native';
 import Animated, {
+  scrollTo,
   useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useComposedEventHandler,
+  type AnimatedRef,
 } from 'react-native-reanimated';
+import { scheduleOnUI } from 'react-native-worklets';
 
 import { registerFocusedScroll } from './helpers/reselect';
 import { TabScrollMarker, useTabBarInset, useTabBarScroll } from './scroll';
@@ -18,6 +21,12 @@ import {
   useSearchLift,
   useToolbarInset,
 } from '../../core/header/scroll';
+
+// Back to the top on the UI thread, where the scroll view's animated ref is read.
+const scrollToTop = (ref: AnimatedRef<Animated.ScrollView>) => {
+  'worklet';
+  scrollTo(ref, 0, 0, true);
+};
 
 export type TabScrollViewProps = Omit<ScrollViewProps, 'onScroll'> & {
   onScroll?: ReturnType<typeof useAnimatedScrollHandler>;
@@ -53,9 +62,7 @@ export const TabScrollView = ({
   const natural = size.height - size.room;
   const room = snap > 0 && viewport > 0 && natural > viewport ? Math.max(viewport + snap - natural, 0) : 0;
 
-  useFocusEffect(
-    useCallback(() => registerFocusedScroll(() => scrollRef.current?.scrollTo({ y: 0, animated: true })), [scrollRef]),
-  );
+  useFocusEffect(useCallback(() => registerFocusedScroll(() => scheduleOnUI(scrollToTop, scrollRef)), [scrollRef]));
 
   const content = StyleSheet.flatten(contentContainerStyle) ?? {};
   const basePadding = content.paddingBottom ?? content.paddingVertical ?? content.padding ?? 0;
