@@ -1,67 +1,122 @@
 package expo.modules.lucent
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.RenderNode
 import android.graphics.Shader
 import android.os.Build
 import expo.modules.kotlin.AppContext
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** The fallback without the shader (low-RAM devices, older Android, plain glass): paths, blur, fill, edges and rim. */
+/**
+ * Solid glass, for every device without the shader (older Android, low RAM, plain glass, or the override): the shape
+ * filled opaque with the component's fallback colour, as One UI's bars are, with its shadow and the tab bar's pill.
+ */
+
 abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffect(context, appContext) {
   private val wallRadii = FloatArray(8)
 
-  private val plainNode: RenderNode? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassPlain") else null
-
-  private var plainBlur = -1f
   private val plainPath = Path()
   private val shapePath = Path()
   private val clipPath = Path()
   private val shapeRect = RectF()
   private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val fadeBounds = RectF()
   private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
   private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-  private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val frostPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val shadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val shadeRect = RectF()
+  private val frostPath = Path()
 
+  // Android 7 and 8 draw no shadow layer on a shape with hardware acceleration (only on text, before Android 9), so
+  // there the shadow is blurred in software into a small bitmap, at a quarter of the size, and redrawn only when the
+  // shape changes.
+  private var plainCount = 0
+  private var softShadow: Bitmap? = null
+  private val softBounds = RectF()
+  private val softKey = FloatArray(SOFT_KEY_HEAD + MAX_SHAPES * 4)
+  private val softNext = FloatArray(SOFT_KEY_HEAD + MAX_SHAPES * 4)
+  private val softBlur = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val softDraw = Paint(Paint.FILTER_BITMAP_FLAG)
+  private val frostRect = RectF()
+
+  // Apple's continuous corner, traced from the same fit the glass shader uses (see appleRadius there): each corner's
+  // outline at its distance from the corner's centre, R(alpha), over the wedge where it curves; straight between.
   private fun addContinuous(path: Path, rect: RectF, corner: Float) {
-    val wide = rect.width() >= rect.height()
-    val long = max(rect.width(), rect.height()) * 0.5f
-    val short = min(rect.width(), rect.height()) * 0.5f
-    val r = if (corner > 0f) min(short, corner) else short
-    val reach = min(r * 1.528f, long)
-    val t = ((reach / r - 1f) / 0.51f).coerceIn(0f, 1f)
-    val eLong = 2f + 1.35f * t
-    val eShort = 2f
-    for (step in 0 until CONTINUOUS_STEPS) {
-      val angle = step * 2.0 * Math.PI / CONTINUOUS_STEPS
-      val c = cos(angle).toFloat()
-      val s = sin(angle).toFloat()
-      val sc = if (c >= 0f) 1f else -1f
-      val ss = if (s >= 0f) 1f else -1f
-      val l = sc * (long - reach + reach * Math.pow(abs(c).toDouble(), 2.0 / eLong).toFloat())
-      val h = ss * (short - r + r * Math.pow(abs(s).toDouble(), 2.0 / eShort).toFloat())
-      val x = rect.centerX() + if (wide) l else h
-      val y = rect.centerY() + if (wide) h else l
-      if (step == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    val ex = rect.width() * 0.5f
+    val ey = rect.height() * 0.5f
+    val r = if (corner > 0f) min(min(ex, ey), corner) else min(ex, ey)
+    // A square with a full radius stays a circle, as iOS's are.
+    if (abs(ex - ey) < 0.1f * r) {
+      path.addRoundRect(rect, r, r, Path.Direction.CW)
+      return
+    }
+    val steps = CONTINUOUS_STEPS / 4
+    var first = true
+    for (quadrant in 0 until 4) {
+      val sx = if (quadrant == 0 || quadrant == 3) 1f else -1f
+      val sy = if (quadrant < 2) 1f else -1f
+      for (step in 0..steps) {
+        // Around each corner in drawing order, from one edge's start of the curve to the other's.
+        val t = step.toFloat() / steps
+        val u = if (sx * sy > 0f) -1f + 2f * t else 1f - 2f * t
+        val alpha = APPLE_MID + u * APPLE_SPREAD
+        val radial = r * appleRadius(u * u)
+        val vx = ex - r + radial * cos(alpha)
+        val vy = ey - r + radial * sin(alpha)
+        // A capsule's ends are cut at mid-height, as iOS's are.
+        val x = rect.centerX() + sx * max(vx, 0f)
+        val y = rect.centerY() + sy * max(vy, 0f)
+        if (first) path.moveTo(x, y) else path.lineTo(x, y)
+        first = false
+      }
     }
     path.close()
   }
 
+  private fun appleRadius(s: Float): Float =
+    1.0017855f + s * (-0.0287977f + s * (-0.6672829f + s * (3.2177690f + s * (-5.2756717f + s * (4.1355015f + s * -1.2528373f)))))
+
+  /** The tab bar's pill, which the shader draws as a toned patch of the glass (its frost): here a flat tone of the fill. */
+  private fun drawPlainFrost(canvas: Canvas, base: Color) {
+    if (frost <= 0f) return
+    frostRect.set(
+      frostLeft * density + outPx,
+      frostTop * density + outPx,
+      frostRight * density + outPx,
+      frostBottom * density + outPx,
+    )
+    if (frostRect.width() <= 0f || frostRect.height() <= 0f) return
+    frostPath.reset()
+    addContinuous(frostPath, frostRect, min(frostRect.width(), frostRect.height()) * 0.5f)
+    val amount = frost.coerceIn(0f, 1f)
+    frostPaint.color = if (fallbackPill.alpha() > 0f) {
+      Color.argb(amount * fallbackPill.alpha(), fallbackPill.red(), fallbackPill.green(), fallbackPill.blue())
+    } else {
+      val tone = { c: Float -> (frostBase + frostGain * c).coerceIn(0f, 1f) }
+      Color.argb(amount, tone(base.red()), tone(base.green()), tone(base.blue()))
+    }
+    canvas.save()
+    canvas.clipPath(plainPath)
+    canvas.drawPath(frostPath, frostPaint)
+    canvas.restore()
+  }
+
   private fun buildPlainPath(): Boolean {
     val count = fillShapes()
+    plainCount = count
     plainPath.reset()
     val corner = cornerRadius * density
     var any = false
@@ -117,92 +172,140 @@ abstract class GlassPlain(context: Context, appContext: AppContext) : GlassEffec
     return any
   }
 
-  private fun drawEdge(canvas: Canvas, depth: Float, strength: Float) {
-    if (depth <= 0f || strength <= 0f) return
-    val peak = Color.argb(strength.coerceIn(0f, 1f), 1f, 1f, 1f)
-    strokePaint.shader = LinearGradient(
-      0f,
-      shapeRect.top,
-      0f,
-      shapeRect.bottom,
-      intArrayOf(peak, Color.TRANSPARENT, Color.TRANSPARENT, peak),
-      EDGE_STOPS,
-      Shader.TileMode.CLAMP,
-    )
-    strokePaint.color = Color.WHITE
-    strokePaint.strokeWidth = depth * 2f
-    canvas.drawPath(plainPath, strokePaint)
+  // Pressed, solid glass shades as One UI's surfaces do: lighter over a dark fill, darker over a light one.
+  private fun drawPressShade(canvas: Canvas, fill: Color) {
+    if (press <= 0f || !(interactive || pressedShape >= 0)) return
+    val light = fill.luminance() > 0.5f
+    val amount = (press.coerceIn(0f, 1f) * if (light) PRESS_SHADE_LIGHT else PRESS_SHADE_DARK)
+    shadePaint.color = if (light) Color.argb(amount, 0f, 0f, 0f) else Color.argb(amount, 1f, 1f, 1f)
+    canvas.save()
+    if (pressedShape >= 0) {
+      shadeRect.set(
+        pressedRect.left * density + outPx,
+        pressedRect.top * density + outPx,
+        pressedRect.right * density + outPx,
+        pressedRect.bottom * density + outPx,
+      )
+      canvas.clipRect(shadeRect)
+    }
+    canvas.drawPath(plainPath, shadePaint)
+    canvas.restore()
+  }
+
+  private fun drawSoftShadow(canvas: Canvas, color: Color, radius: Float, offset: Float) {
+    plainPath.computeBounds(softBounds, true)
+    // The blur reaches about its radius past the shape; its offset moves it down.
+    val reach = radius * SOFT_REACH
+    softBounds.set(softBounds.left - reach, softBounds.top - reach + offset, softBounds.right + reach, softBounds.bottom + reach + offset)
+    val w = ceil(softBounds.width() * SOFT_SCALE).toInt().coerceAtLeast(1)
+    val h = ceil(softBounds.height() * SOFT_SCALE).toInt().coerceAtLeast(1)
+
+    // What the shape's built from (helpers above): the same values draw the same shadow.
+    var n = 0
+    val argb = color.toArgb()
+    softNext[n++] = (argb ushr 16).toFloat()
+    softNext[n++] = (argb and 0xFFFF).toFloat()
+    softNext[n++] = radius
+    softNext[n++] = offset
+    softNext[n++] = cornerRadius
+    softNext[n++] = ellipse
+    softNext[n++] = continuous
+    softNext[n++] = wallSide
+    softNext[n++] = wallRound
+    softNext[n++] = wallLead
+    softNext[n++] = if (clipOn >= 0.5f) clipLeft + clipTop * 3f + clipRight * 7f + clipBottom * 11f + clipScaleX + clipScaleY * 5f else 0f
+    softNext[n++] = plainCount.toFloat()
+    for (i in 0 until minOf(plainCount, MAX_SHAPES) * 4) softNext[n++] = shapeBuffer[i]
+    val bitmap = softShadow
+    val same = bitmap != null && bitmap.width == w && bitmap.height == h &&
+      (0 until n).all { abs(softKey[it] - softNext[it]) < SOFT_KEY_SLOP }
+    if (!same) {
+      val target = if (bitmap != null && bitmap.width == w && bitmap.height == h) bitmap else {
+        bitmap?.recycle()
+        Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { softShadow = it }
+      }
+      target.eraseColor(android.graphics.Color.TRANSPARENT)
+      val soft = Canvas(target)
+      soft.scale(SOFT_SCALE, SOFT_SCALE)
+      soft.translate(-softBounds.left, -softBounds.top + offset)
+      softBlur.color = color.toArgb()
+      softBlur.maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
+      soft.drawPath(plainPath, softBlur)
+      System.arraycopy(softNext, 0, softKey, 0, n)
+    }
+    val shadow = softShadow ?: return
+    canvas.save()
+    canvas.clipOutPath(plainPath)
+    canvas.drawBitmap(shadow, null, softBounds, softDraw)
+    canvas.restore()
   }
 
   protected fun drawPlain(canvas: Canvas) {
     if (width <= 0 || height <= 0 || !buildPlainPath()) return
-    val tint = activeTint
-    val opaque = reducedTransparency && fallback.alpha() > 0f
-    val blurPx = if (opaque) 0f else blurRadius * density
-    val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && canvas.isHardwareAccelerated && plainNode != null
+    // A pass of what's behind it only (the tab bar's lens over its icons): drawn sharp within the shape, without the
+    // fill, which would cover what it's there to show.
+    if (alphaPass) {
+      if (prepareBackdrop()) {
+        canvas.save()
+        canvas.clipPath(plainPath)
+        canvas.translate(outPx, outPx)
+        drawBackdrops(canvas)
+        canvas.restore()
+      }
+      return
+    }
+    // Opaque: a tinted glass's own tint (a prominent button), else the component's fallback surface, else its tint,
+    // each with the see-through taken out.
+    val fill = if (effectTint.alpha() > 0f) effectTint else if (fallback.alpha() > 0f) fallback else activeTint
+    // Nothing to fill with (a scroll edge with nothing under it): it draws nothing, not its colour made opaque.
+    if (fill.alpha() <= 0f) return
+    // Darkened as glass is by `dim` (the screen a swipe back uncovers).
+    val lit = 1f - dim
+    val solid = Color.valueOf(fill.red() * lit, fill.green() * lit, fill.blue() * lit, 1f)
 
-    if (shadow.alpha() > 0f && shadowRadius > 0f) {
+    // Its own solid shadow if it has one, else the glass's.
+    val ownShadow = fallbackShadow.alpha() > 0f
+    val dropColor = if (ownShadow) fallbackShadow else shadow
+    val dropRadius = if (ownShadow) fallbackShadowRadius else shadowRadius
+    val dropOffset = if (ownShadow) fallbackShadowOffset else shadowOffset
+    if (dropColor.alpha() > 0f && dropRadius > 0f && (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || SOFT_SHADOW_TEST)) {
+      drawSoftShadow(canvas, dropColor, dropRadius * density, dropOffset * density)
+    } else if (dropColor.alpha() > 0f && dropRadius > 0f) {
       canvas.save()
       canvas.clipOutPath(plainPath)
       shadowPaint.color = Color.BLACK
-      shadowPaint.setShadowLayer(shadowRadius * density, 0f, shadowOffset * density, shadow.toArgb())
+      shadowPaint.setShadowLayer(dropRadius * density, 0f, dropOffset * density, dropColor.toArgb())
       canvas.drawPath(plainPath, shadowPaint)
       canvas.restore()
     }
 
-    if (canBlur && !opaque && prepareBackdrop()) {
-      val node = plainNode!!
-      node.setPosition(0, 0, layerWidth.roundToInt(), layerHeight.roundToInt())
-      if (blurPx != plainBlur) {
-        node.setRenderEffect(blur(blurPx))
-        plainBlur = blurPx
+    fillPaint.color = solid.toArgb()
+    // Fading out over its last `fallbackFade` points (a bar's edge), so what scrolls under it dissolves into it rather
+    // than meeting a hard line.
+    if (fallbackFade > 0f) {
+      plainPath.computeBounds(fadeBounds, true)
+      val clear = Color.argb(0f, solid.red(), solid.green(), solid.blue())
+      fillPaint.shader = if (fallbackFadeTop) {
+        val fadeEnd = min(fadeBounds.bottom, fadeBounds.top + fallbackFade * density)
+        LinearGradient(0f, fadeBounds.top, 0f, fadeEnd, clear, solid.toArgb(), Shader.TileMode.CLAMP)
+      } else {
+        val fadeTop = max(fadeBounds.top, fadeBounds.bottom - fallbackFade * density)
+        LinearGradient(0f, fadeTop, 0f, fadeBounds.bottom, solid.toArgb(), clear, Shader.TileMode.CLAMP)
       }
-      val recording = node.beginRecording(layerWidth.roundToInt(), layerHeight.roundToInt())
-      try {
-        recording.translate(outPx, outPx)
-        drawBackdrops(recording)
-      } finally {
-        node.endRecording()
-      }
-      canvas.save()
-      canvas.clipPath(plainPath)
-      canvas.drawRenderNode(node)
-      canvas.restore()
-      fillPaint.color = activeTint.toArgb()
-    } else {
-      fillPaint.color = (if (fallback.alpha() > 0f) fallback else tint).toArgb()
     }
     canvas.drawPath(plainPath, fillPaint)
+    fillPaint.shader = null
+    drawPlainFrost(canvas, solid)
 
-    if (adaptive > 0f && !opaque) {
-      val lightTint = 0.2126f * tint.red() + 0.7152f * tint.green() + 0.0722f * tint.blue() > 0.5f
-      fillPaint.color =
-        if (lightTint) Color.argb(ADAPTIVE_DARKEN * adaptive, 0f, 0f, 0f) else Color.argb(ADAPTIVE_LIFT * adaptive, 1f, 1f, 1f)
-      canvas.drawPath(plainPath, fillPaint)
-    }
+    drawPressShade(canvas, solid)
 
-    if (glowStrength > 0f && !opaque && glowSpread > 0f) {
-      val spread = glowSpread * density * GLOW_REACH
-      val peak = Color.argb(glowStrength.coerceIn(0f, 1f), 1f, 1f, 1f)
-      glowPaint.shader = RadialGradient(glowX * density + outPx, glowY * density + outPx, spread, peak, Color.TRANSPARENT, Shader.TileMode.CLAMP)
-      canvas.drawPath(plainPath, glowPaint)
-    }
-
-    if (edgeSharp > 0f || edgeSoft > 0f) {
-      plainPath.computeBounds(shapeRect, false)
+    // No glass outline drawn solid, as One UI's bar has none: only a solid rim of its own.
+    if (fallbackRim.alpha() > 0f && fallbackRimWidth > 0f) {
       canvas.save()
       canvas.clipPath(plainPath)
-      drawEdge(canvas, softWidth * density, edgeSoft * EDGE_SOFT_STRENGTH)
-      drawEdge(canvas, sharpWidth * density, edgeSharp * EDGE_SHARP_STRENGTH)
-      canvas.restore()
-      strokePaint.shader = null
-    }
-
-    if (rim.alpha() > 0f) {
-      canvas.save()
-      if (rimOutside) canvas.clipOutPath(plainPath) else canvas.clipPath(plainPath)
-      strokePaint.strokeWidth = rimWidth * 2f
-      strokePaint.color = rim.toArgb()
+      // Inside the shape: the clip keeps half the stroke.
+      strokePaint.strokeWidth = fallbackRimWidth * density * 2f
+      strokePaint.color = fallbackRim.toArgb()
       canvas.drawPath(plainPath, strokePaint)
       canvas.restore()
     }

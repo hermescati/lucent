@@ -7,6 +7,7 @@ const blob = '<GlassView isInteractive style={{ width: 72, height: 72, borderRad
 
 export default story({
   slug: 'glass-container',
+  group: 'materials',
   name: 'Glass Container',
   summary: 'GlassContainer: glass shapes that blend together',
   component: 'GlassContainer',

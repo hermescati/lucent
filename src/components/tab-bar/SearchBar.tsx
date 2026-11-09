@@ -2,10 +2,10 @@ import { Stack } from 'expo-router';
 import { useEffect, useImperativeHandle, useRef } from 'react';
 import type { SearchBarCommands } from 'react-native-screens';
 
-import { useSearchHost, type SearchBarProps } from './context/search';
+import { useSearchActions, type SearchBarProps } from './context/search';
 
 export const SearchBar = ({ ref, onChangeText, onFocus, onBlur, onCancelButtonPress, ...props }: SearchBarProps) => {
-  const { register, replaceQuery, track, attach, attachText, writeText } = useSearchHost();
+  const { register, replaceQuery, track, attach, attachText, writeText } = useSearchActions();
   const nativeRef = useRef<SearchBarCommands>(null);
 
   useEffect(() => {

@@ -1,41 +1,47 @@
-import type { LucentTheme } from '../../theme/LucentProvider';
+import type { GlassColorScheme, GlassStyle } from 'expo-glass-effect';
+import { PixelRatio, StyleSheet } from 'react-native';
+
+import { clearPresets } from './presets';
+import { useLucentTheme, type LucentTheme } from '../../theme/LucentProvider';
 import { colorTint, glass, glassOpacity } from '../../theme/tokens';
 
-const parseColor = (value: string): [number, number, number, number] | null => {
-  const text = value.trim();
-  const hex = /^#([0-9a-f]{6})$/i.exec(text);
-  if (hex) {
-    const number = parseInt(hex[1], 16);
-    return [(number >> 16) & 255, (number >> 8) & 255, number & 255, 1];
-  }
-  const rgba = /^rgba?\(([^)]+)\)$/i.exec(text);
-  if (!rgba) {
-    return null;
-  }
-  const [r, g, b, a = 1] = rgba[1].split(',').map((part) => parseFloat(part));
-  return [r, g, b, a];
-};
-
-const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
-
-const tintAt = (base: string, tinted: string, amount: number) => {
-  const from = parseColor(base);
-  const to = parseColor(tinted);
-  if (!from || !to) {
-    return base;
-  }
+// The level's way from the default glass: toward the backdrop below it (Clear), toward white or black above (Tinted).
+const levelOf = (scheme: LucentTheme['scheme'], amount: number) => {
   const level = Math.min(1, Math.max(0, amount));
-  if (level <= glassOpacity.default) {
-    const keep = lerp(glassOpacity.clearFloor, 1, level / glassOpacity.default);
-    return `rgba(${from[0]}, ${from[1]}, ${from[2]}, ${from[3] * keep})`;
-  }
-  const toward = (level - glassOpacity.default) / (1 - glassOpacity.default);
-  const [r, g, b] = [0, 1, 2].map((channel) => Math.round(lerp(from[channel], to[channel], toward)));
-  return `rgba(${r}, ${g}, ${b}, ${lerp(from[3], glassOpacity.opaque, toward)})`;
+  const clear = Math.max(0, 1 - level / glassOpacity.default);
+  const tinted = Math.max(0, (level - glassOpacity.default) / (1 - glassOpacity.default));
+  return {
+    levelClear: glassOpacity.clear[scheme][0] * clear,
+    levelFrostClear: glassOpacity.clear[scheme][1] * clear,
+    levelLean: glassOpacity.tinted[scheme] * tinted,
+  };
 };
+
+// iOS 27's outline and haze (see `glass.edge`, `glass.haze`), which every regular glass shares.
+export const glassEdge = (scheme: LucentTheme['scheme']) => ({
+  rimOutside: true,
+  rimOptic: true,
+  rimWidth: glass.edge.width * PixelRatio.get(),
+  rimOpticTop: glass.edge.top[scheme],
+  rimOpticDarken: glass.edge.darken[scheme],
+});
+
+// Drawn solid (below Android 13, or with high-contrast text), every glass is One UI 9's surface: opaque, with a pill
+// for its frost, a soft drop shadow and a hairline.
+const solidPaint = (color: LucentTheme['color']) => ({
+  fallback: color.barFallback,
+  fallbackPill: color.barFallbackPill,
+  fallbackShadow: color.barFallbackShadow,
+  fallbackRim: color.barFallbackRim,
+  fallbackRimWidth: StyleSheet.hairlineWidth,
+  fallbackShadowRadius: glass.fallbackShadow.radius,
+  fallbackShadowOffset: glass.fallbackShadow.offset,
+});
 
 export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTheme) => ({
-  blurRadius: glass.blurRadius[scheme],
+  blurRadius: glass.haze.blur,
+  haze: glass.haze.weight[scheme],
+  hazeRadius: glass.haze.radius,
   bezel: glass.bezel[scheme],
   refraction: glass.refraction[scheme],
   pullBottom: glass.pullBottom[scheme],
@@ -54,6 +60,11 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   frostGain: glass.tone[scheme].frostGain,
   frostGamma: glass.tone[scheme].frostGamma,
   frostChroma: glass.tone[scheme].frostChroma,
+  toneBow: glass.tone[scheme].bow,
+  frostBow: glass.tone[scheme].frostBow,
+  // Dark is toned before the haze's blur, so detail averages as iOS 27's dark glass does (darker than flat). Light's
+  // tone only shapes the pill, after the haze, which keeps its own averaging (HAZE_IN_SHADER).
+  tonePre: scheme === 'dark',
   falloff: glass.falloff[scheme],
   dispersion: glass.dispersion,
   saturation: glass.saturation[scheme],
@@ -68,16 +79,31 @@ export const regularMaterial = ({ scheme, color, glassOpacity: level }: LucentTh
   shadowRadius: glass.shadowRadius[scheme],
   shadowOffset: glass.shadowOffset[scheme],
   shadowSpread: glass.shadowSpread[scheme],
-  tint: tintAt(color.barTint, color.barFallback, level),
-  fallback: color.barFallback,
+  tint: color.barTint,
+  ...levelOf(scheme, level),
+  ...solidPaint(color),
   shadow: color.barShadow,
-  rim: color.barRim,
-  rimWidth: glass.rimWidth,
-  rimOutside: true,
   rimSide: glass.rimSide,
+  ...glassEdge(scheme),
   insetShade: glass.insetShade[scheme],
   insetOffset: glass.insetOffset,
   insetBlur: glass.insetBlur,
   tintDarken: colorTint[scheme].darken,
   tintMix: colorTint[scheme].mix,
 });
+
+// The regular or clear glass material for a GlassView-style surface, in the app's theme.
+export const useGlassMaterial = (style: GlassStyle, colorScheme: GlassColorScheme = 'auto') => {
+  const theme = useLucentTheme(undefined, colorScheme);
+  if (style === 'clear') {
+    return { ...clearPresets[theme.scheme], ...solidPaint(theme.color) };
+  }
+  return {
+    ...regularMaterial(theme),
+    outset: glass.pad,
+    shadowRadius: 0,
+    shadow: 'rgba(0, 0, 0, 0)',
+    rimSide: glass.outlineSide,
+    ...glassEdge(theme.scheme),
+  };
+};

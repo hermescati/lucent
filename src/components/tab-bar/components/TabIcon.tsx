@@ -1,8 +1,10 @@
-import { SymbolView, type AndroidSymbol } from 'expo-symbols';
+import { type AndroidSymbol } from 'expo-symbols';
 import { isValidElement } from 'react';
-import { Image, type ColorValue, type ImageSourcePropType } from 'react-native';
+import { Image, View, type ColorValue, type ImageSourcePropType } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
+import { MaterialSymbol } from '../../../core/icons/MaterialSymbol';
+import { mirrored, unmirror } from '../helpers/mirror';
 import { isSvgIcon } from '../helpers/svgIcon';
 import type { LucentNativeTabsTriggerIconProps } from '../types';
 
@@ -34,7 +36,7 @@ const pick = <T,>(value: Variant<T> | undefined, selected: boolean): T | undefin
   return selected ? (value.selected ?? value.default) : (value.default ?? value.selected);
 };
 
-export const TabIcon = ({ icon, selected, size, color }: Props) => {
+const Glyph = ({ icon, selected, size, color }: Props) => {
   if (!icon) {
     return null;
   }
@@ -55,7 +57,7 @@ export const TabIcon = ({ icon, selected, size, color }: Props) => {
   }
   const material = 'md' in icon ? pick<AndroidSymbol>(icon.md, selected) : undefined;
   if (material) {
-    return <SymbolView name={{ android: material }} size={size} tintColor={color} />;
+    return <MaterialSymbol name={material} size={size} tintColor={color} />;
   }
   const source = 'src' in icon ? pick(icon.src, selected) : undefined;
   if (!source || isValidElement(source)) {
@@ -71,3 +73,13 @@ export const TabIcon = ({ icon, selected, size, color }: Props) => {
     />
   );
 };
+
+/** A tab's icon, read the right way round in the bar's mirrored drawing (helpers/mirror). */
+export const TabIcon = (props: Props) =>
+  mirrored ? (
+    <View style={[{ width: props.size, height: props.size }, unmirror]}>
+      <Glyph {...props} />
+    </View>
+  ) : (
+    <Glyph {...props} />
+  );

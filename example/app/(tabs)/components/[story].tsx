@@ -1,4 +1,5 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack } from 'expo-lucent/navigation';
+import { useLocalSearchParams } from 'expo-router';
 
 import { StoryPage } from '@/components/StoryPage';
 import { Page, Paragraph } from '@/components/ui';

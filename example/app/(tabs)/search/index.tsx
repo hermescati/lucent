@@ -1,20 +1,17 @@
-import { Stack } from 'expo-router';
-import { SearchBar } from 'expo-lucent';
+import { Stack, SearchBar } from 'expo-lucent/navigation';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SearchBarCommands } from 'react-native-screens';
 
-import { catalogue } from '@/stories';
 import { Code, LinkRow, Page, Paragraph, Section, usePalette } from '@/components/ui';
+import { entries } from '@/stories';
 
 export default function SearchScreen() {
   const palette = usePalette();
   const [query, setQuery] = useState('');
   const search = useRef<SearchBarCommands>(null);
   const needle = query.trim().toLowerCase();
-  const results = catalogue.filter(
-    (entry) => entry.href !== '/search' && `${entry.name} ${entry.summary}`.toLowerCase().includes(needle),
-  );
+  const results = entries.filter((entry) => `${entry.name} ${entry.summary}`.toLowerCase().includes(needle));
 
   const actions = [
     {
@@ -43,6 +40,21 @@ export default function SearchScreen() {
         placeholder="Search components"
         onChangeText={(event) => setQuery(event.nativeEvent.text)}
       />
+      <Section
+        title="SearchBar ref"
+        footer="These call the ref's methods. setText doesn't fire onChangeText, so the screen sets its own query too.">
+        <View style={styles.actions}>
+          {actions.map((action) => (
+            <Pressable
+              key={action.label}
+              onPress={action.onPress}
+              style={[styles.action, { backgroundColor: palette.background }]}>
+              <Text style={[styles.actionText, { color: palette.text }]}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Section>
+
       <Section title={needle ? `Results for “${query.trim()}”` : 'All components'}>
         {results.length > 0 ? (
           results.map((entry, index) => (
@@ -57,21 +69,6 @@ export default function SearchScreen() {
         ) : (
           <Text style={[styles.empty, { color: palette.secondary }]}>No components match</Text>
         )}
-      </Section>
-
-      <Section
-        title="SearchBar ref"
-        footer="These call the ref's methods. setText doesn't fire onChangeText, so the screen sets its own query too.">
-        <View style={styles.actions}>
-          {actions.map((action) => (
-            <Pressable
-              key={action.label}
-              onPress={action.onPress}
-              style={[styles.action, { backgroundColor: palette.background }]}>
-              <Text style={[styles.actionText, { color: palette.text }]}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
       </Section>
 
       <Code>

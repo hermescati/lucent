@@ -2,3 +2,6 @@
 example/android
 example/ios
 internal
+
+# Claude Code skills, some vendored from emilkowalski/skills and kept as written
+.claude

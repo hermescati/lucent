@@ -1,9 +1,9 @@
 import { useEffect, useImperativeHandle } from 'react';
 
-import { useSearchHost, type SearchBarProps } from './context/search';
+import { useSearchActions, type SearchBarProps } from './context/search';
 
 export const SearchBar = ({ ref, ...props }: SearchBarProps) => {
-  const { register, replaceQuery, command } = useSearchHost();
+  const { register, replaceQuery, command } = useSearchActions();
 
   useImperativeHandle(
     ref,

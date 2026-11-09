@@ -1,10 +1,11 @@
-import { Stack } from 'expo-router';
+import { Stack } from 'expo-lucent/navigation';
 
-import { useSettings, type Minimize } from '@/components/settings';
+import type { AccessoryKind } from '@/components/accessories';
+import { useSettings, type Minimize, type SearchPlacement, type TabCount } from '@/components/settings';
 import { Code, LinkRow, Options, Page, Paragraph, Row, Section } from '@/components/ui';
 
 export default function TabBarScreen() {
-  const { tint, minimize, set } = useSettings();
+  const { tint, minimize, accessory, tabs, search, prominent, set } = useSettings();
 
   return (
     <Page>
@@ -14,6 +15,63 @@ export default function TabBarScreen() {
       </Paragraph>
 
       <Section title="Props">
+        <Row
+          label="Tabs"
+          detail="Besides search. iPhone fits five entries, search's circle included: with five tabs, search becomes one of them"
+          stacked>
+          <Options<`${TabCount}`>
+            options={(['1', '2', '3', '4', '5'] as const).map((value) => ({ label: value, value }))}
+            value={`${tabs}`}
+            onChange={(next) => {
+              const count = Number(next) as TabCount;
+              set(count === 5 && search === 'circle' ? { tabs: count, search: 'tab' } : { tabs: count });
+            }}
+          />
+        </Row>
+        <Row
+          label="Search"
+          detail='role="search": in a circle of its own while it activates its field (automaticallyActivatesSearch), a tab like the others when it does not'
+          stacked>
+          <Options<SearchPlacement>
+            options={[
+              { label: 'Off', value: 'off' },
+              { label: 'Circle', value: 'circle' },
+              { label: 'Tab', value: 'tab' },
+            ]}
+            value={search}
+            onChange={(next) =>
+              set(next === 'circle' ? { search: next, tabs: Math.min(tabs, 4) as TabCount } : { search: next })
+            }
+          />
+        </Row>
+        <Row
+          label="prominent"
+          detail="iOS 27 sets any one tab apart in a circle of its own, as an action. Search then joins the tabs"
+          stacked>
+          <Options<'off' | 'on'>
+            options={[
+              { label: 'None', value: 'off' },
+              { label: 'Profile', value: 'on' },
+            ]}
+            value={prominent ? 'on' : 'off'}
+            onChange={(next) => set({ prominent: next === 'on' })}
+          />
+        </Row>
+        <Row
+          label="BottomAccessory"
+          detail="Any content, above the tabs and beside them once minimized; usePlacement() gives each placement its own copy"
+          stacked>
+          <Options<AccessoryKind>
+            options={[
+              { label: 'None', value: 'none' },
+              { label: 'Playing', value: 'nowPlaying' },
+              { label: 'Upload', value: 'upload' },
+              { label: 'Custom', value: 'timer' },
+            ]}
+            value={accessory}
+            onChange={(next) => set({ accessory: next })}
+          />
+        </Row>
         <Row label="minimizeBehavior" detail="Scroll the Gallery to see it" stacked last>
           <Options<Minimize>
             options={[

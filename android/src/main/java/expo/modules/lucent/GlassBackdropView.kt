@@ -12,11 +12,18 @@ import android.graphics.RenderNode
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
+import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 
-class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+class GlassBackdropView(context: Context, appContext: AppContext) :
+  ExpoView(context, appContext), GlassSupport.Listener, ReactPointerEventsView {
+  // React's pointerEvents, which only its own views read on their own: "box-none" for a backdrop laid over other views,
+  // as the bottom accessory's is over the tab bar's row. Left "auto", it takes touches on its empty parts, so a screen's
+  // backdrop keeps taps on its background from reaching a screen under it.
+  override var pointerEvents: PointerEvents = PointerEvents.AUTO
+
   internal val node: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassBackdrop") else null
   internal val outNode: RenderNode? =
@@ -29,6 +36,7 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
   private val toHost = Matrix()
 
   init {
+    GlassSupport.track(this)
     clipChildren = false
     clipToPadding = false
   }
@@ -102,19 +110,17 @@ class GlassBackdropView(context: Context, appContext: AppContext) : ExpoView(con
       if (isAttachedToWindow) GlassRegistry.register(value, this)
     }
 
-  private val preDraw = ViewTreeObserver.OnPreDrawListener {
-    if (lifted.isNotEmpty()) invalidate()
-    true
+  // Recorded again for glass drawn at the new level, which may sample it differently.
+  override fun glassSupportChanged() {
+    invalidate()
   }
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     GlassRegistry.register(group, this)
-    viewTreeObserver.addOnPreDrawListener(preDraw)
   }
 
   override fun onDetachedFromWindow() {
-    viewTreeObserver.removeOnPreDrawListener(preDraw)
     GlassRegistry.unregister(group, this)
     super.onDetachedFromWindow()
   }

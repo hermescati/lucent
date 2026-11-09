@@ -1,9 +1,10 @@
-import { Stack } from 'expo-router';
 import { Slider, Switch } from 'expo-lucent';
+import { Stack } from 'expo-lucent/navigation';
 import { useState } from 'react';
 
 import { accents } from './settings';
 import { Choice, Code, Page, Row, Section, Stage, Swatches } from './ui';
+
 import { generate } from '@/stories/code';
 import type { Control, Props, Story } from '@/stories/types';
 

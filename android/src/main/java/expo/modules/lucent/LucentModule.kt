@@ -1,12 +1,49 @@
 package expo.modules.lucent
 
 import android.graphics.Color
+import android.os.Build
+import android.view.RoundedCorner
+import com.facebook.react.uimanager.PointerEvents
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 class LucentModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("Lucent")
+
+    // The screen's corner radius in dp, which a screen swiped back rounds its corners to, as iOS does; 0 before Android
+    // 12, or on a square screen.
+    Function("displayCornerRadius") {
+      val activity = appContext.currentActivity ?: return@Function 0.0
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@Function 0.0
+      val corner = activity.window?.decorView?.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)
+      (corner?.radius ?: 0) / activity.resources.displayMetrics.density.toDouble()
+    }
+
+    // How far down the screen a camera cutout in the top's middle reaches, in dp: a punch hole or notch the bar has to
+    // clear. 0 without one, with one in a corner, or before Android 9.
+    Function("topCutoutBottom") {
+      val activity = appContext.currentActivity ?: return@Function 0.0
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return@Function 0.0
+      val cutout = activity.window?.decorView?.rootWindowInsets?.displayCutout ?: return@Function 0.0
+      val width = activity.window.decorView.width.takeIf { it > 0 } ?: activity.resources.displayMetrics.widthPixels
+      val bottom = cutout.boundingRects
+        .filter { it.top <= 0 && it.centerX() > width / 4 && it.centerX() < width * 3 / 4 }
+        .maxOfOrNull { it.bottom } ?: 0
+      bottom / activity.resources.displayMetrics.density.toDouble()
+    }
+
+    // Draws the solid fallback on this device (0: its own glass; 1: solid), so it can be seen on a newer phone.
+    // A low-memory phone draws solid glass, as GlassEffect does, so the components pick their solid colours too.
+    Function("isLowRamDevice") {
+      val context = appContext.reactContext ?: return@Function false
+      (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager)
+        ?.isLowRamDevice ?: false
+    }
+
+    Function("setGlassFallback") { level: Int ->
+      android.os.Handler(android.os.Looper.getMainLooper()).post { GlassSupport.setFallback(level) }
+    }
 
     Function("renderVectorIcon") { key: String, viewBox: List<Double>, layers: List<VectorLayer>, size: Double, scale: Double ->
       val cacheDirectory = appContext.cacheDirectory
@@ -23,6 +60,23 @@ class LucentModule : Module() {
       Prop("offscreen") { view: GlassBackdropView, value: Boolean? -> view.offscreen = value ?: false }
       Prop("saturation") { view: GlassBackdropView, value: Float? -> view.saturation = value ?: 1f }
       Prop("brightness") { view: GlassBackdropView, value: Float? -> view.brightness = value ?: 1f }
+      Prop("pointerEvents") { view: GlassBackdropView, value: String? ->
+        view.pointerEvents = PointerEvents.parsePointerEvents(value)
+      }
+    }
+
+    View(PredictiveBackView::class) {
+      Name("LucentPredictiveBackView")
+      Events("onBack")
+
+      Prop("enabled") { view: PredictiveBackView, value: Boolean? -> view.takesBack = value ?: false }
+    }
+
+    View(ScreenEnterView::class) {
+      Name("LucentScreenEnterView")
+      Events("onEnter")
+
+      Prop("armed") { view: ScreenEnterView, value: Boolean? -> view.armed = value ?: false }
     }
 
     View(GlassBlurView::class) {
@@ -33,6 +87,10 @@ class LucentModule : Module() {
 
     View(GlassView::class) {
       Name("LucentGlassView")
+
+      Prop("pointerEvents") { view: GlassView, value: String? ->
+        view.pointerEvents = PointerEvents.parsePointerEvents(value)
+      }
       Events("onBackdropLuma")
 
       Prop("sampleBackdrop") { view: GlassView, value: Boolean? -> view.sampleBackdrop = value ?: false }
@@ -44,10 +102,24 @@ class LucentModule : Module() {
       Prop("underlay") { view: GlassView, underlay: String? -> view.underlay = underlay }
       Prop("overlay") { view: GlassView, overlay: String? -> view.overlay = overlay }
 
-      Prop("shapes") { view: GlassView, value: FloatArray? -> view.shapes = value }
+      // Animated on the UI thread, these redraw the solid fallback themselves (redrawIfSolid).
+      Prop("shapes") { view: GlassView, value: FloatArray? ->
+        view.shapes = value
+        view.redrawIfSolid()
+      }
+      Prop("shapePull") { view: GlassView, value: FloatArray? ->
+        view.shapePull = value
+        view.redrawIfSolid()
+      }
       Prop("inset") { view: GlassView, value: Float? -> view.inset = value ?: 0f }
-      Prop("cornerRadius") { view: GlassView, value: Float? -> view.cornerRadius = value ?: 0f }
-      Prop("blend") { view: GlassView, value: Float? -> view.blend = value ?: 0f }
+      Prop("cornerRadius") { view: GlassView, value: Float? ->
+        view.cornerRadius = value ?: 0f
+        view.redrawIfSolid()
+      }
+      Prop("blend") { view: GlassView, value: Float? ->
+        view.blend = value ?: 0f
+        view.redrawIfSolid()
+      }
       Prop("blurRadius") { view: GlassView, value: Float? -> view.blurRadius = value ?: 0f }
       Prop("bezel") { view: GlassView, value: Float? -> view.bezel = value ?: 0f }
       Prop("refraction") { view: GlassView, value: Float? -> view.refraction = value ?: 0f }
@@ -79,6 +151,7 @@ class LucentModule : Module() {
       Prop("glowY") { view: GlassView, value: Float? -> view.glowY = value ?: 0f }
       Prop("glowSpread") { view: GlassView, value: Float? -> view.glowSpread = value ?: 0f }
       Prop("glowStrength") { view: GlassView, value: Float? -> view.glowStrength = value ?: 0f }
+      Prop("glowShape") { view: GlassView, value: Int? -> view.glowShape = value ?: -1 }
       Prop("shadowRadius") { view: GlassView, value: Float? -> view.shadowRadius = value ?: 0f }
       Prop("shadowOffset") { view: GlassView, value: Float? -> view.shadowOffset = value ?: 0f }
       Prop("shadowSpread") { view: GlassView, value: Float? -> view.shadowSpread = value ?: 0f }
@@ -96,6 +169,11 @@ class LucentModule : Module() {
       Prop("rimCrisp") { view: GlassView, value: Boolean? -> view.rimCrisp = value ?: false }
       Prop("rimSide") { view: GlassView, value: Float? -> view.rimSide = value ?: 1f }
       Prop("rimFloor") { view: GlassView, value: Float? -> view.rimFloor = value ?: 0f }
+      Prop("rimOptic") { view: GlassView, value: Boolean? -> view.rimOptic = value ?: false }
+      Prop("rimOpticTop") { view: GlassView, value: Float? -> view.rimOpticTop = value ?: 0f }
+      Prop("rimOpticDarken") { view: GlassView, value: Float? -> view.rimOpticDarken = value ?: 0f }
+      Prop("haze") { view: GlassView, value: Float? -> view.haze = value ?: 0f }
+      Prop("hazeRadius") { view: GlassView, value: Float? -> view.hazeRadius = value ?: 0f }
       Prop("edgeAxis") { view: GlassView, value: Float? -> view.edgeAxis = value ?: 0f }
       Prop("prismAxis") { view: GlassView, value: Float? -> view.prismAxis = value ?: 0f }
       Prop("prismShift") { view: GlassView, value: Float? -> view.prismShift = value ?: 0f }
@@ -106,6 +184,9 @@ class LucentModule : Module() {
       Prop("pinchRight") { view: GlassView, value: Float? -> view.pinchRight = value ?: 0f }
       Prop("sampleMaxX") { view: GlassView, value: Float? -> view.sampleMaxX = value ?: 0f }
       Prop("ellipse") { view: GlassView, value: Float? -> view.ellipse = value ?: 0f }
+      Prop("dropletTaper") { view: GlassView, value: Float? -> view.dropletTaper = value ?: 0f }
+      Prop("dropletTop") { view: GlassView, value: Float? -> view.dropletTop = value ?: 0f }
+      Prop("dropletBottom") { view: GlassView, value: Float? -> view.dropletBottom = value ?: 0f }
       Prop("continuous") { view: GlassView, value: Float? -> view.continuous = value ?: 0f }
       Prop("radiusBottom") { view: GlassView, value: Float? -> view.radiusBottom = value ?: 0f }
       Prop("wallSide") { view: GlassView, value: Float? -> view.wallSide = value ?: 0f }
@@ -130,6 +211,9 @@ class LucentModule : Module() {
       Prop("frost") { view: GlassView, value: Float? -> view.frost = value ?: 0f }
       Prop("frostClear") { view: GlassView, value: Float? -> view.frostClear = value ?: 0f }
       Prop("frostRadius") { view: GlassView, value: Float? -> view.frostRadius = value ?: 0f }
+      Prop("fadeBlur") { view: GlassView, value: Float? -> view.fadeBlur = value ?: 0f }
+      Prop("fadeFrom") { view: GlassView, value: Float? -> view.fadeFrom = value ?: 0f }
+      Prop("fadeTo") { view: GlassView, value: Float? -> view.fadeTo = value ?: 0f }
       Prop("toneBase") { view: GlassView, value: Float? -> view.toneBase = value ?: 0f }
       Prop("toneGain") { view: GlassView, value: Float? -> view.toneGain = value ?: 1f }
       Prop("toneGamma") { view: GlassView, value: Float? -> view.toneGamma = value ?: 1f }
@@ -138,6 +222,12 @@ class LucentModule : Module() {
       Prop("frostGain") { view: GlassView, value: Float? -> view.frostGain = value ?: 1f }
       Prop("frostGamma") { view: GlassView, value: Float? -> view.frostGamma = value ?: 1f }
       Prop("frostChroma") { view: GlassView, value: Float? -> view.frostChroma = value ?: 1f }
+      Prop("levelClear") { view: GlassView, value: Float? -> view.levelClear = value ?: 0f }
+      Prop("levelFrostClear") { view: GlassView, value: Float? -> view.levelFrostClear = value ?: 0f }
+      Prop("levelLean") { view: GlassView, value: Float? -> view.levelLean = value ?: 0f }
+      Prop("toneBow") { view: GlassView, value: Float? -> view.toneBow = value ?: 0f }
+      Prop("frostBow") { view: GlassView, value: Float? -> view.frostBow = value ?: 0f }
+      Prop("tonePre") { view: GlassView, value: Boolean? -> view.tonePre = value ?: false }
       Prop("frostLeft") { view: GlassView, value: Float? -> view.frostLeft = value ?: 0f }
       Prop("frostTop") { view: GlassView, value: Float? -> view.frostTop = value ?: 0f }
       Prop("frostRight") { view: GlassView, value: Float? -> view.frostRight = value ?: 0f }
@@ -156,6 +246,14 @@ class LucentModule : Module() {
       Prop("rim") { view: GlassView, value: Color? -> view.rim = value ?: TRANSPARENT }
       Prop("fallback") { view: GlassView, value: Color? -> view.fallback = value ?: TRANSPARENT }
       Prop("shadow") { view: GlassView, value: Color? -> view.shadow = value ?: TRANSPARENT }
+      Prop("fallbackPill") { view: GlassView, value: Color? -> view.fallbackPill = value ?: TRANSPARENT }
+      Prop("fallbackRim") { view: GlassView, value: Color? -> view.fallbackRim = value ?: TRANSPARENT }
+      Prop("fallbackRimWidth") { view: GlassView, value: Float? -> view.fallbackRimWidth = value ?: 0f }
+      Prop("fallbackFade") { view: GlassView, value: Float? -> view.fallbackFade = value ?: 0f }
+      Prop("fallbackFadeTop") { view: GlassView, value: Boolean? -> view.fallbackFadeTop = value ?: false }
+      Prop("fallbackShadow") { view: GlassView, value: Color? -> view.fallbackShadow = value ?: TRANSPARENT }
+      Prop("fallbackShadowRadius") { view: GlassView, value: Float? -> view.fallbackShadowRadius = value ?: 0f }
+      Prop("fallbackShadowOffset") { view: GlassView, value: Float? -> view.fallbackShadowOffset = value ?: 0f }
       Prop("plain") { view: GlassView, value: Boolean? -> view.plain = value ?: false }
       Prop("alphaPass") { view: GlassView, value: Boolean? -> view.alphaPass = value ?: false }
       Prop("lift") { view: GlassView, value: Boolean? -> view.lift = value ?: false }

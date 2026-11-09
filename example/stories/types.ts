@@ -75,9 +75,16 @@ export interface StoryContext {
   set: (patch: Props) => void;
 }
 
+/**
+ * Where a story sits in the catalogue. Controls are what people press, drag and type into; views show something and
+ * hold the controls; materials are the glass the rest is drawn on.
+ */
+export type Group = 'controls' | 'views' | 'materials' | 'navigation';
+
 export interface Story {
   /** The route: /components/<slug>. */
   slug: string;
+  group: Group;
   name: string;
   summary: string;
   /** The component's name in the code sample. */

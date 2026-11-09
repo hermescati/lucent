@@ -9,7 +9,9 @@ import {
   withSpring,
 } from 'react-native-reanimated';
 
-import { clamp01, fieldGlyphCenter, fullHeight, lerp, modeHeight, modeInset, modeShrink } from '../helpers/bar';
+import { leanBy } from '../../../core/glass/useShapePress';
+import { useSolidGlass } from '../../../theme/solid';
+import { clamp01, fieldGlyphCenter, fullHeight, lerp, modeHeight, modeInset, modeShrink, pullBy } from '../helpers/bar';
 import { layout, motion } from '../tokens';
 import type { BarState } from './useBarState';
 
@@ -20,6 +22,14 @@ export const useSearchMorph = (bar: BarState) => {
     barLeft,
     barLift,
     barWidth,
+    centering,
+    collapsed,
+    hasAccessory,
+    tuck,
+    fieldFit,
+    frameWidth,
+    fullWidth,
+    circleCenter,
     iconDim,
     keyboardProgress,
     modeTarget,
@@ -32,6 +42,7 @@ export const useSearchMorph = (bar: BarState) => {
     searchPress,
     searchRaise,
   } = bar;
+  const solid = useSolidGlass();
 
   const morphSearch = useCallback(
     (open: boolean) => {
@@ -100,7 +111,7 @@ export const useSearchMorph = (bar: BarState) => {
   );
   const searchFillStyle = useAnimatedStyle(() => {
     const mode = searchMode.get();
-    const travel = barWidth.get() + layout.tabBarGap + fullHeight / 2 - fieldGlyphCenter;
+    const travel = circleCenter - fieldGlyphCenter;
     if (modeTarget.get() === 0) {
       return {
         opacity: searchPress.press.get() * clamp01(searchPop.get() * motion.searchClose.lightHold),
@@ -142,11 +153,30 @@ export const useSearchMorph = (bar: BarState) => {
     },
   );
   const tileSink = useDerivedValue(() => -barLift.get());
+  // Minimizing, the bar first shrinks a little (motion.tuck), about the middle of it and its accessory together; the
+  // shrink gives way as it gathers into its circles.
+  const tuckScale = useDerivedValue(() => lerp(1, motion.tuck.scale, tuck.get() * (1 - collapsed.get())));
   const barLiftStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: barLift.get() }],
+    // A fitted bar without search's circle sits in the middle, until it minimizes to its circle at the left.
+    transform: [
+      { translateX: centering.get() * (1 - collapsed.get()) },
+      {
+        translateY:
+          barLift.get() +
+          (hasAccessory ? (layout.accessory.gap + layout.accessory.height) / 2 : 0) * (tuckScale.get() - 1),
+      },
+      { scale: tuckScale.get() },
+    ],
   }));
   const searchSpreadStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: keyboardSpread.get() }, { translateY: searchDip.get() }],
+    transform: [
+      { translateX: keyboardSpread.get() },
+      {
+        // Rising to the middle of a field grown for larger text (helpers/bar searchFieldFit).
+        translateY:
+          searchDip.get() - (fieldFit.rise / 2) * Math.pow(clamp01(searchMode.get()), motion.searchMorph.heightLag),
+      },
+    ],
   }));
 
   const pillModeStyle = useAnimatedStyle(() => ({
@@ -154,10 +184,7 @@ export const useSearchMorph = (bar: BarState) => {
       1 - clamp01(searchMode.get() * (modeTarget.get() === 1 ? motion.searchTabs.fade : motion.searchTabs.closeFade)),
     transform: [{ translateY: tileSink.get() }],
   }));
-  const searchCenter = useDerivedValue(() => barWidth.get() + layout.tabBarGap + fullHeight / 2);
-  const pillReach = useDerivedValue(() =>
-    modeTarget.get() === 1 ? lerp(barWidth.get(), modeInset + modeHeight, clamp01(searchMode.get())) : barWidth.get(),
-  );
+  const searchCenter = useDerivedValue(() => circleCenter);
   const rowFit = useDerivedValue(() => {
     if (modeTarget.get() === 1) {
       return { scale: 1, x: 0, y: 0 };
@@ -170,18 +197,24 @@ export const useSearchMorph = (bar: BarState) => {
       y: modeInset * Math.pow(settled, motion.searchMorph.heightLag),
     };
   });
-  const rowClipStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: pillReach.get() - barWidth.get() }],
-  }));
-  const rowUnclipStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: barWidth.get() - pillReach.get() }],
-  }));
+  // How far the tabs show: the glass's width, as it grows to reveal a new tab or closes over a leaving one, down to the
+  // field's circle as search opens. The row spans the bar's whole room (fullWidth), so the clip slides along it.
+  const rowClipStyle = useAnimatedStyle(() => {
+    const reach = Math.min(frameWidth.get(), fullWidth);
+    const shown = modeTarget.get() === 1 ? lerp(reach, modeInset + modeHeight, clamp01(searchMode.get())) : reach;
+    return { transform: [{ translateX: shown - fullWidth }] };
+  }, [fullWidth]);
+  const rowUnclipStyle = useAnimatedStyle(() => {
+    const reach = Math.min(frameWidth.get(), fullWidth);
+    const shown = modeTarget.get() === 1 ? lerp(reach, modeInset + modeHeight, clamp01(searchMode.get())) : reach;
+    return { transform: [{ translateX: fullWidth - shown }] };
+  }, [fullWidth]);
   const rowFitStyle = useAnimatedStyle(() => {
     const fit = rowFit.get();
-    const width = Math.max(barWidth.get(), 1);
+    // Scaled about the row's middle, which spans the bar's whole room, so its left edge lands at fit.x.
     return {
       transform: [
-        { translateX: fit.x - (width * (1 - fit.scale)) / 2 },
+        { translateX: fit.x - (fullWidth * (1 - fit.scale)) / 2 },
         { translateY: fit.y - (fullHeight * (1 - fit.scale)) / 2 },
         { scale: fit.scale },
       ],
@@ -190,13 +223,36 @@ export const useSearchMorph = (bar: BarState) => {
   const rowBlurProps = useAnimatedProps(() => ({
     radius: clamp01(searchMode.get()) * motion.searchTabs.blur,
   }));
-  const searchContentStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: searchScale.get() }],
-  }));
+  // Pulled by a finger dragged off it, what's on the circle stretches and moves with its glass (useBarGlass).
+  const searchContentStyle = useAnimatedStyle(() => {
+    const held = (solid ? 0 : searchPress.press.get()) * (1 - clamp01(searchMode.get()));
+    const dragged = pullBy(searchPress.pull.get(), held, motion.pull.circle);
+    const half = fullHeight / 2;
+    const leaned = leanBy(searchPress.x.get() - half, searchPress.y.get() - half, half, held);
+    const pulled = {
+      x: dragged.x * leaned.x,
+      y: dragged.y * leaned.y,
+      shiftX: dragged.shiftX + leaned.shiftX,
+      shiftY: dragged.shiftY + leaned.shiftY,
+    };
+    return {
+      transform: [
+        { translateX: pulled.shiftX },
+        { translateY: pulled.shiftY },
+        { scaleX: searchScale.get() * pulled.x },
+        { scaleY: searchScale.get() * pulled.y },
+      ],
+    };
+  });
 
-  const searchGlyphStyle = useAnimatedStyle(() => ({
-    opacity: searchMode.get() > motion.backTravel.handoff ? 0 : 1,
-  }));
+  // The bubble's contents shrink with the bar as it minimises, but iOS's magnifier barely does, so it undoes most of it.
+  const searchGlyphStyle = useAnimatedStyle(() => {
+    const bar = Math.max(scaleY.get(), 0.01);
+    return {
+      opacity: searchMode.get() > motion.backTravel.handoff ? 0 : 1,
+      transform: [{ scale: (1 - layout.searchIconShrink * (1 - bar)) / bar }],
+    };
+  });
   const closeGlyphStyle = useAnimatedStyle(() => {
     const settled = clamp01(searchMode.get());
     const pop = clamp01(searchPop.get());

@@ -5,6 +5,7 @@
     "paths": {
       "@/*": ["./*"],
       "expo-lucent": ["../src"],
+      "expo-lucent/navigation": ["../src/navigation"],
       "react-native-reanimated": ["./node_modules/react-native-reanimated"]
     }
   }

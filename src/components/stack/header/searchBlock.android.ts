@@ -1,0 +1,29 @@
+import { useInsideTabs } from '../../../core/tabs/TabBarReach';
+import { searchPlacement } from '../search/SearchBar.android';
+import { useSearch } from '../search/store.android';
+import { search } from '../tokens';
+import { useBottomToolbar } from '../toolbar/Toolbar.android';
+
+/**
+ * What the screen's search bar asks of its navigation bar: room for the field when it goes in the bar, whether the
+ * field scrolls away, whether it's a button among the bar's items, and whether the bar steps aside while a search from the bottom toolbar is under way.
+ */
+export const useHeaderSearchBlock = (routeKey: string) => {
+  const state = useSearch(routeKey);
+  const toolbar = useBottomToolbar(routeKey);
+  const inTabs = useInsideTabs();
+  const placement = state ? searchPlacement(state.props, toolbar, inTabs) : undefined;
+  const inBar = placement === 'header';
+  return {
+    block: inBar ? search.header.block : 0,
+    hidden: Boolean(state?.focused) && !inBar && placement !== 'barButton' && state?.props.hideNavigationBar !== false,
+    collapses: inBar && state?.props.hideWhenScrolling !== false && !state?.focused,
+    // Focused in the bar, the field rises into the row, and the row's items and title step aside.
+    focusedInBar: inBar && Boolean(state?.focused),
+    // A magnifier among the bar's items, which opens the field. It stays while the field is open, hidden with the row's
+    // trailing capsule under it, so the capsule is whole as the field stretches out of it and comes back whole.
+    button: placement === 'barButton',
+    // Opened from that magnifier, the field takes the bar's row.
+    barFocused: placement === 'barButton' && Boolean(state?.focused),
+  };
+};

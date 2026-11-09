@@ -1,12 +1,13 @@
 import { Keyboard } from 'react-native';
 import { usePanGesture } from 'react-native-gesture-handler';
-import { withDelay, withSequence, withSpring } from 'react-native-reanimated';
+import { Easing, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import type { BarState } from './useBarState';
 import type { SearchMorph } from './useSearchMorph';
 import { setTabBarCollapsed } from '../context/collapse';
-import { clamp01, inlinePad, lerp, modeInset, tick } from '../helpers/bar';
+import { clamp01, fullHeight, inlinePad, modeInset, pastEdge, tick } from '../helpers/bar';
+import { slotIndexAt } from '../helpers/slots';
 import { motion } from '../tokens';
 
 export interface BarActions {
@@ -32,24 +33,26 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     dragIndex,
     dragOrigin,
     dragRelease,
-    dripOnArrival,
     dripShape,
     edgesReady,
     expandOnly,
     focused,
-    fullItemWidth,
     glideFrom,
     glideSpan,
     glideTo,
     gliding,
     hasSearch,
     itemWidth,
+    scaleX,
+    slotPlan,
     jellyVelocity,
     landing,
     lensPosition,
     lensPresence,
+    lensPull,
+    lensGive,
     lift,
-    middleIndex,
+    minimizedPress,
     modeTarget,
     moved,
     nudge,
@@ -78,7 +81,13 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
 
   const positionAt = (x: number) => {
     'worklet';
-    return clampIndex((x - barWidth.get() / 2 - barShiftX.get()) / itemWidth.get() + middleIndex);
+    // Back to the bar's own scale, then to the tab at that place (helpers/slots). Opening from minimized, a finger is
+    // already over the tab it will be over once open, not the one the shrunken bar puts there.
+    const opening = collapse != null && collapse.target.get() === 0 && collapse.progress.get() > 0;
+    const unscaled = opening
+      ? x
+      : barWidth.get() / 2 + (x - barWidth.get() / 2 - barShiftX.get()) / Math.max(scaleX.get(), 0.01);
+    return clampIndex(slotIndexAt(slotPlan.get(), unscaled));
   };
 
   const startDrip = (amount = 1) => {
@@ -88,9 +97,10 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     landing.set(withSequence(withSpring(amount, motion.springs.landIn), withSpring(0, motion.springs.landOut)));
   };
 
-  const pressBegin = (x: number) => {
+  // `at`, a tab pressed whatever is under `x` (the selected one, for a drag that started on the minimized bar).
+  const pressBegin = (x: number, at = -1) => {
     'worklet';
-    const index = Math.round(positionAt(x));
+    const index = at >= 0 ? at : Math.round(positionAt(x));
     bounceAt.set(-1);
     if (index !== focused.get()) {
       scheduleOnRN(tick);
@@ -101,12 +111,17 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     tapStay.set(switching ? 0 : 1);
     pressedAt.set(Date.now());
     pressing.set(true);
-    dripOnArrival.set(false);
     settleFill.set(withSpring(0, motion.springs.lift));
     settleOnArrival.set(false);
-    tapSlide.set(1);
-    tapSlide.set(withDelay(motion.tapSlide.holdDelay, withSpring(0, motion.springs.lift)));
-    landing.set(switching ? withSpring(0, motion.springs.lift) : withSpring(1, motion.springs.landIn));
+    // Pressed in place, the selected tab's lens is the dragged one from the start, lifted and let go however short the
+    // press; a tap on another tab glides there first.
+    if (switching) {
+      tapSlide.set(1);
+      tapSlide.set(withDelay(motion.tapSlide.holdDelay, withSpring(0, motion.springs.lift)));
+    } else {
+      tapSlide.set(0);
+    }
+    landing.set(switching ? withSpring(0, motion.springs.lift) : withSpring(1, motion.springs.pressRise));
     barPress.set(withSpring(1, motion.springs.barPressIn));
     barGrowth.set(withSpring(motion.barGrow.held, motion.springs.barGrowIn));
     dragRelease.set(0);
@@ -117,11 +132,10 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     if (switching) {
       lift.set(withSpring(1, motion.springs.lift));
     } else {
-      tapGlow.set(withSpring(1, motion.springs.tapRise));
-      const dipping = lift.get() > motion.tapLens.dipFrom;
-      const rise = withSpring(1, motion.springs.tapLift);
-      tapDipping.set(dipping);
-      lift.set(dipping ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise) : rise);
+      // Tapped again while still up, it rises on from where it is, so each tap plays its whole lift and fall.
+      tapGlow.set(withSpring(1, motion.springs.tapClear));
+      tapDipping.set(false);
+      lift.set(withSpring(1, motion.springs.pressRise));
     }
     gliding.set(switching);
     glideTo.set(index);
@@ -130,10 +144,12 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     if (switching) {
       const distance = index - lensPosition.get();
       const extra = Math.max(0, Math.abs(distance) - 1);
+      // From rest: it eases off, is fastest mid-way and eases into its tab over a long tail.
+      const omega = motion.switchTravel.omega / (1 + motion.switchTravel.omegaPerSlot * extra);
       const travel = withSpring(index, {
-        duration: motion.switchTravel.duration + motion.switchTravel.perSlot * extra,
-        dampingRatio: motion.switchTravel.dampingRatio,
-        velocity: Math.sign(distance) * (motion.switchTravel.kick + motion.switchTravel.kickPerSlot * extra),
+        mass: 1,
+        stiffness: omega * omega,
+        damping: 2 * motion.switchTravel.damping * omega,
       });
       lensPosition.set(motion.switchTravel.delay > 0 ? withDelay(motion.switchTravel.delay, travel) : travel);
     } else {
@@ -141,7 +157,9 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     }
     dragOrigin.set(index);
     if (!switching) {
-      const tabCenter = barWidth.get() / 2 + pillShiftX.get() + (index - middleIndex) * itemWidth.get();
+      const plan = slotPlan.get();
+      const tabCenter =
+        barWidth.get() / 2 + pillShiftX.get() + ((plan.centers[index] ?? 0) - barWidth.get() / 2) * scaleX.get();
       pokeSide.set(clamp01((x - tabCenter) / Math.max(itemWidth.get(), 1) + 0.5) * 2 - 1);
       poke.set(
         withSequence(
@@ -172,8 +190,10 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     const follow = width > 0 ? ((x - width / 2) / (width / 2)) * motion.nudgeFollow : 0;
     nudge.set(withSpring(rubber + follow, motion.springs.track));
     const position = positionAt(x);
-    const lastCenter = barWidth.get() - inlinePad - fullItemWidth.get() / 2;
-    const pushTarget = hasSearch ? clamp01((x - lastCenter) / Math.max(fullItemWidth.get() / 2, 1)) : 0;
+    const plan = slotPlan.get();
+    const lastCenter = plan.centers[plan.centers.length - 1] ?? barWidth.get();
+    const lastHalf = (plan.widths[plan.widths.length - 1] ?? 0) / 2;
+    const pushTarget = hasSearch ? clamp01((x - lastCenter) / Math.max(lastHalf, 1)) : 0;
     push.set(withSpring(pushTarget, motion.springs.track));
     lensPosition.set(withSpring(position, motion.springs.track));
     const index = Math.round(position);
@@ -190,15 +210,18 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     const committed = !canceled || !moved.get();
     const pressTime = Date.now() - pressedAt.get();
     const linger = gliding.get() ? motion.switchTravel.lingerPerSlot * Math.max(0, glideSpan.get() - 1) : 0;
-    settleFill.set(
-      withDelay(
-        Math.max(0, motion.switchTravel.fillDelay + linger - pressTime),
-        withSpring(1, motion.springs.settleFill),
-      ),
-    );
     const picked = dragIndex.get();
     const blocked = committed && picked >= 0 && (disabledTabs.get()[picked] ?? false);
     const index = committed && !blocked ? picked : focused.get();
+    // Dragged, it fills once it lands (useLensPhysics), not as the finger lifts.
+    if (!(moved.get() && index >= 0)) {
+      settleFill.set(
+        withDelay(
+          Math.max(0, motion.switchTravel.fillDelay + linger - pressTime),
+          withSpring(1, motion.springs.settleFill),
+        ),
+      );
+    }
     if (blocked) {
       gliding.set(false);
     }
@@ -206,15 +229,13 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     push.set(withSpring(0, motion.springs.release));
     nudge.set(withSpring(0, motion.springs.edgeSettle));
     const settle = withSpring(0, motion.springs.release);
-    const quick = !moved.get() && tapSlide.get() > 0.5;
+    const inPlace = !moved.get() && !gliding.get() && tapStay.get() === 1;
+    const quick = !moved.get() && (inPlace ? pressTime < motion.tapSlide.holdDelay : tapSlide.get() > 0.5);
     const tapping = quick && sliding.get() && !blocked;
     const pressed = !moved.get() && !quick && tapStay.get() === 1;
     const pressSwitch = !moved.get() && !quick && gliding.get();
-    if (quick || pressSwitch) {
+    if ((quick || pressSwitch) && !inPlace) {
       tapSlide.set(withSpring(1, motion.springs.lift));
-    }
-    if (pressed) {
-      tapSlide.set(1);
     }
     if (tapping) {
       settleOnArrival.set(true);
@@ -226,52 +247,67 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
       const rise = withSpring(1, motion.springs.tapRise);
       const dipping = tapDipping.get() && lift.get() > motion.tapLens.dipFrom;
       const strength =
-        quick && !dipping
+        quick && !dipping && !inPlace
           ? clamp01((pressTime - motion.tapLens.dentFrom) / (motion.tapLens.dentFull - motion.tapLens.dentFrom))
           : 0;
-      const dripLater = strength > 0 && gliding.get();
       dent.set(strength);
-      dripOnArrival.set(dripLater);
       const dripNow = strength > 0 && !gliding.get();
-      const fall = withSpring(0, {
-        duration: lerp(motion.springs.release.duration, motion.springs.landFall.duration, strength),
-        dampingRatio: 1,
-      });
       tapGlow.set(
         quick && strength < 1 && !gliding.get() && tapStay.get() === 1
-          ? withSequence(
-              withSpring(1, motion.springs.tapRise),
-              withDelay(motion.tapLens.glowHold, withSpring(0, motion.springs.tapGlowOut)),
-            )
+          ? // Clear until a set time from touch-down, however short the tap, then darkening back.
+            withDelay(Math.max(0, motion.tapLens.glowHold - pressTime), withSpring(0, motion.springs.tapGlowOut))
           : 0,
       );
       if (dripNow) {
         startDrip(strength);
       } else {
         dripShape.set(0);
-        landing.set(withSpring(0, motion.springs.landOut));
+        // A quick tap's lens stays clear with its glow and darkens back with it; a held one's when let go.
+        landing.set(
+          quick
+            ? withDelay(Math.max(0, motion.tapLens.glowHold - pressTime), withSpring(0, motion.springs.tapGlowOut))
+            : withSpring(0, motion.springs.landOut),
+        );
       }
       lift.set(
         pressSwitch
           ? settle
-          : dripLater
-            ? rise
-            : quick || pressed
-              ? dipping
-                ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise, settle)
-                : withSequence(rise, gliding.get() ? withDelay(motion.switchTravel.hold + linger, settle) : fall)
-              : settle,
+          : quick || pressed
+            ? dipping
+              ? withSequence(withSpring(motion.tapLens.dip, motion.springs.tapDip), rise, settle)
+              : gliding.get()
+                ? withSequence(
+                    // Timed, not sprung: a spring's tail toward 1 held the fall back a few hundred ms.
+                    withTiming(1, { duration: motion.switchTravel.rise, easing: Easing.out(Easing.quad) }),
+                    withDelay(
+                      Math.max(0, motion.switchTravel.liftFor - pressTime - motion.switchTravel.rise) + linger,
+                      withSpring(0, motion.switchTravel.fall),
+                    ),
+                  )
+                : quick
+                  ? // A quick tap's rise carries on untouched, and it settles from the same moment however short it
+                    // was, springing on from its pace so the lift and the settle are one movement.
+                    withDelay(Math.max(0, motion.tapLens.peakAt - pressTime), withSpring(0, motion.springs.tapSettleIn))
+                  : withSpring(0, motion.springs.pressFall)
+            : settle,
       );
       tapDipping.set(false);
     }
-    barPress.set(withSpring(0, motion.springs.barPressOut));
-    barGrowth.set(withSpring(0, motion.springs.barPressOut));
+    // Let go mid-drag, the bar stays swollen until the lens lands (useLensPhysics), as iOS 27's takes its impact.
+    // A quick tap on the selected tab keeps the bar's glass lit while its lens is up, and lets its swell go slowly.
+    if (!(moved.get() && index >= 0)) {
+      const tapped = quick && tapStay.get() === 1 && !gliding.get();
+      const stay = tapped ? Math.max(0, motion.tapLens.glowHold - pressTime) : 0;
+      barPress.set(withDelay(stay, withSpring(0, motion.springs.barPressOut)));
+      barGrowth.set(withSpring(0, tapped ? motion.springs.tapSwellOut : motion.springs.barPressOut));
+    }
     if (index >= 0) {
       const bounce = blocked && !moved.get() ? pressedAt.get() + motion.disabledBounce.delay : -1;
       if (bounce > Date.now()) {
         bounceAt.set(bounce);
       } else if (!tapping && !(gliding.get() && index === glideTo.get())) {
-        lensPosition.set(withSpring(index, motion.springs.lens));
+        // Let go mid-drag, it carries on with the finger's speed a little past its tab and back.
+        lensPosition.set(withSpring(index, moved.get() ? motion.springs.dragLand : motion.springs.lens));
       }
       settledIndex.set(index);
       if (committed && index !== focused.get()) {
@@ -288,22 +324,43 @@ export const useBarPress = (bar: BarState & SearchMorph & BarActions) => {
     enabled: !searchFocused,
     minDistance: 0,
     onBegin: (event) => {
+      // Minimized, a press swells it and waits: let go, it opens; dragged, it opens and the drag carries on there.
       if (collapse && collapse.target.get() === 1) {
         expandOnly.set(true);
-        setTabBarCollapsed(collapse, 0);
+        minimizedPress.begin(event.x, event.y);
+        barPress.set(withSpring(1, motion.springs.barPressIn));
         return;
       }
+      lensPull.set(0);
+      lensGive.set(0);
       pressBegin(event.x);
     },
     onUpdate: (event) => {
+      // Sprung, so the lens and the bar give with the finger rather than tracking it rigidly; the lens springs back a
+      // little past where it settles.
+      const past = pastEdge(event.y, 0, fullHeight);
+      lensPull.set(withSpring(past, motion.springs.track));
+      lensGive.set(withSpring(past, motion.pull.lens.spring));
       if (expandOnly.get()) {
-        return;
+        // A drag from the minimized bar carries on in the bar it opens, as iOS 27's does: the selected tab's lens
+        // lifts in place and goes with the finger. A tap or a hold only opens it once let go.
+        if (Math.abs(event.translationX) < motion.dragThreshold || focused.get() < 0) {
+          minimizedPress.move(event.x, event.y, 0);
+          return;
+        }
+        expandOnly.set(false);
+        minimizedPress.end();
+        if (collapse) setTabBarCollapsed(collapse, 0);
+        pressBegin(event.x, focused.get());
       }
       pressUpdate(event.x, event.translationX);
     },
     onFinalize: (event) => {
       if (expandOnly.get()) {
         expandOnly.set(false);
+        minimizedPress.end();
+        barPress.set(withSpring(0, motion.springs.barPressOut));
+        if (collapse) setTabBarCollapsed(collapse, 0);
         return;
       }
       pressEnd(event.canceled);

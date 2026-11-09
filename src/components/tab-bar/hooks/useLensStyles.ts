@@ -1,3 +1,4 @@
+import { PixelRatio } from 'react-native';
 import {
   interpolateColor,
   useAnimatedProps,
@@ -7,14 +8,22 @@ import {
   useSharedValue,
 } from 'react-native-reanimated';
 
+import { continuousCapsule } from '../../../core/glass/continuous';
 import { glass } from '../../../theme/tokens';
 import { clamp01, fullHeight, inlinePad, lensCompactScaleY, lensFullHeight, lerp } from '../helpers/bar';
 import { layout, motion } from '../tokens';
 import type { BarState } from './useBarState';
 
+// How fast a gliding lens is moving, for its shape: 1 at speed, 0 at rest, and a little below 0 as it settles.
+const glidePace = (moving: number) => {
+  'worklet';
+  return Math.min(1, moving / motion.switchTravel.flatPace);
+};
+
 /** The lens's shape, fill, glass optics and how much it covers each tab icon. */
 export const useLensStyles = (bar: BarState) => {
   const {
+    lensBase,
     barWidth,
     collapsed,
     color,
@@ -29,6 +38,8 @@ export const useLensStyles = (bar: BarState) => {
     held,
     holding,
     itemWidth,
+    scaleX,
+    slotPlan,
     jelly,
     landing,
     lastIndex,
@@ -36,7 +47,6 @@ export const useLensStyles = (bar: BarState) => {
     lensPosition,
     lensPresence,
     lift,
-    middleIndex,
     moved,
     moving,
     pillShiftX,
@@ -45,6 +55,7 @@ export const useLensStyles = (bar: BarState) => {
     pressSquash,
     push,
     restSpan,
+    placeSpan,
     rightEdge,
     scheme,
     settleFill,
@@ -59,7 +70,11 @@ export const useLensStyles = (bar: BarState) => {
     tapSlide,
     tapStay,
     wallSide,
+    lensGive,
   } = bar;
+
+  // iOS 27's hairline outline, in pixels (read here: PixelRatio isn't there in a worklet).
+  const edgeWidth = glass.edge.width * PixelRatio.get();
 
   const deflate = useDerivedValue(() => {
     const travel = clamp01(
@@ -70,9 +85,14 @@ export const useLensStyles = (bar: BarState) => {
   });
 
   const lensGeometry = useDerivedValue(() => {
-    const fullWidth = layout.bubbleRestWidth;
-    const left = leftEdge.get();
-    const right = rightEdge.get();
+    const fullWidth = lensBase.get();
+    // Pressed in place, its width keeps to this frame's lift, as its height does, so it swells and settles as one.
+    const place = placeSpan.get();
+    const pinned = tapStay.get() === 1 && !moved.get() && !gliding.get() && place.rest > 0;
+    const middle = (leftEdge.get() + rightEdge.get()) / 2;
+    const halfSpan = (place.rest + place.grow * lift.get()) / 2;
+    const left = pinned ? middle - halfSpan : leftEdge.get();
+    const right = pinned ? middle + halfSpan : rightEdge.get();
     const span = Math.max(0, right - left);
     const barScale = fullHeight / lensFullHeight;
     const slide = slideShape.get();
@@ -101,7 +121,13 @@ export const useLensStyles = (bar: BarState) => {
     const lead = slideRight.get() ? right : left;
     const arrived = Math.abs(travel) > 0.5 ? clamp01((lead - slideFrom.get()) / travel) : 1;
     const thinning = lerp(0.5, arrived * arrived, slide);
-    const squash = Math.min(1 / floor, Math.max(floor, Math.pow(Math.max(stretchRatio, 0.01), -thinning)));
+    // Kept to its area: stretched it thins, and drawn in it bulges. Pressed in place, its edges trail its growing width,
+    // and bulging there would shoot it up and sag it back, which iOS 27's lens doesn't: it only rises with its lift.
+    const inPlace = tapStay.get() === 1 && !moved.get() && !gliding.get();
+    const squash = Math.min(
+      inPlace ? 1 : 1 / floor,
+      Math.max(floor, Math.pow(Math.max(stretchRatio, 0.01), -thinning)),
+    );
     const compact = lerp(1, lensCompactScaleY, collapsed.get());
     const base = compact * Math.max(minScaleY, liftScale * squash * (1 - pressSquash.get() * motion.pressSquashY));
     const wobble = 1 + jelly.get() * lerp(1, motion.tapSlide.jellyX, slide);
@@ -141,6 +167,15 @@ export const useLensStyles = (bar: BarState) => {
     const land = landing.get() * tapStay.get() * tapSlide.get();
     scaleX *= 1 + land * motion.tapLanding.wide;
     scaleY *= 1 - land * motion.tapLanding.flat;
+    // Held and dragged above or below the bar, it follows the finger with the bar: its near edge more than its far one,
+    // so it rises and grows taller, as iOS 27's (motion.pull).
+    const give = lensGive.get() * lift.get();
+    const toward = Math.abs(give);
+    const nearShift = toward * motion.pull.lens.near;
+    const farShift = toward * motion.pull.lens.far;
+    const lensHeight = Math.max(lensFullHeight * scaleY, 1);
+    scaleX *= 1 - motion.pull.lens.narrow * toward;
+    scaleY *= 1 + (nearShift - farShift) / lensHeight;
     return {
       translateX:
         (left + right) / 2 -
@@ -149,7 +184,10 @@ export const useLensStyles = (bar: BarState) => {
         heading.get() * Math.abs(jelly.get()) * (span / 2) * motion.jelly.lean +
         wallSide.get() * squish.get() * (span / 2) -
         pressed * ((span * motion.poke.flat) / 2 + motion.poke.lean),
-      translateY: slide * lift.get() * motion.tapSlide.drop + land * (1 - lift.get()) * motion.tapLanding.drop,
+      translateY:
+        slide * lift.get() * motion.tapSlide.drop +
+        land * (1 - lift.get()) * motion.tapLanding.drop +
+        (Math.sign(give) * (nearShift + farShift)) / 2,
       scaleX,
       scaleY,
     };
@@ -200,9 +238,13 @@ export const useLensStyles = (bar: BarState) => {
     };
   });
 
+  // Pressed in place on the selected tab, its glass stays whole until it's nearly back in its pill, so what it magnifies
+  // settles into the tab under it rather than showing over it twice.
+  const inPlace = useDerivedValue(() => (tapStay.get() === 1 && !moved.get() && !gliding.get() ? 1 : 0));
   const lensGlassOpacity = useDerivedValue(() =>
     edgesReady.get()
       ? Math.max(
+          clamp01(lift.get() * motion.tapLens.settleGlass) * inPlace.get(),
           lerp(
             lift.get(),
             clamp01(
@@ -240,13 +282,14 @@ export const useLensStyles = (bar: BarState) => {
   );
 
   const coveredIcons = useDerivedValue(() => {
-    const width = itemWidth.get();
-    const half = width * motion.tapLens.iconHalf;
+    const plan = slotPlan.get();
+    const scale = scaleX.get();
+    const half = itemWidth.get() * motion.tapLens.iconHalf;
     const left = leftEdge.get();
     const right = rightEdge.get();
     const strength = iconCover.get();
     return tabs.map((_, index) => {
-      const center = barWidth.get() / 2 + pillShiftX.get() + (index - middleIndex) * width;
+      const center = barWidth.get() / 2 + pillShiftX.get() + ((plan.centers[index] ?? 0) - barWidth.get() / 2) * scale;
       const overlap = Math.min(right, center + half) - Math.max(left, center - half);
       return half > 0
         ? strength * clamp01((overlap / (half * 2) - motion.tapLens.coverFrom) / (1 - motion.tapLens.coverFrom))
@@ -285,18 +328,25 @@ export const useLensStyles = (bar: BarState) => {
   });
 
   const lensOptics = useDerivedValue(() => {
+    const pace = glidePace(moving.get());
     const geometry = lensGeometry.get();
     const slide = slideShape.get();
     const canal = slide * lift.get();
     const optics = lerp(1, clamp01(lift.get() * motion.tapSlide.glassRamp), slide);
     const travel = switchOptics.get();
     const bendScale = optics * lerp(1, motion.tapSlide.bend, slide) * travel;
-    const centerX = inlinePad + layout.bubbleRestWidth / 2 + geometry.translateX;
+    const centerX = inlinePad + lensBase.get() / 2 + geometry.translateX;
     const centerY = fullHeight / 2 + geometry.translateY;
     const reveal = lensOut.get();
     return {
       refraction: glass.lensRefraction * bendScale * reveal,
-      magnify: glass.lensMagnify * optics * travel * reveal * (1 - glide.get()),
+      magnify:
+        glass.lensMagnify *
+        optics *
+        travel *
+        reveal *
+        lerp(1, motion.switchTravel.magnify, glide.get()) *
+        lerp(1, lift.get(), inPlace.get()),
       rimOut:
         glass.lensRimOut.amount *
         lift.get() *
@@ -306,7 +356,13 @@ export const useLensStyles = (bar: BarState) => {
           1,
           clamp01(Math.min(lensPosition.get(), lastIndex - lensPosition.get()) / glass.lensRimOut.endReach),
         ),
-      dispersion: glass.lensDispersion * bendScale * reveal,
+      dispersion: glass.lensDispersion * bendScale * reveal * lerp(1, motion.switchTravel.dispersion, glide.get()),
+      // Gliding fast, its trailing end draws out.
+      // Gliding, it deforms lopsided with its pace: at speed its trailing end draws out and its top flattens, and as it
+      // stops its bottom bulges out of the bar, springing past and back.
+      dropletTaper: -heading.get() * motion.switchTravel.droplet.taper * clamp01(pace) * glide.get(),
+      dropletTop: motion.switchTravel.droplet.top * pace * glide.get(),
+      dropletBottom: motion.switchTravel.droplet.bottom * (1 - clamp01(pace)) * lift.get() * glide.get(),
       ellipse: Math.max(
         canal,
         motion.tapLens.ellipse * lift.get() * (1 - held.get()),
@@ -358,7 +414,7 @@ export const useLensStyles = (bar: BarState) => {
   const lensSideProps = useAnimatedProps(() => {
     const position = lensPosition.get();
     const geometry = lensGeometry.get();
-    const restWidth = layout.bubbleRestWidth;
+    const restWidth = lensBase.get();
     const lensCenter = inlinePad + restWidth / 2 + geometry.translateX;
     const gapMiddle = lerp(
       barWidth.get() + layout.tabBarGap / 2,
@@ -383,7 +439,7 @@ export const useLensStyles = (bar: BarState) => {
     return {
       ...optics,
       dispersion: optics.dispersion * lerp(1, glass.lensHeldDispersion[scheme], holding.get()),
-      edgeSharp: lerp(glass.lensEdgeShade[scheme], glass.lensHeldEdge[scheme], holding.get()),
+      edgeSharp: lerp(glass.lensEdgeShade[scheme], glass.lensHeldEdge[scheme], Math.max(holding.get(), glide.get())),
       sampleMaxX: Math.max(sampleMaxX, 1),
       pinch: glass.lensPinch * (1 - deflate.get()) * pinchScale * reveal,
       pinchLeft: glass.lensPinch * clamp01(1 - position / glass.lensPinchEndReach) * pinchScale * reveal,
@@ -392,13 +448,18 @@ export const useLensStyles = (bar: BarState) => {
       rim: interpolateColor(
         reveal,
         [0, 1],
-        [color.lensRimEarly, interpolateColor(holding.get(), [0, 1], [color.lensRim, color.lensHeldRim])],
+        // Gliding to a tapped tab, iOS 27's lens has the held lens's outline.
+        [
+          color.lensRimEarly,
+          interpolateColor(Math.max(holding.get(), glide.get()), [0, 1], [color.lensRim, color.lensHeldRim]),
+        ],
       ),
       rimPrism: glass.lensRimPrism[scheme] * reveal,
       topBend: lerp(1, motion.tapLanding.iconBend, glideBend.get() * motion.switchTravel.topBend),
       topDepth: lerp(1, motion.tapLanding.iconDepth, glideBend.get() * motion.switchTravel.topBend),
       edgeAxis: holding.get(),
-      rimWidth: lerp(glass.lensRimWidth[scheme], glass.lensHeldRimWidth[scheme], holding.get()),
+      rimWidth:
+        scheme === 'dark' ? edgeWidth : lerp(glass.lensRimWidth[scheme], glass.lensHeldRimWidth[scheme], holding.get()),
       prismAxis: holding.get(),
       prismShift: glass.lensHeldPrismShift[scheme] * holding.get(),
       pinchSpread: lerp(glass.lensPinchSpread, glass.lensHeldPinchSpread[scheme], holding.get()),
@@ -414,6 +475,8 @@ export const useLensStyles = (bar: BarState) => {
     const right = full * (side > 0 ? round : side < 0 ? lead : 1);
     return {
       backgroundColor: interpolateColor(1 - grey.get(), [0, 1], [color.lens, color.lensActive]),
+      // Round, the pill's drawn with Apple's continuous ends (lensFillProps); flattened against the bar's end, here.
+      opacity: side !== 0 ? 1 : 0,
       borderTopLeftRadius: left,
       borderBottomLeftRadius: left,
       borderTopRightRadius: right,
@@ -421,8 +484,18 @@ export const useLensStyles = (bar: BarState) => {
     };
   });
 
+  // The resting pill's fill, drawn with Apple's continuous ends, as iOS 27's pill is (simulator). Its outline follows
+  // the pill's width on the UI thread, rebuilt only when that changes: a re-layout changes it every frame.
+  const fillPath = useDerivedValue(() => continuousCapsule(lensBase.get(), lensFullHeight));
+  const lensFillProps = useAnimatedProps(() => ({
+    d: fillPath.get(),
+    fill: interpolateColor(1 - grey.get(), [0, 1], [color.lens, color.lensActive]),
+    opacity: wallFlat.get().side !== 0 ? 0 : 1,
+  }));
+
   return {
     coveredIcons,
+    lensFillProps,
     grey,
     iconCover,
     lensFillStyle,

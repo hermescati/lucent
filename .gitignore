@@ -55,3 +55,9 @@ yarn-error.log
 
 # Expo
 .expo/*
+
+# Comparison captures (npm run compare)
+.compare/
+
+# Local parity tools (iOS vs Android measuring scripts, recordings, idb venv)
+scripts/parity/

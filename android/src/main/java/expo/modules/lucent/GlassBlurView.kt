@@ -8,7 +8,8 @@ import android.os.Build
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.views.ExpoView
 
-class GlassBlurView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+class GlassBlurView(context: Context, appContext: AppContext) :
+  ExpoView(context, appContext) {
   private val density = resources.displayMetrics.density
   private var effect: RenderEffect? = null
 
@@ -30,6 +31,12 @@ class GlassBlurView(context: Context, appContext: AppContext) : ExpoView(context
     val px = radius * density
     effect = if (px > 0.5f) RenderEffect.createBlurEffect(px, px, Shader.TileMode.DECAL) else null
     super.setRenderEffect(effect)
+  }
+
+  // React Native sizes its children: measuring them here, as a LinearLayout does, would give a text input its text's
+  // height rather than its own, and it'd draw its text at the top.
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
   }
 
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit

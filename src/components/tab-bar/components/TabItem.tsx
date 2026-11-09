@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedReaction,
@@ -6,13 +6,17 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
   withSpring,
+  type EntryExitAnimationFunction,
   type SharedValue,
 } from 'react-native-reanimated';
 
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
+import { barItemMotion } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { clamp01, labelShift, lerp } from '../helpers/bar';
+import { unmirror } from '../helpers/mirror';
+import { tabExit, tabSlide } from '../helpers/presence';
 import type { TabSpec } from '../helpers/triggers';
 import { layout, motion } from '../tokens';
 
@@ -30,20 +34,26 @@ export interface TabItemProps {
   covered: SharedValue<number[]>;
   collapsed: SharedValue<number>;
   collapseX: SharedValue<number>;
-  collapseSpread: SharedValue<number>;
+  // How far each tab draws in toward the bar's middle as it minimizes.
+  collapseSpread: SharedValue<number[]>;
+  // Its place in the row, as iOS 27 spaces the tabs (helpers/slots).
+  slotStyle?: StyleProp<ViewStyle>;
   handoff?: SharedValue<number>;
   revealed?: boolean;
   badgeOnly?: boolean;
   badgeColor?: string;
   badgeTextColor?: string;
   inkTone: SharedValue<number>;
+  // The bar's swell as a tab comes or goes: its glyphs swell with it, as an island's do.
+  swell?: SharedValue<number>;
+  // How it grows in as it's added to the bar.
+  entering?: EntryExitAnimationFunction;
   onActivate: (index: number) => void;
 }
 
 export const TabItem = ({
   tab,
   index,
-  middleIndex,
   tintColor,
   selected,
   lensPosition,
@@ -61,6 +71,9 @@ export const TabItem = ({
   badgeColor,
   badgeTextColor,
   inkTone,
+  slotStyle,
+  swell,
+  entering,
   onActivate,
 }: TabItemProps) => {
   const { color } = useLucentTheme(tintColor);
@@ -79,10 +92,14 @@ export const TabItem = ({
     opacity: lerp(1, chosen.get(), clamp01(collapsed.get() * motion.labelFadeRate)),
     transform: [
       {
-        translateX: collapseX.get() + (index - middleIndex) * collapseSpread.get(),
+        translateX: collapseX.get() + (collapseSpread.get()[index] ?? 0),
       },
       { translateY: collapsed.get() * labelShift },
-      { scale: 1 + lift.get() * proximity.get() * motion.itemMagnify },
+      {
+        scale:
+          (1 + lift.get() * proximity.get() * motion.itemMagnify) *
+          (1 + barItemMotion.glyphSwell * (swell?.get() ?? 0)),
+      },
     ],
   }));
   const highlight = useDerivedValue(() =>
@@ -107,7 +124,10 @@ export const TabItem = ({
     color: interpolateColor(
       glow.get(),
       [0, 1],
-      [interpolateColor(inkTone.get(), [0, 1], [color.tabActiveOver, color.tabActive]), color.tabAccent],
+      [
+        interpolateColor(inkTone.get(), [0, 1], [color.tabActiveOver, color.tabActive]),
+        interpolateColor(inkTone.get(), [0, 1], [color.tabAccentOver, color.tabAccent]),
+      ],
     ),
   }));
   const labelStyle = useAnimatedStyle(() => ({
@@ -116,7 +136,12 @@ export const TabItem = ({
 
   if (badgeOnly) {
     return (
-      <View style={styles.slot} pointerEvents="none">
+      <Animated.View
+        style={[styles.slot, slotStyle]}
+        pointerEvents="none"
+        entering={entering}
+        exiting={tabExit}
+        layout={tabSlide}>
         <Animated.View style={[styles.item, itemStyle]}>
           <Animated.View style={[styles.iconBox, handoffStyle]}>
             {tab.badge !== undefined ? (
@@ -129,13 +154,16 @@ export const TabItem = ({
           </Animated.View>
           <Animated.View style={[styles.labelBox, labelStyle]} />
         </Animated.View>
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View
-      style={styles.slot}
+    <Animated.View
+      style={[styles.slot, slotStyle]}
+      entering={entering}
+      exiting={tabExit}
+      layout={tabSlide}
       accessible={!revealed}
       accessibilityRole="tab"
       accessibilityLabel={tab.label}
@@ -146,7 +174,7 @@ export const TabItem = ({
       <Animated.View style={[styles.item, itemStyle]}>
         <Animated.View style={handoffStyle}>
           <Animated.View style={idleStyle}>
-            <TabIcon icon={tab.icon} selected={false} size={layout.tabIconSize} color={color.text} />
+            <TabIcon icon={tab.icon} selected={false} size={layout.tabIconSize} color={color.tabInk} />
           </Animated.View>
           <Animated.View style={[StyleSheet.absoluteFill, activeRestStyle]}>
             <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabActiveOver} />
@@ -155,7 +183,10 @@ export const TabItem = ({
             </Animated.View>
           </Animated.View>
           <Animated.View style={[StyleSheet.absoluteFill, activeLiftStyle]}>
-            <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabAccent} />
+            <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabAccentOver} />
+            <Animated.View style={[StyleSheet.absoluteFill, brightInkStyle]}>
+              <TabIcon icon={tab.icon} selected size={layout.tabIconSize} color={color.tabAccent} />
+            </Animated.View>
           </Animated.View>
         </Animated.View>
         <Animated.View style={[styles.labelBox, labelStyle]}>
@@ -163,13 +194,15 @@ export const TabItem = ({
             style={[
               styles.label,
               styles.legible,
+              unmirror,
               {
-                color: color.text,
+                color: color.tabInk,
                 textShadowColor: color.legibilityShadow,
               },
               idleStyle,
             ]}
-            numberOfLines={1}>
+            numberOfLines={1}
+            allowFontScaling={false}>
             {tab.label}
           </Animated.Text>
           <Animated.Text
@@ -177,18 +210,20 @@ export const TabItem = ({
               styles.label,
               styles.labelOverlay,
               styles.legible,
+              unmirror,
               {
                 textShadowColor: color.legibilityShadow,
               },
               activeStyle,
               activeLabelColor,
             ]}
-            numberOfLines={1}>
+            numberOfLines={1}
+            allowFontScaling={false}>
             {tab.label}
           </Animated.Text>
         </Animated.View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 

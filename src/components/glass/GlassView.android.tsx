@@ -3,8 +3,9 @@ import { useContext, useEffect, useId, useState, type ComponentRef, type Ref } f
 import { View, type LayoutChangeEvent } from 'react-native';
 import { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { ContainerContext, radiusOf, resolveEffectStyle, useGlassMaterial } from './helpers/shared';
+import { ContainerContext, radiusOf, resolveEffectStyle } from './helpers/shared';
 import { AnimatedNativeGlassView } from '../../core/glass/NativeGlass';
+import { useGlassMaterial } from '../../core/glass/material';
 import { glassPress } from '../../core/glass/presets';
 
 export const GlassView = ({

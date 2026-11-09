@@ -46,7 +46,7 @@ const valueAt = (position: number, range: Range, width: number) => {
 };
 
 export const Slider = ({ value, onValueChange, min = 0, max = 1, step = 0, disabled = false, testID }: SliderProps) => {
-  const { color } = useLucentTheme();
+  const { color, solid } = useLucentTheme();
   const range = useSharedValue<Range>({ min, max, step });
   const width = useSharedValue(0);
   const bounds = useSharedValue<LensBounds>({ min: half, max: half });
@@ -147,6 +147,10 @@ export const Slider = ({ value, onValueChange, min = 0, max = 1, step = 0, disab
   }));
 
   const shadowStyle = useAnimatedStyle(() => {
+    // Drawn solid, the thumb never lifts into a lens (core/lens), so its shadow stays under it.
+    if (solid) {
+      return { opacity: 1, transform: [{ translateX: lens.x.get() }, { scaleX: 1 }, { scaleY: 1 }] };
+    }
     const land = lens.land.get();
     return {
       opacity: lens.solid.get(),

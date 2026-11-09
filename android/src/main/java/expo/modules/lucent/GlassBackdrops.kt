@@ -54,6 +54,9 @@ abstract class GlassBackdrops(context: Context, appContext: AppContext) : GlassP
   }
 
   protected fun drawBackdrops(canvas: Canvas) {
+    // A screen on its way out can still be drawn after it's detached. Its glass has lost its host by then, and the
+    // backdrop it would fall back to may still hold the glass's own drawing: a cycle that overflows the render thread.
+    if (!isAttachedToWindow) return
     val owner = host
     if (owner != null) {
       drawHost(canvas, owner)
@@ -78,7 +81,12 @@ abstract class GlassBackdrops(context: Context, appContext: AppContext) : GlassP
   private fun drawBackdrop(canvas: Canvas, name: String) {
     val backdrop = GlassRegistry.backdrop(name) ?: return
     val node = backdrop.visibleNode ?: return
-    if (!node.hasDisplayList()) return
+    // A backdrop records only when it's redrawn, and an offscreen one isn't while its content holds still, so a
+    // recording dropped meanwhile (as while glass drew without the shader) would leave this glass seeing nothing.
+    if (!node.hasDisplayList()) {
+      backdrop.invalidate()
+      return
+    }
     backdropToGlobal.reset()
     backdrop.transformMatrixToGlobal(backdropToGlobal)
     backdropToSelf.set(inverse)

@@ -1,23 +1,41 @@
-import { Keyboard, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { withSpring } from 'react-native-reanimated';
+import { useEffect, useMemo, useState } from 'react';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
+import { scheduleOnRN } from 'react-native-worklets';
 
+import { BottomAccessoryBar } from './BottomAccessoryBar';
 import { CloseGlyph } from './CloseGlyph';
 import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
+import { useSolidGlass } from '../../../theme/solid';
 import { glass } from '../../../theme/tokens';
 import {
+  clamp01,
   fullHeight,
   inlinePad,
+  lerp,
   lensFullHeight,
+  pastEdge,
   revealGroup,
   rowInset,
   screenGroup,
   tabBarGroup,
+  accessoryGroup,
   tick,
 } from '../helpers/bar';
+import { mirror, mirrored } from '../helpers/mirror';
+import { moreName, useMore } from '../helpers/more';
+import { tabEnterAfter } from '../helpers/presence';
 import { reselectTab } from '../helpers/reselect';
 import { useBarGlass } from '../hooks/useBarGlass';
 import { useBarPress } from '../hooks/useBarPress';
@@ -27,6 +45,8 @@ import { useLensStyles } from '../hooks/useLensStyles';
 import { useSearchMorph } from '../hooks/useSearchMorph';
 import { layout, motion } from '../tokens';
 
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
 export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const { badgeColor, badgeTextColor } = props;
   const state = useBarState(props);
@@ -35,34 +55,61 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     backIndex,
     backLight,
     barWidth,
+    command,
     edgesReady,
     emit,
     lensPosition,
     morphSearch,
+    searchIdle: idleFade,
+    searchPop,
     searchPress,
     searchTab,
     setQuery,
     settledIndex,
+    getTrigger,
     switchTab,
     tabs,
   } = { ...state, ...search };
 
+  const more = useMore();
   const selectTab = (index: number, wait = 0) => {
     if (tabs[index]?.disabled) {
       return;
     }
-    setTimeout(() => requestAnimationFrame(() => switchTab(tabs[index].name, {})), wait);
+    // More isn't a route: it shows its list over the last tab chosen, which any other tab closes; or, if More last
+    // went on to one of its tabs, that tab again, as iOS's More keeps its place.
+    const opening = tabs[index].name === moreName;
+    const top = opening ? more?.top : null;
+    const go = () => {
+      more?.setOpen(opening && !top);
+      if (!opening || top) {
+        switchTab(top ?? tabs[index].name, {});
+      }
+    };
+    // At once as the finger lifts, as iOS 27 shows the page: deferring it a frame or two left the page late and moved
+    // the switch's commit, which holds the lens a frame, into the middle of its glide.
+    if (wait > 0) {
+      setTimeout(go, wait);
+    } else {
+      go();
+    }
   };
 
   const reselect = (index: number) => {
     const tab = tabs[index];
-    if (tab && !tab.disabled) {
-      reselectTab(tab);
+    if (tab?.name === moreName) {
+      // Again, it slides back to its list from a tab under it, as iOS's does.
+      if (more && !more.open) {
+        more.pop();
+      }
+      return;
     }
-  };
-
-  const onPillLayout = (event: LayoutChangeEvent) => {
-    barWidth.set(event.nativeEvent.layout.width);
+    if (tab && !tab.disabled) {
+      // The tab's own stack, not the whole tree: router.canDismiss() counts history anywhere, and popping a stack
+      // already at its first screen is an action no navigator handles.
+      const stack = getTrigger(tab.name)?.route?.state;
+      reselectTab(tab, (stack?.index ?? 0) > 0);
+    }
   };
 
   const openSearch = () => {
@@ -74,6 +121,15 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     edgesReady.set(false);
     morphSearch(true);
     requestAnimationFrame(() => switchTab(searchTab.name, {}));
+  };
+
+  // A prominent tab in the circle opens like any tab; the bar's pill leaves its tabs.
+  const openApart = (name: string) => {
+    if (getTrigger(name)?.isFocused) {
+      return;
+    }
+    tick();
+    switchTab(name, {});
   };
 
   const leaveSearch = () => {
@@ -95,15 +151,83 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     leaveSearch();
   };
 
+  // The ref's `cancelSearch`, as iOS plays it: search goes inactive on its tab, the field emptying and letting go of the
+  // keyboard as the close button folds back into its end. Tapping the field brings it back out.
+  const [searchIdle, setSearchIdle] = useState(false);
+  if (searchIdle && !state.searchFocused) {
+    setSearchIdle(false);
+    idleFade.set(0);
+  }
+  // The search tab's navigation bar steps aside while search is on, as iOS's does.
+  const searchActive = state.searchFocused && !searchIdle;
+  const { setSearchActive } = state;
+  useEffect(() => setSearchActive(searchActive), [searchActive, setSearchActive]);
+  const idleSearch = () => {
+    setQuery('');
+    emit('onCancelButtonPress');
+    Keyboard.dismiss();
+    setSearchIdle(true);
+    idleFade.set(withTiming(1, { duration: motion.searchIdle.glyphFade }));
+    searchPop.set(withSpring(0, motion.springs.searchAbsorb));
+  };
+  const idleGlyphStyle = useAnimatedStyle(() => ({
+    opacity: 1 - idleFade.get(),
+  }));
+  const wakeSearch = () => {
+    if (!searchIdle) return;
+    setSearchIdle(false);
+    idleFade.set(withTiming(0, { duration: motion.searchIdle.glyphFade }));
+    searchPop.set(withSpring(1, motion.springs.searchPop));
+  };
+
   const backSearch = () => {
     backLight.set(1);
     leaveSearch();
   };
 
   const press = useBarPress({ ...state, ...search, selectTab, reselect });
+  // Whether the bottom accessory draws over the bar: from the moment the bar starts to minimize until it opens again,
+  // so its buttons keep their touches in the bar's row. While the search circle or the minimized pill is held, and
+  // until it settles, the bar comes back over it, as iOS's glass does: dragged into the accessory, they pass in front.
+  const [accessoryOver, setAccessoryOver] = useState(state.collapse?.target.get() === 1);
+  useAnimatedReaction(
+    () =>
+      state.collapse?.target.get() === 1 &&
+      Math.abs(state.searchPress.press.get()) < 0.002 &&
+      Math.abs(state.minimizedPress.press.get()) < 0.002,
+    (over, previous) => {
+      if (over !== previous) scheduleOnRN(setAccessoryOver, over);
+    },
+  );
   useLensPhysics({ ...state, ...press });
   const lens = useLensStyles(state);
+  const lensWidthStyle = useAnimatedStyle(() => ({ width: state.lensBase.get() }));
   const barGlass = useBarGlass({ ...state, ...search, ...lens });
+  // Search's circle stays while it melts back into the bar, and its icon travels with the glass (useBarGlass).
+  const [meltingTab, setMeltingTab] = useState(props.searchTab);
+  if (props.searchTab && props.searchTab !== meltingTab) {
+    setMeltingTab(props.searchTab);
+  }
+  const apartNow = state.hasSearch;
+  useAnimatedReaction(
+    () => state.searchApart.get() < 0.002,
+    (gone, wasGone) => {
+      if (gone && !wasGone && !apartNow) scheduleOnRN(setMeltingTab, undefined);
+    },
+  );
+  const circleTab = props.searchTab ?? meltingTab;
+  const searchSplitStyle = useAnimatedStyle(() => {
+    const apart = state.searchApart.get();
+    // Splitting off, the magnifier shows at once; melting back, it's gone by halfway, as the tab's own grows in.
+    const from = apartNow ? motion.searchSplit.iconFrom : motion.searchSplit.iconMeltFrom;
+    return {
+      opacity: clamp01((apart - from) / (1 - from)),
+      transform: [
+        { translateX: (state.frameWidth.get() - fullHeight / 2 - state.circleCenter) * (1 - apart) },
+        { scale: lerp(motion.searchSplit.from, 1, clamp01(apart)) },
+      ],
+    };
+  });
   const {
     backDrag,
     backPress,
@@ -119,14 +243,14 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     color,
     coveredIcons,
     focusedIndex,
-    fullItemWidth,
+    slotPlan,
     glassStyle,
     hasBadges,
-    hasSearch,
     iconCover,
     inkTone,
     keyboardReach,
     keyboardSpread,
+    lensFillProps,
     lensFillStyle,
     lensGlassStyle,
     lensIconProps,
@@ -153,6 +277,7 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     searchDip,
     searchFillStyle,
     searchFocused,
+    apartFocused,
     searchGlyphStyle,
     searchInkStyle,
     searchMode,
@@ -161,173 +286,212 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
     shine,
     tileSink,
     tintColor,
+    frameWidthStyle,
+    overlayWidthStyle,
+    rowPadStyle,
+    swell,
+    plan,
+    setLabelSize,
   } = { ...state, ...search, ...press, ...lens, ...barGlass };
+  // Dark, the lens's edge has the bar's soft light band inside it, as iOS 27's does.
+  const solid = useSolidGlass();
+  // Solid, with no lens over it, the row draws every tab itself, the one under the finger tinted and magnified; glass
+  // hides the ones it covers for the lens to refract.
+  const uncovered = useSharedValue<number[]>([]);
+  const noCover = useSharedValue(0);
+  const rowCover = solid ? noCover : iconCover;
+  const rowCovered = solid ? uncovered : coveredIcons;
+  const lensEdge = scheme === 'dark' ? { edgeSoft: glass.edgeSoft.dark, softWidth: glass.softWidth } : {};
 
-  return (
-    <Animated.View
-      style={[styles.bar, { bottom, left: barLeft, width: barSpan }, barLiftStyle]}
-      pointerEvents="box-none">
-      <NativeGlassBackdrop group={tabBarGroup} style={styles.backdrop}>
-        <AnimatedNativeGlassView
-          style={styles.barGlass}
-          pointerEvents="none"
-          animatedProps={barGlassProps}
-          {...glassStyle}
-          sampleBackdrop
-          onBackdropLuma={onBackdropLuma}
-        />
-        <GestureDetector gesture={pan}>
-          <Animated.View
-            style={[styles.frame, pillModeStyle]}
-            pointerEvents={searchFocused ? 'none' : 'auto'}
-            onLayout={onPillLayout}>
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
-            />
-            <Animated.View pointerEvents="none" style={[styles.lens, lensStyle]}>
-              <Animated.View style={[styles.lensLayer, lensFillStyle]} />
-            </Animated.View>
-          </Animated.View>
-        </GestureDetector>
-        {searchTab ? (
-          <Animated.View style={[styles.search, searchSpreadStyle]}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={searchFocused ? closeSearch : openSearch}
-              onPressIn={searchPress.onPressIn}
-              onPressOut={searchPress.onPressOut}
-              accessibilityRole="tab"
-              accessibilityLabel={searchFocused ? 'Close search' : searchTab.label}
-              accessibilityState={{ selected: searchFocused }}>
-              <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
-                <Animated.View style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]} />
-                <Animated.View style={[styles.searchIcon, searchInkStyle]}>
-                  <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
-                    <TabIcon icon={searchTab.icon} selected={false} size={layout.searchIconSize} color={color.text} />
-                  </Animated.View>
-                  <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
-                    <CloseGlyph size={layout.closeIconSize} color={color.text} />
-                  </Animated.View>
-                </Animated.View>
-              </Animated.View>
-            </Pressable>
-          </Animated.View>
-        ) : null}
-      </NativeGlassBackdrop>
+  // Each tab at its place, as iOS 27 spaces them.
+  const slotStyles = plan.lefts.map((left, index) => ({
+    flex: 0,
+    width: plan.widths[index],
+    marginLeft: index === 0 ? left : left - plan.lefts[index - 1] - plan.widths[index - 1],
+  }));
+
+  // Tabs grow in as they're added, not as the bar first appears.
+  const ready = useSharedValue(false);
+  useEffect(() => {
+    ready.set(true);
+  }, [ready]);
+  const tabEnter = useMemo(() => tabEnterAfter(ready), [ready]);
+
+  const circlePress = !circleTab
+    ? undefined
+    : !circleTab.searchRole
+      ? () => openApart(circleTab.name)
+      : searchFocused
+        ? searchIdle
+          ? () => command('focus')
+          : closeSearch
+        : openSearch;
+  // Held, the circle stays pressed wherever the finger goes, pulled after it (motion.pull), as iOS 27's is; let go on
+  // it or near it, it's pressed.
+  const circleMoved = useSharedValue(false);
+  const circleGesture = usePanGesture({
+    enabled: Boolean(circleTab),
+    minDistance: 0,
+    onBegin: (event) => {
+      circleMoved.set(false);
+      searchPress.begin(event.x, event.y);
+    },
+    onUpdate: (event) => {
+      if (Math.hypot(event.translationX, event.translationY) > motion.dragThreshold) circleMoved.set(true);
+      const { reach } = motion.pull.circle;
+      const clamp = (past: number) => Math.max(-reach, Math.min(reach, past));
+      const pastX = pastEdge(event.x, 0, fullHeight);
+      const pastY = pastEdge(event.y, 0, fullHeight);
+      searchPress.move(event.x, event.y, Math.hypot(pastX, pastY));
+      searchPress.drag(clamp(pastX), clamp(pastY));
+    },
+    onFinalize: (event) => {
+      searchPress.end();
+      const { slop } = motion.pull;
+      const near = event.x > -slop && event.x < fullHeight + slop && event.y > -slop && event.y < fullHeight + slop;
+      // A tap never moves far enough for the pan to take hold, which ends it as cancelled; it's still a press.
+      if ((!event.canceled || !circleMoved.get()) && near && circlePress) scheduleOnRN(circlePress);
+    },
+  });
+
+  // The lifted lens, glass only: solid, the bar's own pill stands in for it (useBarGlass).
+  const lensGlass = (
+    <Animated.View style={[styles.lens, lensGlassStyle, lensWidthStyle]}>
+      <AnimatedNativeGlassView
+        style={styles.lensGlass}
+        animatedProps={lensSideProps}
+        rimOutBand={glass.lensRimOut.band}
+        {...lensEdge}
+        group={tabBarGroup}
+        underlay={screenGroup}
+        // Dragged up over the bottom accessory, it shows the accessory through it.
+        overlay={props.accessory !== undefined ? accessoryGroup : undefined}
+        inset={glass.lensPad}
+        refractionYScale={glass.lensRefractionYScale}
+        cornerRadius={lensFullHeight / 2}
+        continuous={1}
+        blurRadius={glass.lensBlurRadius}
+        bezel={glass.lensBezel}
+        refraction={glass.lensRefraction}
+        falloff={glass.lensFalloff}
+        dispersion={glass.lensDispersion}
+        magnify={glass.lensMagnify}
+        pinchWidth={glass.lensPinchWidth}
+        sharpWidth={glass.lensShadeWidth}
+        lightAngle={glass.lightAngle}
+        rimSide={glass.lensRimSide[scheme]}
+        shadowRadius={glass.lensShadowRadius}
+        shadowOffset={glass.lensShadowOffset}
+      />
+    </Animated.View>
+  );
+
+  const content = (
+    <>
+      {/* Under the bar, as iOS's is: the bar and its search circle pass over it. Minimized, in the bar's row, it comes
+          over the bar instead, as iOS's does dropping in, so the bar's frame doesn't take its touches. */}
+      <BottomAccessoryBar
+        over={accessoryOver}
+        span={barSpan}
+        left={barLeft}
+        bottom={bottom}
+        circle={state.hasSearch}
+        hidden={searchFocused}
+        collapse={state.collapse}
+        lift={state.barLift}
+        tintColor={tintColor}>
+        {props.accessory}
+      </BottomAccessoryBar>
       <Animated.View
-        pointerEvents="none"
-        style={[styles.lensOverlay, !hasSearch && styles.lensOverlayFull, pillModeStyle, pressScaleStyle]}>
-        <Animated.View style={[styles.rowClip, rowClipStyle]}>
-          <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
-            <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
-              <AnimatedNativeGlassBlur style={styles.row} animatedProps={rowBlurProps} accessibilityRole="tablist">
-                {tabs.map((tab, index) => (
-                  <TabItem
-                    key={tab.name}
-                    tab={tab}
-                    index={index}
-                    middleIndex={middleIndex}
-                    tintColor={tintColor}
-                    selected={index === focusedIndex}
-                    lensPosition={lensPosition}
-                    lift={lift}
-                    shine={shine}
-                    presence={lensPresence}
-                    cover={iconCover}
-                    covered={coveredIcons}
-                    collapsed={collapsed}
-                    collapseX={collapseX}
-                    collapseSpread={collapseSpread}
-                    inkTone={inkTone}
-                    handoff={index === backIndex ? searchMode : undefined}
-                    onActivate={selectTab}
-                  />
-                ))}
-              </AnimatedNativeGlassBlur>
-            </Animated.View>
-          </Animated.View>
-        </Animated.View>
-        <NativeGlassBackdrop
-          group={revealGroup}
-          offscreen
-          style={StyleSheet.absoluteFill}
-          importantForAccessibility="no-hide-descendants">
-          <View style={styles.row}>
-            {tabs.map((tab, index) => (
-              <TabItem
-                key={tab.name}
-                tab={tab}
-                index={index}
-                middleIndex={middleIndex}
-                tintColor={tintColor}
-                selected={index === focusedIndex}
-                lensPosition={lensPosition}
-                lift={lift}
-                shine={shine}
-                presence={lensPresence}
-                cover={iconCover}
-                covered={coveredIcons}
-                collapsed={collapsed}
-                collapseX={collapseX}
-                collapseSpread={collapseSpread}
-                inkTone={inkTone}
-                revealed
-                onActivate={selectTab}
-              />
-            ))}
-          </View>
-        </NativeGlassBackdrop>
-        <Animated.View style={[styles.lens, lensGlassStyle]}>
+        style={[styles.bar, { bottom, left: barLeft, width: barSpan }, barLiftStyle]}
+        pointerEvents="box-none">
+        {/* The tabs' labels at their own widths, unconstrained by their slots, which are sized from them. */}
+        <View style={styles.measure} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+          {tabs.map((tab) => (
+            <Text
+              key={tab.name}
+              style={styles.measureLabel}
+              numberOfLines={1}
+              allowFontScaling={false}
+              onTextLayout={(event) => setLabelSize(tab.name, event.nativeEvent.lines[0]?.width ?? 0)}>
+              {tab.label}
+            </Text>
+          ))}
+        </View>
+        <NativeGlassBackdrop group={tabBarGroup} style={styles.backdrop}>
           <AnimatedNativeGlassView
-            style={styles.lensGlass}
-            animatedProps={lensSideProps}
-            rimOutBand={glass.lensRimOut.band}
-            group={tabBarGroup}
-            underlay={screenGroup}
-            inset={glass.lensPad}
-            refractionYScale={glass.lensRefractionYScale}
-            cornerRadius={lensFullHeight / 2}
-            blurRadius={glass.lensBlurRadius}
-            bezel={glass.lensBezel}
-            refraction={glass.lensRefraction}
-            falloff={glass.lensFalloff}
-            dispersion={glass.lensDispersion}
-            magnify={glass.lensMagnify}
-            pinchWidth={glass.lensPinchWidth}
-            sharpWidth={glass.lensShadeWidth}
-            lightAngle={glass.lightAngle}
-            rimSide={glass.lensRimSide[scheme]}
-            shadowRadius={glass.lensShadowRadius}
-            shadowOffset={glass.lensShadowOffset}
-          />
-        </Animated.View>
-        <Animated.View style={[styles.lens, lensIconStyle]}>
-          <AnimatedNativeGlassView
-            style={styles.lensGlass}
-            animatedProps={lensIconProps}
-            rimOutBand={glass.lensRimOut.band}
-            group={revealGroup}
-            alphaPass
-            inset={glass.lensPad}
-            refractionYScale={glass.lensRefractionYScale}
-            cornerRadius={lensFullHeight / 2}
-            blurRadius={glass.lensBlurRadius}
-            bezel={glass.lensBezel}
-            refraction={glass.lensRefraction}
-            falloff={glass.lensFalloff}
-            dispersion={glass.lensDispersion}
-            magnify={glass.lensMagnify}
-          />
-        </Animated.View>
-        {hasBadges ? (
-          <Animated.View
-            style={[styles.rowClip, rowClipStyle]}
+            style={styles.barGlass}
             pointerEvents="none"
-            importantForAccessibility="no-hide-descendants">
+            animatedProps={barGlassProps}
+            {...glassStyle}
+            continuous={1}
+            sampleBackdrop
+            onBackdropLuma={onBackdropLuma}
+          />
+          <GestureDetector gesture={pan}>
+            <Animated.View
+              style={[styles.frame, frameWidthStyle, pillModeStyle]}
+              pointerEvents={searchFocused ? 'none' : 'auto'}>
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.pillLift, { backgroundColor: color.pressLift }, pillLiftStyle]}
+              />
+              <Animated.View pointerEvents="none" style={[styles.lens, lensStyle, lensWidthStyle]}>
+                <Svg style={StyleSheet.absoluteFill}>
+                  <AnimatedPath animatedProps={lensFillProps} />
+                </Svg>
+                <Animated.View style={[styles.lensLayer, lensFillStyle]} />
+              </Animated.View>
+            </Animated.View>
+          </GestureDetector>
+          <View style={styles.grow} pointerEvents="none" />
+          {circleTab ? (
+            <Animated.View
+              style={[styles.search, searchSpreadStyle]}
+              pointerEvents={searchTab ? 'auto' : 'none'}
+              // TalkBack reads its stand-in instead (circleStandIn), after the tabs and search's field.
+              importantForAccessibility="no-hide-descendants">
+              <Animated.View style={[StyleSheet.absoluteFill, searchSplitStyle]}>
+                <GestureDetector gesture={circleGesture}>
+                  <Animated.View style={StyleSheet.absoluteFill} accessible={false}>
+                    <Animated.View style={[StyleSheet.absoluteFill, searchContentStyle]}>
+                      <Animated.View
+                        style={[styles.pressFill, { backgroundColor: color.pressFill }, searchFillStyle]}
+                      />
+                      <Animated.View style={[styles.searchIcon, searchInkStyle]}>
+                        <Animated.View style={[styles.searchIcon, searchGlyphStyle]}>
+                          <TabIcon
+                            icon={circleTab.icon}
+                            selected={apartFocused && !circleTab.searchRole}
+                            size={layout.searchIconSize}
+                            color={apartFocused && !circleTab.searchRole ? (tintColor ?? color.tint) : color.tabInk}
+                          />
+                        </Animated.View>
+                        <Animated.View style={[styles.searchIcon, closeGlyphStyle]}>
+                          <Animated.View style={idleGlyphStyle}>
+                            <CloseGlyph size={layout.closeIconSize} color={color.text} />
+                          </Animated.View>
+                        </Animated.View>
+                      </Animated.View>
+                    </Animated.View>
+                  </Animated.View>
+                </GestureDetector>
+              </Animated.View>
+            </Animated.View>
+          ) : null}
+        </NativeGlassBackdrop>
+        <Animated.View
+          pointerEvents="none"
+          // Hidden from TalkBack while search's field is open, as iOS hides them from VoiceOver.
+          importantForAccessibility={searchFocused ? 'no-hide-descendants' : 'auto'}
+          style={[styles.lensOverlay, overlayWidthStyle, pillModeStyle, pressScaleStyle]}>
+          <Animated.View style={[styles.rowClip, rowClipStyle]}>
             <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
               <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
-                <View style={styles.row}>
+                <AnimatedNativeGlassBlur
+                  style={[styles.row, rowPadStyle]}
+                  animatedProps={rowBlurProps}
+                  accessibilityRole="tablist">
                   {tabs.map((tab, index) => (
                     <TabItem
                       key={tab.name}
@@ -340,60 +504,186 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
                       lift={lift}
                       shine={shine}
                       presence={lensPresence}
-                      cover={iconCover}
-                      covered={coveredIcons}
+                      cover={rowCover}
+                      covered={rowCovered}
                       collapsed={collapsed}
                       collapseX={collapseX}
                       collapseSpread={collapseSpread}
                       inkTone={inkTone}
+                      swell={swell}
+                      slotStyle={slotStyles[index]}
+                      entering={tabEnter}
                       handoff={index === backIndex ? searchMode : undefined}
-                      badgeOnly
-                      badgeColor={badgeColor}
-                      badgeTextColor={badgeTextColor}
                       onActivate={selectTab}
                     />
                   ))}
-                </View>
+                </AnimatedNativeGlassBlur>
               </Animated.View>
             </Animated.View>
           </Animated.View>
+          <NativeGlassBackdrop
+            group={revealGroup}
+            offscreen
+            style={StyleSheet.absoluteFill}
+            importantForAccessibility="no-hide-descendants">
+            <View style={[styles.row, rowPadStyle]}>
+              {tabs.map((tab, index) => (
+                <TabItem
+                  key={tab.name}
+                  tab={tab}
+                  index={index}
+                  middleIndex={middleIndex}
+                  tintColor={tintColor}
+                  selected={index === focusedIndex}
+                  lensPosition={lensPosition}
+                  lift={lift}
+                  shine={shine}
+                  presence={lensPresence}
+                  cover={iconCover}
+                  covered={coveredIcons}
+                  collapsed={collapsed}
+                  collapseX={collapseX}
+                  collapseSpread={collapseSpread}
+                  inkTone={inkTone}
+                  swell={swell}
+                  slotStyle={slotStyles[index]}
+                  entering={tabEnter}
+                  revealed
+                  onActivate={selectTab}
+                />
+              ))}
+            </View>
+          </NativeGlassBackdrop>
+          {solid ? null : lensGlass}
+          {solid ? null : (
+            <Animated.View style={[styles.lens, lensIconStyle, lensWidthStyle]}>
+              <AnimatedNativeGlassView
+                style={styles.lensGlass}
+                animatedProps={lensIconProps}
+                rimOutBand={glass.lensRimOut.band}
+                group={revealGroup}
+                alphaPass
+                inset={glass.lensPad}
+                refractionYScale={glass.lensRefractionYScale}
+                cornerRadius={lensFullHeight / 2}
+                continuous={1}
+                blurRadius={glass.lensBlurRadius}
+                bezel={glass.lensBezel}
+                refraction={glass.lensRefraction}
+                falloff={glass.lensFalloff}
+                dispersion={glass.lensDispersion}
+                magnify={glass.lensMagnify}
+              />
+            </Animated.View>
+          )}
+          {hasBadges ? (
+            <Animated.View
+              style={[styles.rowClip, rowClipStyle]}
+              pointerEvents="none"
+              importantForAccessibility="no-hide-descendants">
+              <Animated.View style={[StyleSheet.absoluteFill, rowUnclipStyle]}>
+                <Animated.View style={[StyleSheet.absoluteFill, rowFitStyle]}>
+                  <View style={[styles.row, rowPadStyle]}>
+                    {tabs.map((tab, index) => (
+                      <TabItem
+                        key={tab.name}
+                        tab={tab}
+                        index={index}
+                        middleIndex={middleIndex}
+                        tintColor={tintColor}
+                        selected={index === focusedIndex}
+                        lensPosition={lensPosition}
+                        lift={lift}
+                        shine={shine}
+                        presence={lensPresence}
+                        cover={rowCover}
+                        covered={rowCovered}
+                        collapsed={collapsed}
+                        collapseX={collapseX}
+                        collapseSpread={collapseSpread}
+                        inkTone={inkTone}
+                        swell={swell}
+                        slotStyle={slotStyles[index]}
+                        entering={tabEnter}
+                        handoff={index === backIndex ? searchMode : undefined}
+                        badgeOnly
+                        badgeColor={badgeColor}
+                        badgeTextColor={badgeTextColor}
+                        onActivate={selectTab}
+                      />
+                    ))}
+                  </View>
+                </Animated.View>
+              </Animated.View>
+            </Animated.View>
+          ) : null}
+        </Animated.View>
+        {searchTab?.searchRole ? (
+          <SearchMode
+            fieldFit={state.fieldFit}
+            active={searchFocused}
+            idle={idleFade}
+            onCancel={idleSearch}
+            onWake={wakeSearch}
+            fieldPress={state.fieldPress}
+            mode={searchMode}
+            backTab={tabs[backIndex]}
+            searchTab={searchTab}
+            tintColor={tintColor}
+            badgeColor={badgeColor}
+            badgeTextColor={badgeTextColor}
+            backPress={backPress}
+            travel={{
+              index: backIndex,
+              slots: slotPlan,
+              width: barWidth,
+              circle: searchCenter,
+              press: searchPress.press,
+              target: modeTarget,
+              fit: rowFit,
+            }}
+            onBack={backSearch}
+            backDrag={backDrag}
+            keyboard={searchRaise}
+            spread={keyboardSpread}
+            reach={keyboardReach}
+            sink={tileSink}
+            dip={searchDip}
+          />
+        ) : null}
+        {circleTab ? (
+          // The circle for TalkBack, which reads in the order views are drawn: the circle draws with the bar's glass,
+          // before the tabs, where VoiceOver reads iOS's after them and after search's field. Touches pass through to
+          // the circle; TalkBack's double tap presses it.
+          <Animated.View style={[styles.circleStandIn, searchSpreadStyle]} pointerEvents="none">
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={circlePress}
+              accessibilityRole="tab"
+              accessibilityLabel={searchFocused && !searchIdle ? 'Close search' : circleTab.label}
+              accessibilityState={{ selected: searchFocused }}
+            />
+          </Animated.View>
         ) : null}
       </Animated.View>
-      {searchTab ? (
-        <SearchMode
-          active={searchFocused}
-          mode={searchMode}
-          backTab={tabs[backIndex]}
-          searchTab={searchTab}
-          tintColor={tintColor}
-          badgeColor={badgeColor}
-          badgeTextColor={badgeTextColor}
-          backPress={backPress}
-          travel={{
-            index: backIndex,
-            slotWidth: fullItemWidth,
-            width: barWidth,
-            circle: searchCenter,
-            press: searchPress.press,
-            target: modeTarget,
-            fit: rowFit,
-          }}
-          onBack={backSearch}
-          backDrag={backDrag}
-          keyboard={searchRaise}
-          spread={keyboardSpread}
-          reach={keyboardReach}
-          sink={tileSink}
-          dip={searchDip}
-        />
-      ) : null}
-    </Animated.View>
+    </>
+  );
+  // Mirrored in a right-to-left language, as iOS mirrors its bar (helpers/mirror).
+  return mirrored ? (
+    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, mirror]}>
+      {content}
+    </View>
+  ) : (
+    content
   );
 };
 
 const styles = StyleSheet.create({
   bar: {
     position: 'absolute',
+    // Laid out left to right in every language: its places are measured from its left edge, which a right-to-left
+    // layout would swap.
+    direction: 'ltr',
   },
   backdrop: {
     flexDirection: 'row',
@@ -408,11 +698,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    right: fullHeight + layout.tabBarGap,
     height: fullHeight,
-  },
-  lensOverlayFull: {
-    right: 0,
   },
   barGlass: {
     position: 'absolute',
@@ -422,10 +708,22 @@ const styles = StyleSheet.create({
     bottom: -glass.pad,
   },
   frame: {
-    flex: 1,
     height: fullHeight,
   },
+  // Pushes search's circle to the span's end past a bar narrower than it; it takes back its own gap, so a bar that
+  // fills the span leaves the circle where it was.
+  grow: {
+    flex: 1,
+    marginLeft: -layout.tabBarGap,
+  },
   search: {
+    width: fullHeight,
+    height: fullHeight,
+  },
+  circleStandIn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
     width: fullHeight,
     height: fullHeight,
   },
@@ -461,10 +759,21 @@ const styles = StyleSheet.create({
     borderRadius: lensFullHeight / 2,
     overflow: 'hidden',
   },
+  // The tabs at the places their slot styles give them (helpers/slots), from the bar's left edge.
   row: {
     ...StyleSheet.absoluteFill,
     flexDirection: 'row',
     paddingVertical: rowInset,
-    paddingHorizontal: inlinePad,
+  },
+  measure: {
+    position: 'absolute',
+    left: -10000,
+    top: 0,
+    opacity: 0,
+  },
+  measureLabel: {
+    position: 'absolute',
+    fontSize: layout.tabLabelSize,
+    fontWeight: '500',
   },
 });

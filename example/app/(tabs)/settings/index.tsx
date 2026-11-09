@@ -1,5 +1,5 @@
-import { Stack } from 'expo-router';
-import { Slider, isLiquidGlassAvailable } from 'expo-lucent';
+import { Slider, isLiquidGlassAvailable, setGlassFallback, type GlassFallback } from 'expo-lucent';
+import { Stack } from 'expo-lucent/navigation';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 import { accents, useSettings, type Scheme } from '@/components/settings';
@@ -7,7 +7,7 @@ import { Code, Options, Page, Row, Section, Swatches, prop, usePalette } from '@
 
 export default function SettingsScreen() {
   const palette = usePalette();
-  const { scheme, tint, glassOpacity, set, reset } = useSettings();
+  const { scheme, tint, glassOpacity, glassFallback, set, reset } = useSettings();
 
   return (
     <Page>
@@ -44,6 +44,22 @@ export default function SettingsScreen() {
 
       <Section title="Device">
         <Row label="Platform" detail={`${Platform.OS} ${Platform.Version}`} />
+        {Platform.OS === 'android' ? (
+          <Row label="setGlassFallback" detail="Draw the solid fallback here: liquid glass needs Android 13" stacked>
+            <Options<GlassFallback>
+              options={[
+                { label: 'Liquid glass', value: 'auto' },
+                { label: 'Solid', value: 'solid' },
+              ]}
+              value={glassFallback}
+              onChange={(next) => {
+                // Before the re-render, so isLiquidGlassAvailable() below already answers for it.
+                setGlassFallback(next);
+                set({ glassFallback: next });
+              }}
+            />
+          </Row>
+        ) : null}
         <Row label="isLiquidGlassAvailable()" detail={String(isLiquidGlassAvailable())} last />
       </Section>
 

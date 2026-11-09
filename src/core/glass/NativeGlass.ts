@@ -7,6 +7,9 @@ export interface NativeGlassViewProps extends ViewProps {
   underlay?: string;
   overlay?: string;
   shapes?: number[];
+  // One of `shapes` stretched as a whole about its middle (a circle into an ellipse), toward a finger dragged off it:
+  // [index, across, down]; `shapes` keeps its unstretched size.
+  shapePull?: number[];
   inset?: number;
   cornerRadius?: number;
   blend?: number;
@@ -41,6 +44,8 @@ export interface NativeGlassViewProps extends ViewProps {
   glowY?: number;
   glowSpread?: number;
   glowStrength?: number;
+  // Which of `shapes` the glow stays inside; the first, without it.
+  glowShape?: number;
   shadowRadius?: number;
   shadowOffset?: number;
   shadowSpread?: number;
@@ -58,6 +63,11 @@ export interface NativeGlassViewProps extends ViewProps {
   rimSide?: number;
   rimFloor?: number;
   rimCrisp?: boolean;
+  rimOptic?: boolean;
+  rimOpticTop?: number;
+  rimOpticDarken?: number;
+  haze?: number;
+  hazeRadius?: number;
   edgeAxis?: number;
   prismAxis?: number;
   prismShift?: number;
@@ -68,6 +78,11 @@ export interface NativeGlassViewProps extends ViewProps {
   pinchRight?: number;
   sampleMaxX?: number;
   ellipse?: number;
+  // A lens moving fast, lopsided (GlassShader's droplet): one end narrowed toward its tip (sign: + right), the top half
+  // squashed in and the bottom half pushed out.
+  dropletTaper?: number;
+  dropletTop?: number;
+  dropletBottom?: number;
   continuous?: number;
   wallSide?: number;
   wallRound?: number;
@@ -88,6 +103,11 @@ export interface NativeGlassViewProps extends ViewProps {
   frost?: number;
   frostClear?: number;
   frostRadius?: number;
+  // A blur on top of `blurRadius` that eases off down the view: this much at the top, easing off from `fadeFrom` to
+  // nothing at `fadeTo` (dp from the view's top).
+  fadeBlur?: number;
+  fadeFrom?: number;
+  fadeTo?: number;
   toneBase?: number;
   toneGain?: number;
   toneGamma?: number;
@@ -96,6 +116,14 @@ export interface NativeGlassViewProps extends ViewProps {
   frostGain?: number;
   frostGamma?: number;
   frostChroma?: number;
+  // iOS 27's Liquid Glass setting, past the tone: how much backdrop Clear lets back through (on the glass, under the
+  // frost), and how far Tinted leans toward the glass's own result over white (+) or black (−).
+  levelClear?: number;
+  levelFrostClear?: number;
+  levelLean?: number;
+  toneBow?: number;
+  frostBow?: number;
+  tonePre?: boolean;
   sampleBackdrop?: boolean;
   onBackdropLuma?: (event: { luma: number }) => void;
   frostLeft?: number;
@@ -116,6 +144,17 @@ export interface NativeGlassViewProps extends ViewProps {
   tint?: ColorValue;
   rim?: ColorValue;
   fallback?: ColorValue;
+  // Drawn solid: the frost's colour, an outline and a drop shadow in place of the glass's (GlassPlain).
+  fallbackPill?: ColorValue;
+  fallbackRim?: ColorValue;
+  fallbackRimWidth?: number;
+  // Drawn solid, how many points at its bottom it fades out over, to clear.
+  fallbackFade?: number;
+  // Fading at its top instead.
+  fallbackFadeTop?: boolean;
+  fallbackShadow?: ColorValue;
+  fallbackShadowRadius?: number;
+  fallbackShadowOffset?: number;
   shadow?: ColorValue;
   plain?: boolean;
   alphaPass?: boolean;

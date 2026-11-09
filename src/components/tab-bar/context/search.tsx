@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { NativeSyntheticEvent } from 'react-native';
 import type { SearchBarProps as ScreensSearchBarProps } from 'react-native-screens';
+
+import { createLucentContext } from '../../../theme/context';
 
 export type SearchBarProps = ScreensSearchBarProps;
 
@@ -22,22 +24,30 @@ export interface TabSearch {
   cancel: () => void;
 }
 
-interface SearchHost {
-  query: string;
-  focused: boolean;
+// What doesn't change as the text does, apart, so what only needs these doesn't render again on every keystroke.
+interface SearchActions {
   track: (name: SearchEventName) => void;
   writeText: (text: string) => void;
   attachText: (write: ((text: string) => void) | null) => void;
   setQuery: (text: string) => void;
   replaceQuery: (text: string) => void;
-  props: SearchBarProps;
   register: (props: SearchBarProps | null) => void;
   emit: (name: SearchEventName) => void;
   attach: (part: SearchControls) => () => void;
   command: (name: keyof SearchControls) => void;
+  // The tab bar tells the screens when its search tab is in search mode.
+  setActive: (active: boolean) => void;
 }
 
-const SearchHostContext = createContext<SearchHost | null>(null);
+interface SearchHost extends SearchActions {
+  query: string;
+  focused: boolean;
+  active: boolean;
+  props: SearchBarProps;
+}
+
+const SearchHostContext = createLucentContext<SearchHost | null>('SearchHost', null);
+const SearchActionsContext = createLucentContext<SearchActions | null>('SearchActions', null);
 
 const textEvent = <T,>(text: string) => ({ nativeEvent: { text } }) as unknown as NativeSyntheticEvent<T>;
 
@@ -48,6 +58,7 @@ interface Props {
 export const SearchHostProvider = ({ children }: Props) => {
   const [query, setQueryState] = useState('');
   const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(false);
   const nativeText = useRef<((text: string) => void) | null>(null);
   const [props, setProps] = useState<SearchBarProps>({});
   const latest = useRef<SearchBarProps>({});
@@ -127,30 +138,27 @@ export const SearchHostProvider = ({ children }: Props) => {
     handler?.(textEvent(text.current));
   }, []);
 
+  const actions = useMemo(
+    () => ({ track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command, setActive }),
+    [track, writeText, attachText, setQuery, replaceQuery, register, emit, attach, command],
+  );
   const value = useMemo(
-    () => ({
-      query,
-      focused,
-      track,
-      writeText,
-      attachText,
-      setQuery,
-      replaceQuery,
-      props,
-      register,
-      emit,
-      attach,
-      command,
-    }),
-    [query, focused, track, writeText, attachText, setQuery, replaceQuery, props, register, emit, attach, command],
+    () => ({ ...actions, query, focused, active, props }),
+    [actions, query, focused, active, props],
   );
 
-  return <SearchHostContext value={value}>{children}</SearchHostContext>;
+  return (
+    <SearchActionsContext value={actions}>
+      <SearchHostContext value={value}>{children}</SearchHostContext>
+    </SearchActionsContext>
+  );
 };
 
 const fallbackHost: SearchHost = {
   query: '',
   focused: false,
+  active: false,
+  setActive: () => {},
   track: () => {},
   writeText: () => {},
   attachText: () => {},
@@ -164,6 +172,9 @@ const fallbackHost: SearchHost = {
 };
 
 export const useSearchHost = (): SearchHost => useContext(SearchHostContext) ?? fallbackHost;
+
+/** The search's actions alone: unlike `useSearchHost`, doesn't render again as the text changes. */
+export const useSearchActions = (): SearchActions => useContext(SearchActionsContext) ?? fallbackHost;
 
 export const useTabSearch = (): TabSearch => {
   const { query, focused, writeText, command } = useSearchHost();

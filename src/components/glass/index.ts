@@ -1,7 +1,8 @@
 export { GlassBackdrop } from './GlassBackdrop';
 export { GlassContainer } from './GlassContainer';
 export { GlassView } from './GlassView';
-export { isGlassEffectAPIAvailable, isLiquidGlassAvailable } from './helpers/availability';
+export { isGlassEffectAPIAvailable, isLiquidGlassAvailable, setGlassFallback } from './helpers/availability';
+export type { GlassFallback } from './helpers/fallback';
 export type {
   GlassColorScheme,
   GlassContainerProps,

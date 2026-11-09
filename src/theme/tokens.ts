@@ -12,7 +12,17 @@ export const typography = {
   badge: { fontSize: 13, lineHeight: 19, fontWeight: '400' },
 } as const;
 
-export const glassOpacity = { default: 0.5, clearFloor: 0.4, opaque: 0.85 } as const;
+// iOS 27's Liquid Glass setting (Settings → Appearance), Clear to Tinted, which `glassOpacity` stands in for: 0.5 is
+// iOS's default. Measured over a grey ramp at both ends of iOS's slider:
+// - Clear lets this much of the backdrop back through the default glass, on the bar and under the selected pill (light
+//   Clear is the default mixed 22% toward the backdrop, its pill 38%; dark Clear is the default).
+// - Tinted leans the default glass toward what it makes of white (+) or black (−): light Tinted is 37% of the way to
+//   its result over white, dark Tinted halfway to its result over black, on the bar and pill alike.
+export const glassOpacity = {
+  default: 0.5,
+  clear: { light: [0.225, 0.38], dark: [0, 0] },
+  tinted: { light: 0.374, dark: -0.5 },
+} as const;
 
 export const colorTint = {
   dark: { darken: 0, mix: 0.2 },
@@ -21,6 +31,8 @@ export const colorTint = {
 
 export const glass = {
   pad: 28,
+  // Drawn solid, glass casts One UI 9's soft drop shadow (a community One UI 9 kit: about 10pt), in barFallbackShadow.
+  fallbackShadow: { radius: 10, offset: 2 },
   blend: 8,
   shadowRadius: { dark: 12, light: 8 },
   shadowOffset: { dark: 6, light: 11 },
@@ -35,21 +47,41 @@ export const glass = {
   pullTopBand: { dark: 20, light: 1 },
   refractionYScale: { dark: 0.96, light: 0.96 },
   wideRadius: { dark: 16, light: 9 },
-  wideMix: { dark: 0.35, light: 0.22 },
+  // The wide blur drawn under the glass, now only for a press: at rest the haze is the material's wide blur.
+  wideMix: { dark: 0, light: 0 },
   pressWideMix: { dark: 0.8, light: 0.85 },
-  chroma: { dark: 1.3, light: 1.9 },
+  // How far colour sits from grey, after the tone: dark fitted over red, green, blue, orange and browns (simulator).
+  chroma: { dark: 1.2, light: 1.9 },
+  // iOS 27's dark glass over a grey ramp (simulator), backdrop luma x 0–1: the bar is 0.125 + 0.6x + 0.38x(1−x), and the
+  // tab bar's selected pill, under the frost, 0.039 + 0.52x + 0.33x(1−x), within 3 levels from black to white.
   tone: {
     dark: {
       on: 1,
       base: 0.125,
-      gain: 0.64,
-      gamma: 0.74,
-      frostBase: 0.16,
-      frostGain: 0.45,
+      gain: 0.6,
+      gamma: 1,
+      bow: 0.38,
+      frostBase: 0.039,
+      frostGain: 0.52,
       frostGamma: 1,
-      frostChroma: 2.6,
+      frostBow: 0.33,
+      frostChroma: 1.4,
     },
-    light: { on: 0, base: 0, gain: 1, gamma: 1, frostBase: 0, frostGain: 1, frostGamma: 1, frostChroma: 1 },
+    // Light glass is untoned (iOS 27's bar matches within 2 levels as it is); the selected pill, over the same grey
+    // ramp, darkens more over dark content than the frost alone does: this curve, on the frost's own result, puts it
+    // within 4 levels of iOS's (97 over black to 233 over white). Colour keeps light's chroma.
+    light: {
+      on: 1,
+      base: 0,
+      gain: 1,
+      gamma: 1,
+      bow: 0,
+      frostBase: -0.368,
+      frostGain: 1.349,
+      frostGamma: 1,
+      frostBow: 0.305,
+      frostChroma: 1.9,
+    },
   },
   dispersion: 0,
   saturation: { dark: 1, light: 1 },
@@ -61,8 +93,14 @@ export const glass = {
   edgeSoft: { dark: 0.08, light: 0.02 },
   sharpWidth: 1.17,
   softWidth: 2.2,
-  rimWidth: 1.6,
-  outlineWidth: 0.45,
+  // iOS 27's outline (simulator, over greys and colours): a ring 0.5pt wide just outside the glass, the backdrop under
+  // it darkened rather than a stroke. Full at the sides; a quarter where it faces up or down in light mode, and none in
+  // dark, where it also eases off over light backdrops.
+  edge: { width: 0.5, top: { light: 0.25, dark: 0 }, darken: { light: 0, dark: 0.88 } },
+  // Its material over stripes: a near-sharp image at about a quarter over a blur far wider than 16pt, at every stripe
+  // period; in dark the blur averages after the tone (tonePre). Fitted to the contrast 40pt stripes keep under the
+  // tab bar's accessory on iOS 27 (44 levels light, 64 dark).
+  haze: { weight: { light: 0.78, dark: 0.76 }, radius: 40, blur: 0.4 },
   outlineSide: 1.1,
   rimSide: 3,
   insetShade: { dark: 0, light: 0 },
@@ -86,16 +124,23 @@ export const glass = {
   lensPinchEndReach: 0.08,
   lensPad: 12,
   lensFrost: 1,
-  inkLuma: { dark: { from: 0.04, to: 0.55, step: 0.1 }, light: { from: 0.72, to: 0.9, step: 0.1 } },
-  lensFrostClear: { dark: 0.9, light: 0.6 },
-  lensFrostRadius: { dark: 16, light: 10 },
-  lensFrostMagnify: { dark: 0.7, light: 0.7 },
+  // The selected ink follows how light what's under the bar reads (the window under the bar's glass, on the emulator):
+  // in dark mode 0.04 over black, 0.18 over a dark list, 0.36 over a photo and 0.56 over white; in light mode 0.39 over
+  // black, 0.86 over a light list and 0.9 over white. From a dark backdrop's ink at `from` to a light one's at `to`.
+  inkLuma: { dark: { from: 0.26, to: 0.4, step: 0.1 }, light: { from: 0.39, to: 0.72, step: 0.1 } },
+  lensFrostClear: { dark: 0.9, light: 0 },
+  // iOS 27's dark pill over stripes (simulator): the bar's material blurred about 1.75pt more (39% of its 8pt stripes
+  // left, 80% of its 16pt), at the bar's own scale. A disc 4.3pt wide is that blur, its taps too close to print copies.
+  lensFrostRadius: { dark: 4.3, light: 10 },
+  lensFrostMagnify: { dark: 0, light: 0.7 },
   lensFalloff: 0,
   lensDispersion: 0.95,
-  lensMagnify: 0.2,
+  // Held, iOS 27 magnifies the tab under its lens about 1.21x (iPhone 18 Pro Max, its icon and label alike).
+  lensMagnify: 0.17,
   lensSpecular: 0.22,
   lensEdgeShade: { dark: -0.08, light: -0.04 },
-  lensHeldEdge: { dark: -0.08, light: -0.04 },
+  // Held or gliding in dark, iOS 27's lens has the bar's bright inner band (edgeSharp), not a shaded edge.
+  lensHeldEdge: { dark: 0.18, light: -0.04 },
   lensHeldDispersion: { dark: 0.2, light: 1 },
   lensHeldPrismShift: { dark: 3, light: 0 },
   lensHeldPinchSpread: { dark: 0, light: 0.26 },

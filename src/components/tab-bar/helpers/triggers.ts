@@ -10,7 +10,12 @@ export interface TabSpec {
   badge?: string;
   badgeColor?: string;
   hidden: boolean;
+  // In its own circle beside the bar: search while it activates its field, or a prominent tab (NativeTabs picks one).
   search: boolean;
+  // role="search": the circle opens the search field rather than the tab's screen.
+  searchRole: boolean;
+  // iOS 27's prominent tab (UITabBarController.prominentTabIdentifier): any one tab, set apart in the circle.
+  prominent: boolean;
   disabled: boolean;
   disablePopToTop: boolean;
   disableScrollToTop: boolean;
@@ -41,6 +46,7 @@ export const parseTriggers = (children: ReactNode): TabSpec[] =>
       disableScrollToTop,
       role,
       automaticallyActivatesSearch,
+      prominent,
       children: content,
     } = child.props;
     if (!name) {
@@ -50,7 +56,10 @@ export const parseTriggers = (children: ReactNode): TabSpec[] =>
       name,
       label: titleCase(name),
       hidden: hidden ?? false,
-      search: role === 'search',
+      // iOS 27 sets search apart in its own circle only while it activates its field; otherwise it is one of the tabs.
+      search: role === 'search' && (automaticallyActivatesSearch ?? true),
+      searchRole: role === 'search',
+      prominent: prominent ?? false,
       disabled: disabled ?? false,
       disablePopToTop: disablePopToTop ?? false,
       disableScrollToTop: disableScrollToTop ?? false,
@@ -79,10 +88,23 @@ export const parseTriggers = (children: ReactNode): TabSpec[] =>
       }
     });
     // iOS draws a magnifier for a search tab without an icon, so match it.
-    if (spec.search && !spec.icon) {
+    if (spec.searchRole && !spec.icon) {
       spec.icon = { md: 'search' };
     }
     return [spec];
   });
+
+/**
+ * The tab set apart in the circle, as iOS 27 picks it: the prominent one if any (only one can be), otherwise search
+ * while it activates its field. Every other tab is in the bar, search among them.
+ */
+export const setApart = (visible: TabSpec[]): TabSpec[] => {
+  const prominent = visible.find((trigger) => trigger.prominent);
+  const apart = prominent ?? visible.find((trigger) => trigger.search);
+  return visible.map((trigger) => {
+    const search = trigger === apart;
+    return trigger.search === search ? trigger : { ...trigger, search };
+  });
+};
 
 export const hrefFor = (name: string) => (name === 'index' ? './' : `./${name}`);

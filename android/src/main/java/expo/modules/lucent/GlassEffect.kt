@@ -2,7 +2,10 @@ package expo.modules.lucent
 
 import android.app.ActivityManager
 import android.content.Context
+import android.graphics.BlendMode
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.RenderEffect
 import android.graphics.RenderNode
@@ -17,7 +20,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** Packs the shapes and shader values and builds the glass RenderEffect. */
-abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBackdrops(context, appContext) {
+abstract class GlassEffect(context: Context, appContext: AppContext) :
+  GlassBackdrops(context, appContext), GlassSupport.Listener {
   protected val glassNode: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassLayer") else null
 
@@ -38,11 +42,38 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
       null
     }
 
+  private val toneShader: RuntimeShader? = if (shader != null) RuntimeShader(TONE_SHADER) else null
+  private val hazeIn: RuntimeShader? = if (shader != null) RuntimeShader(HAZE_IN_SHADER) else null
+  private val hazeOut: RuntimeShader? = if (shader != null) RuntimeShader(HAZE_OUT_SHADER) else null
+
   private val lowRam =
     (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice ?: false
 
+  // High-contrast text draws solid glass too, as iOS's Reduce Transparency does.
   protected val usesShader: Boolean
-    get() = shader != null && !lowRam && !plain
+    get() = shader != null && !lowRam && !plain && !reducedTransparency && GlassSupport.refracts
+
+  override val pressesSolid: Boolean
+    get() = !usesShader
+
+  /**
+   * Redraws the solid fallback after a shape prop animated on the UI thread changes: it draws only when asked, where the
+   * shader's glass redraws every frame anyway and asking again would only cost it.
+   */
+  fun redrawIfSolid() {
+    if (!usesShader) invalidate()
+  }
+
+  init {
+    GlassSupport.track(this)
+  }
+
+  // Rebuilt, not just redrawn: the effect is otherwise rebuilt only when a prop changes, so a view back from a fallback
+  // would keep the cleared one, and its contents (the lens's icons) would draw without it.
+  override fun glassSupportChanged() {
+    updateEffect()
+    invalidate()
+  }
 
   private val clipMatrix = Matrix()
   private val clipInverse = Matrix()
@@ -90,8 +121,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     }
     if (pressedShape in 0 until count && press != 0f) {
       val (sx, sy) = shapeScale()
-      val cx = (pressedRect.centerX() + shapeLeanX * PRESS_LEAN) * density + outPx
-      val cy = (pressedRect.centerY() + shapeLeanY * PRESS_LEAN) * density + outPx
+      val cx = (pressedRect.centerX() + shapeLeanX * PRESS_LEAN + shapePullX * PULL_SHIFT) * density + outPx
+      val cy = (pressedRect.centerY() + shapeLeanY * PRESS_LEAN + shapePullY * PULL_SHIFT) * density + outPx
       val hw = pressedRect.width() * 0.5f * sx * density
       val hh = pressedRect.height() * 0.5f * sy * density
       val k = pressedShape * 4
@@ -120,6 +151,35 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     return if (radiusPx > 0f) RenderEffect.createBlurEffect(radiusPx, radiusPx, Shader.TileMode.CLAMP) else null
   }
 
+  /**
+   * What the glass sees: the backdrop at the material's own blur, or, with haze, that at `weight`'s complement over a
+   * Gaussian `radius` wide. A real blur rather than taps in the glass shader, which would print sparse sharp content
+   * (text) as a ring of copies. It averages near linear light, as iOS 27 does, on a curve 8 bits a channel can carry
+   * (HAZE_IN_SHADER).
+   */
+  private fun hazed(blurPx: Float, weight: Float, radiusPx: Float, first: RenderEffect?): RenderEffect? {
+    // Each branch takes `first` (the tone, with tonePre) itself: a blend's branches read the raw content, not a chain's.
+    fun after(effect: RenderEffect?) =
+      if (first == null) effect else if (effect == null) first else RenderEffect.createChainEffect(effect, first)
+    val near = after(blur(blurPx))
+    if (weight <= 0f || radiusPx <= 0.5f) return near
+    val spread = RenderEffect.createBlurEffect(radiusPx * 0.5f, radiusPx * 0.5f, Shader.TileMode.CLAMP)
+    // Toned first (dark), detail already averages on the tone's curve, nearer iOS 27's without this.
+    val inShader = hazeIn.takeIf { first == null }
+    val outShader = hazeOut
+    val wide = after(
+      if (inShader == null || outShader == null) spread
+      else RenderEffect.createChainEffect(
+        RenderEffect.createRuntimeShaderEffect(outShader, "content"),
+        RenderEffect.createChainEffect(spread, RenderEffect.createRuntimeShaderEffect(inShader, "content")),
+      ),
+    )
+    val keep = ColorMatrix().apply { setScale(1f, 1f, 1f, 1f - weight) }
+    val faint = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(keep))
+    val sharp = if (near != null) RenderEffect.createChainEffect(faint, near) else faint
+    return RenderEffect.createBlendModeEffect(wide!!, sharp, BlendMode.SRC_OVER)
+  }
+
   private fun putColor(index: Int, color: Color): Int {
     state[index] = color.red()
     state[index + 1] = color.green()
@@ -137,8 +197,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
       return
     }
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    val opaque = reducedTransparency && fallback.alpha() > 0f
-    val blurPx = if (opaque) 0f else blurRadius * density
+    val blurPx = blurRadius * density
     val glassShader = shader?.takeIf { width > 0 && height > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU }
 
     if (glassShader == null) {
@@ -156,7 +215,7 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     val side = shortestSide(count)
     val reference = REFERENCE_SIDE * density
     val bezelPx = min(bezel * density, side * BEZEL_RATIO).coerceAtLeast(MIN_BAND)
-    val refractionPx = if (opaque) 0f else min(refraction * density, side * REFRACTION_RATIO * min(1f, side / reference))
+    val refractionPx = min(refraction * density, side * REFRACTION_RATIO * min(1f, side / reference))
     val highlightPx = min(highlightWidth * density, side * HIGHLIGHT_RATIO).coerceAtLeast(MIN_BAND)
     val angle = Math.toRadians(lightAngle.toDouble())
 
@@ -180,12 +239,12 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = bumpSplit
     state[i++] = bumpShapeY * density
     state[i++] = bumpCurve
-    state[i++] = if (opaque) 0f else dispersion
-    state[i++] = if (opaque) 0f else magnify
-    state[i++] = if (opaque) -999f else magnifyY
-    state[i++] = if (opaque) 1f else saturation
-    state[i++] = if (opaque) 0f else adaptive
-    state[i++] = if (opaque) 0f else dim
+    state[i++] = dispersion
+    state[i++] = magnify
+    state[i++] = magnifyY
+    state[i++] = saturation
+    state[i++] = adaptive
+    state[i++] = dim
     state[i++] = cos(angle).toFloat()
     state[i++] = sin(angle).toFloat()
     state[i++] = specular
@@ -195,10 +254,10 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = sharpWidth * density
     state[i++] = softWidth * density
     val shapePress = pressedShape >= 0
-    state[i++] = (if (shapePress) shapeLight(glowFollowX, pressedRect.centerX()) else if (interactive) lightOf(glowFollowX, width.toFloat()) else glowX) * density + outPx
+    state[i++] = (if (shapePress) shapeLightX(glowFollowX) else if (interactive) lightOf(glowFollowX, width.toFloat()) else glowX) * density + outPx
     state[i++] = (if (shapePress) shapeLight(glowFollowY, pressedRect.centerY()) else if (interactive) lightOf(glowFollowY, height.toFloat()) else glowY) * density + outPx
     state[i++] = (if (interactive || shapePress) pressGlowSpread else glowSpread) * density
-    state[i++] = if (opaque) 0f else if (shapePress) (pressShapes?.getOrNull(pressedShape) ?: 0f) * glowLevel else if (interactive) pressGlow * glowLevel else glowStrength
+    state[i++] = if (shapePress) (pressShapes?.getOrNull(pressedShape) ?: 0f) * glowLevel else if (interactive) pressGlow * glowLevel else glowStrength
     state[i++] = shadowRadius * density
     state[i++] = shadowOffset * density
     state[i++] = shadowSpread * density
@@ -207,24 +266,27 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = insetSide
     state[i++] = insetSideWidth * density
     state[i++] = insetRamp * density
-    state[i++] = if (opaque) 0f else pinch * density
+    state[i++] = pinch * density
     state[i++] = pinchWidth * density
-    state[i++] = if (opaque) 0f else pinchSpread
-    state[i++] = if (opaque) 0f else rimPrism
+    state[i++] = pinchSpread
+    state[i++] = rimPrism
     state[i++] = rimWidth
-    state[i++] = if (!rimOutside) 0f else if (rimCrisp) 2f else 1f
+    state[i++] = if (!rimOutside) 0f else if (rimOptic) 3f else if (rimCrisp) 2f else 1f
     state[i++] = rimSide
     state[i++] = rimFloor
     state[i++] = edgeAxis
-    state[i++] = if (opaque) 0f else prismAxis
-    state[i++] = if (opaque) 0f else prismShift * density
-    state[i++] = if (opaque) 0f else insetShade
+    state[i++] = prismAxis
+    state[i++] = prismShift * density
+    state[i++] = insetShade
     state[i++] = insetOffset * density
     state[i++] = insetBlur * density
-    state[i++] = if (opaque) 0f else pinchLeft * density
-    state[i++] = if (opaque) 0f else pinchRight * density
+    state[i++] = pinchLeft * density
+    state[i++] = pinchRight * density
     state[i++] = sampleMaxX * density
     state[i++] = ellipse
+    state[i++] = dropletTaper
+    state[i++] = dropletTop
+    state[i++] = dropletBottom
     state[i++] = continuous
     state[i++] = radiusBottom * density
     state[i++] = wallSide
@@ -240,40 +302,44 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     state[i++] = clipOn
     state[i++] = topBend
     state[i++] = topDepth
-    state[i++] = if (opaque) 1f else chroma
-    state[i++] = if (opaque) 0f else pullBottom * density
+    state[i++] = chroma
+    state[i++] = pullBottom * density
     state[i++] = pullBand * density
-    state[i++] = if (opaque) 0f else pullTop * density
+    state[i++] = pullTop * density
     state[i++] = pullTopBand * density
-    state[i++] = if (opaque) 0f else rimOut * density
+    state[i++] = rimOut * density
     state[i++] = rimOutBand * density
-    state[i++] = if (opaque) 0f else rimPull * density
+    state[i++] = rimPull * density
     state[i++] = rimPullBand * density
     state[i++] = frostLeft * density + outPx
     state[i++] = frostTop * density + outPx
     state[i++] = frostRight * density + outPx
     state[i++] = frostBottom * density + outPx
-    state[i++] = if (opaque) 0f else frost
+    state[i++] = frost
     state[i++] = frostClear
     state[i++] = frostRadius * density
     state[i++] = frostMagnify
     state[i++] = toneBase
     state[i++] = toneGain
     state[i++] = toneGamma
-    state[i++] = if (opaque) 0f else toneOn
+    state[i++] = toneOn
     state[i++] = frostBase
     state[i++] = frostGain
     state[i++] = frostGamma
     state[i++] = frostChroma
-    i = putColor(i, if (opaque) fallback else tint)
+    state[i++] = levelClear
+    state[i++] = levelFrostClear
+    state[i++] = levelLean
+    i = putColor(i, tint)
     i = putColor(i, rim)
     i = putColor(i, shadow)
-    i = putColor(i, if (opaque) TRANSPARENT else effectTint)
+    i = putColor(i, effectTint)
     state[i++] = tintDarken
     state[i++] = tintMix
     val glowShapeAt = i
-    if (shapePress) {
-      val k = pressedShape * 4
+    val glowAt = if (shapePress) pressedShape else glowShape
+    if (glowAt >= 0) {
+      val k = glowAt * 4
       state[i++] = shapeBuffer[k]
       state[i++] = shapeBuffer[k + 1]
       state[i++] = shapeBuffer[k + 2]
@@ -286,6 +352,28 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     }
     val sampleClipAt = i
     fillSampleClip(state, i)
+    i += 4
+    val fadeBlurAt = i
+    state[i++] = fadeBlur * density
+    state[i++] = fadeFrom * density + outPx
+    state[i++] = fadeTo * density + outPx
+    val opticAt = i
+    state[i++] = rimOpticTop
+    state[i++] = rimOpticDarken
+    state[i++] = haze
+    state[i++] = hazeRadius * density
+    state[i++] = toneBow
+    state[i++] = frostBow
+    state[i++] = if (tonePre && toneOn > 0f) 1f else 0f
+    val pressPullAt = i
+    val (pullX, pullY) = shapePullScale()
+    val pressPulls = pressedShape >= 0 && press != 0f && (pullX != 1f || pullY != 1f)
+    // A pull JS drives (the tab bar's search circle) where no press of this view's own is pulling.
+    val given = shapePull
+    val givenPulls = !pressPulls && given != null && given.size >= 3 && given[0] >= 0f && (given[1] != 1f || given[2] != 1f)
+    state[i++] = if (pressPulls) pressedShape.toFloat() else if (givenPulls) given!![0] else -1f
+    state[i++] = if (pressPulls) pullX else if (givenPulls) given!![1] else 1f
+    state[i++] = if (pressPulls) pullY else if (givenPulls) given!![2] else 1f
     if (state.contentEquals(lastState)) {
       glassNode?.setRenderEffect(effect)
       return
@@ -348,6 +436,8 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("pinchRight", state[u++])
     glassShader.setFloatUniform("sampleMaxX", state[u++])
     glassShader.setFloatUniform("ellipse", state[u++])
+    glassShader.setFloatUniform("droplet", state[u], state[u + 1], state[u + 2])
+    u += 3
     glassShader.setFloatUniform("continuous", state[u++])
     glassShader.setFloatUniform("radiusBottom", state[u++])
     glassShader.setFloatUniform("wall", state[u], state[u + 1], state[u + 2])
@@ -378,17 +468,30 @@ abstract class GlassEffect(context: Context, appContext: AppContext) : GlassBack
     glassShader.setFloatUniform("tone", state[u], state[u + 1], state[u + 2], state[u + 3])
     u += 4
     glassShader.setFloatUniform("frostTone", state[u], state[u + 1], state[u + 2], state[u + 3])
-    glassShader.setColorUniform("tint", if (opaque) fallback else tint)
+    u += 4
+    glassShader.setFloatUniform("level", state[u], state[u + 1], state[u + 2])
+    glassShader.setColorUniform("tint", tint)
     glassShader.setColorUniform("rim", rim)
     glassShader.setColorUniform("shadow", shadow)
-    glassShader.setColorUniform("colorTint", if (opaque) TRANSPARENT else effectTint)
+    glassShader.setColorUniform("colorTint", effectTint)
     glassShader.setFloatUniform("colorTintModel", tintDarken, tintMix)
     glassShader.setFloatUniform("glowShape", state[glowShapeAt], state[glowShapeAt + 1], state[glowShapeAt + 2], state[glowShapeAt + 3])
     glassShader.setFloatUniform("sampleClip", state[sampleClipAt], state[sampleClipAt + 1], state[sampleClipAt + 2], state[sampleClipAt + 3])
     glassShader.setFloatUniform("alphaPass", if (alphaPass) 1f else 0f)
+    glassShader.setFloatUniform("fadeBlur", state[fadeBlurAt], state[fadeBlurAt + 1], state[fadeBlurAt + 2])
+    glassShader.setFloatUniform("rimOptic", state[opticAt], state[opticAt + 1])
+    glassShader.setFloatUniform("toneBow", state[opticAt + 4], state[opticAt + 5])
+    val pre = state[opticAt + 6] > 0f
+    glassShader.setFloatUniform("tonePre", if (pre) 1f else 0f)
+    glassShader.setFloatUniform("pressPull", state[pressPullAt], state[pressPullAt + 1], state[pressPullAt + 2])
 
     val glass = RenderEffect.createRuntimeShaderEffect(glassShader, "content")
-    val inner = blur(blurPx)
+    val toneStage = toneShader?.takeIf { pre }?.let {
+      it.setFloatUniform("curve", toneBase, toneGain, toneBow)
+      it.setColorUniform("tint", tint)
+      RenderEffect.createRuntimeShaderEffect(it, "content")
+    }
+    val inner = hazed(blurPx, state[opticAt + 2], state[opticAt + 3], toneStage)
     effect = if (inner != null) RenderEffect.createChainEffect(glass, inner) else glass
     state.copyInto(lastState)
     glassNode?.setRenderEffect(effect)

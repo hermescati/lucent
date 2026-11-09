@@ -19,14 +19,26 @@ import android.provider.Settings
 import android.annotation.SuppressLint
 import android.view.PixelCopy
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.Window
+import com.facebook.react.uimanager.BackgroundStyleApplicator
 import com.facebook.react.uimanager.ReactOverflowView
+import com.facebook.react.uimanager.style.BorderRadiusProp
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+
+// The physical corners, clockwise from the top left, as `Path.addRoundRect` takes their radii.
+private val CORNERS = listOf(
+  BorderRadiusProp.BORDER_TOP_LEFT_RADIUS,
+  BorderRadiusProp.BORDER_TOP_RIGHT_RADIUS,
+  BorderRadiusProp.BORDER_BOTTOM_RIGHT_RADIUS,
+  BorderRadiusProp.BORDER_BOTTOM_LEFT_RADIUS,
+)
 
 class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, appContext) {
   private val onBackdropLuma by EventDispatcher()
@@ -44,18 +56,115 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
   private val liftMatrix = Matrix()
   private val ancestorMatrix = Matrix()
   private val liftClip = RectF()
+  // A rounded ancestor that clips (a screen sliding in or swiped back, rounded as the display is): lifted glass keeps
+  // to its corners too, where the rectangle let a scrolled bar's edge show square past them.
+  private val roundClip = RectF()
+  private var rounded = false
+  private val roundRadii = FloatArray(8)
+  private val roundPath = Path()
 
   private val ancestorRect = RectF()
+  private val ownRect = RectF()
+  // Screens over this one with rounded corners (a swipe back rounds the top screen's): the glass is kept out of where each
+  // is, cut along its corners, so what they uncover there still shows it.
+  private val coverRects = ArrayList<RectF>()
+  private val coverRadii = ArrayList<Float>()
+  private var coverCount = 0
+  private val coverPath = Path()
 
   private val wideNode: RenderNode? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) RenderNode("LucentGlassWide") else null
   private var wideSigma = -1f
 
+  // Drawn again only when its pose has changed or a press is moving: invalidating here asks for another frame, so
+  // doing it every frame kept the window drawing at full rate with nothing on screen moving.
   private val preDraw = ViewTreeObserver.OnPreDrawListener {
     stepPress()
-    if (lifted && !interactive && !pressesShapes) updateEffect()
-    invalidate()
+    // Without the shader there's no effect to keep current, and resetting it each frame would draw every frame.
+    if (lifted && !interactive && !pressesShapes && usesShader) updateEffect()
+    val moved = poseChanged()
+    if (moved || !pressResting) invalidate()
+    // A press still settling needs the next frame too: an invalidate here, before this frame's draw, asks for nothing
+    // more, and glass pressing as a whole (a prominent button) froze where it was let go once no touch drew frames.
+    if (!pressResting) postInvalidateOnAnimation()
     true
+  }
+
+  // What its recording depends on beyond the nodes it draws by reference, which update by themselves: where it and its
+  // backdrops sit, how much of it shows up the tree, and the screens that can cover it while lifted.
+  private var pose = FloatArray(64)
+  private var lastPose = FloatArray(0)
+  private var poseSize = 0
+  private val poseMatrix = Matrix()
+  private val poseValues = FloatArray(9)
+
+  private fun putPose(value: Float) {
+    if (poseSize == pose.size) pose = pose.copyOf(pose.size * 2)
+    pose[poseSize++] = value
+  }
+
+  private fun putPlace(view: View) {
+    poseMatrix.reset()
+    view.transformMatrixToGlobal(poseMatrix)
+    poseMatrix.getValues(poseValues)
+    for (value in poseValues) putPose(value)
+    putPose(view.alpha)
+    putPose(if (view.visibility == VISIBLE) 1f else 0f)
+    putPose(view.width.toFloat())
+    putPose(view.height.toFloat())
+  }
+
+  private fun poseChanged(): Boolean {
+    poseSize = 0
+    putPlace(this)
+    var view: View = this
+    while (true) {
+      putPose(view.alpha)
+      putPose(if (view.visibility == VISIBLE) 1f else 0f)
+      putPose(view.width.toFloat())
+      putPose(view.height.toFloat())
+      if (view is GlassBlurView) putPose(view.radius)
+      val parent = view.parent as? View ?: break
+      if (parent is ViewGroup && parent.javaClass.name in SCREEN_CONTAINERS) {
+        for (i in 0 until parent.childCount) putPlace(screenOf(parent.getChildAt(i)))
+      }
+      view = parent
+    }
+    val owner = host
+    if (owner != null) {
+      putPlace(owner)
+    } else {
+      for (name in arrayOf(underlay, group, overlay)) {
+        val backdrop = name?.let { GlassRegistry.backdrop(it) }
+        if (backdrop == null) {
+          putPose(-1f)
+          continue
+        }
+        putPlace(backdrop)
+        putPose(if (backdrop.visibleNode?.hasDisplayList() == true) 1f else 0f)
+      }
+    }
+    var same = poseSize == lastPose.size
+    var i = 0
+    while (same && i < poseSize) {
+      same = pose[i] == lastPose[i]
+      i++
+    }
+    if (same) return false
+    lastPose = pose.copyOf(poseSize)
+    return true
+  }
+
+  // Lifted, its host records it (recordLifted), so a change to it is the host's to draw.
+  override fun invalidate() {
+    super.invalidate()
+    host?.invalidate()
+  }
+
+  // And so is a change to what it holds: a glyph fading in redraws only itself, which the host wouldn't see.
+  override fun onDescendantInvalidated(child: View, target: View) {
+    super.onDescendantInvalidated(child, target)
+    host?.invalidate()
   }
 
   private val contrastObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -67,6 +176,10 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
 
   init {
     setWillNotDraw(false)
+    // What it holds can draw past it: a pressed capsule's contents grow and lean with its glass, which draws past its
+    // bounds too, and a selected button's fill would be cut off at the row's edge.
+    clipChildren = false
+    clipToPadding = false
   }
 
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
@@ -227,6 +340,73 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     canvas.drawRenderNode(node)
   }
 
+  // A stack's screen sits in a layout of its own, which stays put while a transition moves the screen: what covers is
+  // the screen.
+  private fun screenOf(child: View): View {
+    if (child !is ViewGroup) return child
+    for (i in 0 until child.childCount) {
+      val inner = child.getChildAt(i)
+      if (inner.javaClass.name == SCREEN_VIEW) return inner
+    }
+    return child
+  }
+
+  // What of `area` a screen over it leaves showing: screens slide sideways or up, so it's one edge moved. Whether the
+  // screen spans the glass is what counts, not the whole backdrop: a screen in tabs stops short of the window.
+  // A screen with rounded corners leaves its corners showing what's under it: the area keeps `radius` into the screen,
+  // which the screen's rounded shape is then cut out of.
+  private fun uncover(area: RectF, cover: RectF, glass: RectF, radius: Float) {
+    if (!RectF.intersects(area, cover)) return
+    val spansHeight = cover.top <= glass.top && cover.bottom >= glass.bottom
+    val spansWidth = cover.left <= glass.left && cover.right >= glass.right
+    when {
+      spansHeight && spansWidth && radius <= 0f -> area.setEmpty()
+      spansHeight && cover.left > area.left -> area.right = min(area.right, cover.left + radius)
+      spansHeight && cover.right < area.right -> area.left = maxOf(area.left, cover.right - radius)
+      spansHeight && spansWidth -> Unit
+      spansHeight -> area.left = maxOf(area.left, cover.right)
+      spansWidth && cover.top > area.top -> area.bottom = min(area.bottom, cover.top)
+      spansWidth -> area.top = maxOf(area.top, cover.bottom)
+    }
+  }
+
+  // The corner radius of a screen's page, in pixels: the first view inside it that fills it and has rounded corners (a
+  // swipe back rounds the top screen's). 0 when it has none.
+  private fun roundedCorner(screen: View): Float {
+    var level = listOf(screen)
+    repeat(7) {
+      val next = ArrayList<View>()
+      for (view in level) {
+        val group = view as? ViewGroup ?: continue
+        for (c in 0 until group.childCount) {
+          val inner = group.getChildAt(c)
+          if (inner.width < screen.width - 1) continue
+          val all = BackgroundStyleApplicator.getBorderRadius(inner, BorderRadiusProp.BORDER_RADIUS)
+          val corner = BackgroundStyleApplicator.getBorderRadius(inner, BorderRadiusProp.BORDER_TOP_LEFT_RADIUS) ?: all
+          val radius = (corner?.resolve(min(inner.width, inner.height) / density) ?: 0f) * density
+          if (radius > 0f && inner.height >= screen.height / 2) return radius
+          next.add(inner)
+        }
+      }
+      level = next
+    }
+    return 0f
+  }
+
+  // A view's corner radii, in pixels, into `roundRadii`, clockwise from the top left; false when it has none.
+  private fun cornersOf(view: View): Boolean {
+    val all = BackgroundStyleApplicator.getBorderRadius(view, BorderRadiusProp.BORDER_RADIUS)
+    val reference = min(view.width, view.height) / density
+    var any = false
+    CORNERS.forEachIndexed { i, corner ->
+      val radius = ((BackgroundStyleApplicator.getBorderRadius(view, corner) ?: all)?.resolve(reference) ?: 0f) * density
+      roundRadii[i * 2] = radius
+      roundRadii[i * 2 + 1] = radius
+      if (radius > 0f) any = true
+    }
+    return any
+  }
+
   override fun recordLifted(owner: GlassBackdropView, hostInverse: Matrix) {
     val node = liftNode ?: return
     val clip = clipNode ?: return
@@ -241,17 +421,56 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     transformMatrixToGlobal(liftMatrix)
     liftMatrix.postConcat(hostInverse)
     var alpha = 1f
+    var blur = 0f
     var clipped = false
+    rounded = false
+    coverCount = 0
     var view: View = this
     while (view !== owner) {
       alpha *= view.alpha
+      // The backdrop draws lifted glass, so an ancestor's blur would pass it by: it takes the strongest itself.
+      if (view is GlassBlurView) blur = max(blur, view.radius)
       val parent = view.parent as? View ?: break
+      // The backdrop draws lifted glass over all the content, so a screen in a stack can't cover it: glass on a screen
+      // below another (both show while one slides in or is swiped back) keeps to what the screens above leave of it.
+      if (parent is ViewGroup && parent.javaClass.name in SCREEN_CONTAINERS) {
+        if (!clipped) {
+          liftClip.set(0f, 0f, owner.width.toFloat(), owner.height.toFloat())
+          ownRect.set(0f, 0f, width.toFloat(), height.toFloat())
+          liftMatrix.mapRect(ownRect)
+          clipped = true
+        }
+        for (i in parent.indexOfChild(view) + 1 until parent.childCount) {
+          val above = screenOf(parent.getChildAt(i))
+          if (above.visibility != View.VISIBLE || above.alpha <= 0f) continue
+          ancestorMatrix.reset()
+          above.transformMatrixToGlobal(ancestorMatrix)
+          ancestorMatrix.postConcat(hostInverse)
+          ancestorRect.set(0f, 0f, above.width.toFloat(), above.height.toFloat())
+          ancestorMatrix.mapRect(ancestorRect)
+          val radius = roundedCorner(above)
+          uncover(liftClip, ancestorRect, ownRect, radius)
+          if (radius > 0f && RectF.intersects(liftClip, ancestorRect)) {
+            if (coverCount == coverRects.size) {
+              coverRects.add(RectF())
+              coverRadii.add(0f)
+            }
+            coverRects[coverCount].set(ancestorRect)
+            coverRadii[coverCount] = radius
+            coverCount++
+          }
+        }
+      }
       if (parent !== owner && parent is ReactOverflowView && parent.overflow != null && parent.overflow != "visible") {
         ancestorMatrix.reset()
         parent.transformMatrixToGlobal(ancestorMatrix)
         ancestorMatrix.postConcat(hostInverse)
         ancestorRect.set(0f, 0f, parent.width.toFloat(), parent.height.toFloat())
         ancestorMatrix.mapRect(ancestorRect)
+        if (!rounded && cornersOf(parent)) {
+          roundClip.set(ancestorRect)
+          rounded = true
+        }
         if (clipped) {
           if (!liftClip.intersect(ancestorRect)) liftClip.setEmpty()
         } else {
@@ -276,6 +495,10 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     node.setPosition(0, 0, width, height)
     node.setClipToBounds(false)
     node.setAlpha(alpha)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val px = blur * density
+      node.setRenderEffect(if (px > 0.5f) RenderEffect.createBlurEffect(px, px, Shader.TileMode.DECAL) else null)
+    }
     val recording = node.beginRecording(width, height)
     drawingLifted = true
     try {
@@ -291,6 +514,16 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     val out = clip.beginRecording(owner.width, owner.height)
     try {
       if (clipped) out.clipRect(liftClip)
+      for (i in 0 until coverCount) {
+        coverPath.reset()
+        coverPath.addRoundRect(coverRects[i], coverRadii[i], coverRadii[i], Path.Direction.CW)
+        out.clipOutPath(coverPath)
+      }
+      if (rounded) {
+        roundPath.reset()
+        roundPath.addRoundRect(roundClip, roundRadii, Path.Direction.CW)
+        out.clipPath(roundPath)
+      }
       out.concat(liftMatrix)
       out.drawRenderNode(node)
     } finally {
@@ -301,8 +534,7 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
   private fun drawWide(canvas: Canvas) {
     val node = wideNode ?: return
     val sigma = wideRadius * density * WIDE_SIGMA_RATIO
-    val opaque = reducedTransparency && fallback.alpha() > 0f
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || opaque || wideMix <= 0f || sigma <= 0f) return
+    if (!usesShader || wideMix <= 0f || sigma <= 0f) return
     val pad = outPx.roundToInt()
     node.setPosition(-pad, -pad, width + pad, height + pad)
     node.setClipToBounds(true)
@@ -321,3 +553,4 @@ class GlassView(context: Context, appContext: AppContext) : GlassPlain(context, 
     canvas.drawRenderNode(node)
   }
 }
+

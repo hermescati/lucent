@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useManualGesture, type PanGesture } from 'react-native-gesture-handler';
 import { KeyboardEvents } from 'react-native-keyboard-controller';
 import Animated, {
   useAnimatedProps,
@@ -13,12 +13,16 @@ import { ClearButton } from './ClearButton';
 import { TabBadge } from './TabBadge';
 import { TabIcon } from './TabIcon';
 import { AnimatedNativeGlassBlur } from '../../../core/glass/NativeGlass';
+import type { ShapePress } from '../../../core/glass/useShapePress';
+import { useClearButton } from '../../../core/search/clearFade';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import { space, typography } from '../../../theme/tokens';
 import { useSearchHost } from '../context/search';
+import type { SearchFieldFit } from '../helpers/bar';
+import { mirrored } from '../helpers/mirror';
+import type { SlotPlan } from '../helpers/slots';
 import type { TabSpec } from '../helpers/triggers';
-import type { useGlassPress } from '../hooks/useGlassPress';
-import { layout, motion, placeholderBlend, searchFieldText } from '../tokens';
+import { clearButton, layout, motion, placeholderBlend, searchFieldText } from '../tokens';
 
 const fullHeight = layout.tabBarHeight;
 const modeHeight = layout.searchModeHeight;
@@ -49,10 +53,10 @@ interface Props {
   tintColor?: string;
   badgeColor?: string;
   badgeTextColor?: string;
-  backPress: ReturnType<typeof useGlassPress>;
+  backPress: ShapePress;
   travel: {
     index: number;
-    slotWidth: SharedValue<number>;
+    slots: SharedValue<SlotPlan>;
     width: SharedValue<number>;
     circle: SharedValue<number>;
     press: SharedValue<number>;
@@ -60,12 +64,22 @@ interface Props {
     fit: SharedValue<{ scale: number; x: number; y: number }>;
   };
   onBack: () => void;
+  // 1 once the ref's `cancelSearch` has left search inactive on its tab, the close button folded into the field's end.
+  idle: SharedValue<number>;
+  // The ref's `cancelSearch` while search is up.
+  onCancel: () => void;
+  // The field taken up again while inactive.
+  onWake: () => void;
+  // The field's glass under a finger on its clear button.
+  fieldPress: ShapePress;
   backDrag: PanGesture;
   keyboard: SharedValue<number>;
   spread: SharedValue<number>;
   reach: number;
   sink: SharedValue<number>;
   dip: SharedValue<number>;
+  // The field at the system's text size: taller, without its magnifier, its clear button bigger.
+  fieldFit: SearchFieldFit;
 }
 
 export const SearchMode = ({
@@ -79,18 +93,56 @@ export const SearchMode = ({
   backPress,
   travel,
   onBack,
+  idle,
+  onCancel,
+  onWake,
+  fieldPress,
   backDrag,
   keyboard,
   spread,
   reach,
   sink,
   dip,
+  fieldFit,
 }: Props) => {
   const { color, scheme } = useLucentTheme(tintColor);
   const iconDim = motion.pressIconDim[scheme];
   const { query, setQuery, props: searchProps, emit, attach } = useSearchHost();
   const placeholder = searchProps.placeholder ?? '';
   const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const clearQuery = () => {
+    setQuery('');
+    input.current?.focus();
+  };
+  // Always there, so the text's room doesn't change: iOS fades it in and out. Held, it swells the field.
+  const clear = useClearButton(Boolean(query), {
+    onClear: clearQuery,
+    onPressIn: () => {
+      'worklet';
+      fieldPress.begin();
+    },
+    onPressOut: () => {
+      'worklet';
+      fieldPress.end();
+    },
+    hitSlop: clearButton.hitSlop,
+  });
+  // Touched in its text, the field swells a little less than under its clear button (iOS 27 simulator). The text box
+  // takes the touch itself, so this only watches it, on the UI thread, so the swell starts with the touch.
+  const fieldTouch = useManualGesture({
+    onTouchesDown: () => {
+      'worklet';
+      fieldPress.begin(0, 0, motion.fieldTapPeak);
+    },
+    onTouchesUp: () => {
+      'worklet';
+      fieldPress.end();
+    },
+    onTouchesCancel: () => {
+      'worklet';
+      fieldPress.end();
+    },
+  });
   const [keyboardUp, setKeyboardUp] = useState(false);
   const wide = useDerivedValue(() => clamp01(keyboard.get()));
 
@@ -108,12 +160,14 @@ export const SearchMode = ({
       attach({
         focus: active ? () => input.current?.focus() : undefined,
         blur: () => input.current?.blur(),
-        cancel: () => {
-          setQuery('');
-          input.current?.blur();
-        },
+        cancel: active
+          ? onCancel
+          : () => {
+              setQuery('');
+              input.current?.blur();
+            },
       }),
-    [active, attach, setQuery],
+    [active, attach, setQuery, onCancel],
   );
 
   useEffect(() => {
@@ -128,12 +182,7 @@ export const SearchMode = ({
     return () => clearTimeout(timer);
   }, [active, searchTab.automaticallyActivatesSearch]);
 
-  const clearQuery = () => {
-    setQuery('');
-    input.current?.focus();
-  };
-
-  const { index: travelIndex, slotWidth, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
+  const { index: travelIndex, slots, width: barWidth, circle, press: travelPress, target, fit: rowFit } = travel;
   const backStyle = useAnimatedStyle(() => ({
     opacity: (mode.get() > motion.backTravel.handoff ? 1 : 0) * (1 - wide.get()),
     transform: [{ translateY: sink.get() }, { scale: 1 + backPress.press.get() * motion.pressGrow }],
@@ -152,7 +201,7 @@ export const SearchMode = ({
     const fit = rowFit.get();
     const settled = 1 - away;
     const width = Math.max(barWidth.get(), 1);
-    const slot = layout.tabBarInlinePadding + (travelIndex + 0.5) * slotWidth.get();
+    const slot = slots.get().centers[travelIndex] ?? 0;
     const ride = modeInset * settled + (lerp(width, modeHeight, settled) / width) * slot;
     const rideEnd = modeInset + (modeHeight / width) * slot;
     const fromX = ride - backCenter - (rideEnd - backCenter) * settled;
@@ -173,9 +222,11 @@ export const SearchMode = ({
           wideShift * wide.get(),
       },
       { translateY: dip.get() },
+      { scale: 1 + fieldPress.press.get() * motion.fieldPressGrow * clamp01(mode.get()) },
     ],
     left: fieldLeft - wideShift * wide.get(),
-    right: fieldRight - reach * wide.get(),
+    // Inactive, the field reaches over where the close button was.
+    right: fieldRight - reach * wide.get() - (modeHeight + layout.searchModeGap) * idle.get(),
   }));
   const glyphStyle = useAnimatedStyle(() => ({
     opacity: mode.get() > motion.backTravel.handoff ? 1 : 0,
@@ -189,7 +240,8 @@ export const SearchMode = ({
     opacity: target.get() === 1 ? 1 - clamp01(mode.get() * motion.searchTabs.pressFade) : 0,
   }));
   const textStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: textFrom * (1 - clamp01(mode.get())) }],
+    // Flipped back with the text (textMirrored), so reversed to slide the bar's way.
+    transform: [{ translateX: (mirrored ? -textFrom : textFrom) * (1 - clamp01(mode.get())) }],
     opacity:
       mode.get() >= motion.backTravel.settle
         ? 0
@@ -210,21 +262,25 @@ export const SearchMode = ({
   };
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={active ? 'box-none' : 'none'}>
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents={active ? 'box-none' : 'none'}
+      // Closed, its back button and field are out of sight, and out of TalkBack's reach.
+      importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}>
       <GestureDetector gesture={backDrag}>
         <Pressable
-          style={styles.back}
+          style={[styles.back, { top: modeInset - fieldFit.rise / 2 }]}
           pointerEvents={keyboardUp ? 'none' : 'auto'}
           onPress={goBack}
-          onPressIn={backPress.onPressIn}
-          onPressOut={backPress.onPressOut}
+          onPressIn={() => backPress.begin()}
+          onPressOut={() => backPress.end()}
           accessibilityRole="button"
           accessibilityLabel={backTab.label}>
           <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>
             <Animated.View style={[styles.fill, { backgroundColor: color.pressFill }, backFillStyle]} />
             <Animated.View style={[styles.center, backInkStyle]}>
               <Animated.View style={backOutlineStyle}>
-                <TabIcon icon={backTab.icon} selected={false} size={layout.tabIconSize} color={color.text} />
+                <TabIcon icon={backTab.icon} selected={false} size={layout.tabIconSize} color={color.tabInk} />
               </Animated.View>
               <Animated.View style={[StyleSheet.absoluteFill, styles.center, backFilledStyle]}>
                 <TabIcon icon={backTab.icon} selected size={layout.tabIconSize} color={color.tint} />
@@ -246,51 +302,85 @@ export const SearchMode = ({
           </Animated.View>
         </Pressable>
       </GestureDetector>
-      <Animated.View style={[styles.field, fieldStyle]}>
-        <Animated.View style={glyphStyle}>
-          <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.text} />
-          <Animated.View style={[StyleSheet.absoluteFill, glyphAccentStyle]}>
-            <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
+      <Animated.View
+        style={[
+          styles.field,
+          { top: modeInset - fieldFit.rise, height: modeHeight + fieldFit.rise },
+          !fieldFit.glyph && styles.fieldBare,
+          fieldStyle,
+        ]}>
+        {fieldFit.glyph ? (
+          <Animated.View style={glyphStyle}>
+            <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.text} />
+            <Animated.View style={[StyleSheet.absoluteFill, glyphAccentStyle]}>
+              <TabIcon icon={searchTab.icon} selected={false} size={layout.searchFieldIconSize} color={color.tint} />
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
-        <View style={styles.text}>
-          <Animated.View style={[styles.layer, inputStyle]}>
-            <TextInput
-              ref={input}
-              style={[styles.input, searchFieldText[scheme], { color: color.text }]}
-              value={query}
-              onChangeText={setQuery}
-              placeholder={placeholder}
-              placeholderTextColor="transparent"
-              selectionColor={searchProps.tintColor ?? color.tint}
-              cursorColor={searchProps.tintColor ?? color.tint}
-              autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
-              onFocus={() => emit('onFocus')}
-              onBlur={() => emit('onBlur')}
-              onSubmitEditing={() => emit('onSearchButtonPress')}
-              returnKeyType="search"
-              autoCorrect={false}
-              numberOfLines={1}
-            />
-            {query ? null : (
-              <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
-                <Text
-                  style={[styles.input, searchFieldText[scheme], { color: color.placeholderActive }]}
-                  numberOfLines={1}>
-                  {placeholder}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-          <AnimatedNativeGlassBlur style={[styles.layer, textStyle]} animatedProps={textBlurProps} pointerEvents="none">
-            <Text
-              style={[styles.input, searchFieldText[scheme], { color: query ? color.text : color.placeholder }]}
-              numberOfLines={1}>
-              {query || placeholder}
-            </Text>
-          </AnimatedNativeGlassBlur>
-        </View>
-        {query ? <ClearButton color={color.clearButton} onPress={clearQuery} /> : null}
+        ) : null}
+        <GestureDetector gesture={fieldTouch}>
+          <View style={[styles.text, mirrored && styles.textMirrored]}>
+            <Animated.View style={[styles.layer, inputStyle]}>
+              <TextInput
+                ref={input}
+                style={[styles.input, searchFieldText[scheme], mirrored && styles.inputMirrored, { color: color.text }]}
+                value={query}
+                onChangeText={setQuery}
+                placeholder={placeholder}
+                placeholderTextColor="transparent"
+                selectionColor={searchProps.tintColor ?? color.tint}
+                cursorColor={searchProps.tintColor ?? color.tint}
+                autoCapitalize={searchProps.autoCapitalize === 'systemDefault' ? undefined : searchProps.autoCapitalize}
+                onFocus={() => {
+                  onWake();
+                  emit('onFocus');
+                }}
+                onBlur={() => emit('onBlur')}
+                onSubmitEditing={() => emit('onSearchButtonPress')}
+                returnKeyType="search"
+                autoCorrect={false}
+                numberOfLines={1}
+              />
+              {query ? null : (
+                <View pointerEvents="none" style={[styles.layer, { mixBlendMode: placeholderBlend[scheme] }]}>
+                  <Text
+                    style={[
+                      styles.input,
+                      searchFieldText[scheme],
+                      mirrored && styles.inputMirrored,
+                      { color: color.placeholderActive },
+                    ]}
+                    numberOfLines={1}>
+                    {placeholder}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+            <AnimatedNativeGlassBlur
+              style={[styles.layer, textStyle]}
+              animatedProps={textBlurProps}
+              pointerEvents="none">
+              <Text
+                style={[
+                  styles.input,
+                  searchFieldText[scheme],
+                  mirrored && styles.inputMirrored,
+                  { color: query ? color.text : color.placeholder },
+                ]}
+                numberOfLines={1}>
+                {query || placeholder}
+              </Text>
+            </AnimatedNativeGlassBlur>
+          </View>
+        </GestureDetector>
+        <ClearButton
+          color={color.clearButton}
+          gesture={clear.gesture}
+          dimStyle={clear.dimStyle}
+          fadeStyle={clear.fadeStyle}
+          shown={Boolean(query)}
+          onClear={clearQuery}
+          scale={fieldFit.clearScale}
+        />
       </Animated.View>
     </View>
   );
@@ -331,6 +421,19 @@ const styles = StyleSheet.create({
   text: {
     flex: 1,
     alignSelf: 'stretch',
+  },
+  // Without its magnifier, at the accessibility text sizes, the text starts further in, as iOS's does.
+  fieldBare: {
+    paddingLeft: layout.searchFieldGrowth.bareInset,
+  },
+  // In the mirrored bar (helpers/mirror), the text flipped back, and set right to left.
+  textMirrored: {
+    transform: [{ scaleX: -1 }],
+    direction: 'rtl',
+  },
+  // From the reading side, whatever the text, as iOS's field aligns in a right-to-left language.
+  inputMirrored: {
+    textAlign: 'right',
   },
   layer: {
     ...StyleSheet.absoluteFill,

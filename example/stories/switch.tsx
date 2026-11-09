@@ -21,6 +21,7 @@ const InAList = () => {
 
 export default story({
   slug: 'switch',
+  group: 'controls',
   name: 'Switch',
   summary: 'An on/off toggle with a glass thumb',
   component: 'Switch',

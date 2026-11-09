@@ -7,6 +7,9 @@ uniform shader content;
 uniform float2 size;
 uniform float4 shapes[4];
 uniform float shapeCount;
+// The pressed shape pulled toward a finger dragged off it: its index (-1 for none) and how much it's stretched across
+// and down. It's stretched as a whole, as iOS 27's is, a circle into an ellipse, rather than drawn anew at the new size.
+uniform float3 pressPull;
 uniform float radius;
 uniform float blend;
 uniform float bezel;
@@ -56,6 +59,9 @@ uniform float pinchLeft;
 uniform float pinchRight;
 uniform float sampleMaxX;
 uniform float ellipse;
+// Deforms the first shape as a lens moving fast does, lopsided: x narrows one end toward its tip (its sign picks the end,
+// + right), y squashes the top half in and z pushes the bottom half out, each of the half's height.
+uniform float3 droplet;
 uniform float continuous;
 uniform float radiusBottom;
 uniform float topBend;
@@ -69,8 +75,13 @@ uniform float frost;
 uniform float frostClear;
 uniform float frostRadius;
 uniform float frostMagnify;
+uniform float3 fadeBlur;
+uniform float2 rimOptic;
+uniform float2 toneBow;
+uniform float tonePre;
 uniform float4 tone;
 uniform float4 frostTone;
+uniform float3 level;
 uniform float chroma;
 uniform float4 clipRect;
 uniform float2 clipScale;
@@ -110,6 +121,20 @@ float wallCapsule(float2 p, float4 rect) {
   return min(max(q.x, q.y), 0.0) + length(max(q, float2(0.0))) - r;
 }
 
+// Apple's continuous corner (UIBezierPath's rounded rect since iOS 7, cornerCurve = .continuous): three cubics spanning
+// 1.52866483r along each edge, easing the curvature in from the straight edge rather than jumping to 1/r. It's described
+// here by its distance from the corner's centre, R(alpha), a polynomial in ((alpha - 45deg) / 72.86deg)^2 fitted to the
+// cubics within 0.001r; the distance to it is (rho - R) over the gradient's length, exact to first order and equal to the
+// straight edge's at the wedge's sides. iOS 27's capsules use it with the radius at half the height, cut at mid-height
+// (measured on the simulator, within 0.08pt); its circles stay circles.
+float appleRadius(float s) {
+  return 1.0017855 + s * (-0.0287977 + s * (-0.6672829 + s * (3.2177690 + s * (-5.2756717 + s * (4.1355015 + s * -1.2528373)))));
+}
+
+float appleSlope(float s) {
+  return -0.0287977 + s * (2.0 * -0.6672829 + s * (3.0 * 3.2177690 + s * (4.0 * -5.2756717 + s * (5.0 * 4.1355015 + s * 6.0 * -1.2528373))));
+}
+
 float continuousCapsule(float2 p, float4 rect) {
   float2 center = (rect.xy + rect.zw) * 0.5;
   float2 extent = max((rect.zw - rect.xy) * 0.5, float2(1.0));
@@ -117,29 +142,26 @@ float continuousCapsule(float2 p, float4 rect) {
   if (radius > 0.0) {
     r = min(r, radius);
   }
-  float2 q = abs(p - center);
-  if (extent.x < extent.y) {
-    q = q.yx;
-    extent = extent.yx;
+  float2 v = abs(p - center) - (extent - float2(r));
+  float spread = 1.2717138;
+  float alpha = atan(v.y, v.x);
+  float u = (alpha - 0.7853982) / spread;
+  float d = max(v.x, v.y) - r;
+  if (abs(u) < 1.0) {
+    float s = u * u;
+    float rho = max(length(v), 0.0001);
+    float dR = r * appleSlope(s) * 2.0 * u / spread;
+    // Eased into the straight sides' depth over the curve's last fifth, where it meets them tangentially: switched
+    // outright, the two leave a faint crease there.
+    d = mix(d, (rho - r * appleRadius(s)) / sqrt(1.0 + (dR / rho) * (dR / rho)), smoothstep(1.0, 0.8, abs(u)));
   }
-  float reach = min(r * 1.528, extent.x);
-  float t = clamp((reach / r - 1.0) / 0.51, 0.0, 1.0);
-  float2 e = float2(mix(2.0, 3.35, t), 2.0);
-  float2 box = float2(reach, r);
-  float2 s = q - (extent - box);
-  float2 a = max(s, float2(0.0001));
-  float2 c = a;
-  for (int i = 0; i < 2; i++) {
-    float2 k = c / box;
-    float2 pk = float2(pow(k.x, e.x), pow(k.y, e.y));
-    float g = sqrt(pk.x + pk.y);
-    float2 dg = e * pk / max(c, float2(0.0001)) / (2.0 * g);
-    c = max(c - (g - 1.0) / max(dot(dg, dg), 0.000001) * dg, float2(0.0001));
-  }
-  float2 k0 = a / box;
-  float f = pow(k0.x, e.x) + pow(k0.y, e.y);
-  float d = length(a - c);
-  return f > 1.0 ? d : mix(max(s.x - box.x, s.y - box.y), -d, smoothstep(0.15, 0.3, sqrt(f)));
+  // The same shape with round ends: exact, and smooth everywhere inside. The curve's depth alone jumps across the edges
+  // of its wedge, a seam deep in the glass, so deep down it's the round ends' depth, the curve's only toward the edge,
+  // where the two shapes differ.
+  float circle = length(max(v, float2(0.0))) + min(max(v.x, v.y), 0.0) - r;
+  d = mix(circle, d, smoothstep(-0.6 * r, -0.2 * r, circle));
+  // A square with a full radius stays a circle, as iOS's are.
+  return mix(circle, d, smoothstep(0.0, 0.1 * r, abs(extent.x - extent.y)));
 }
 
 float smoothUnion(float a, float b, float k) {
@@ -164,10 +186,28 @@ float stadium(float2 p, float4 rect) {
   return min(max(q.x, q.y), 0.0) + length(max(q, float2(0.0))) - r;
 }
 
-float field(float2 p) {
+float2 dropletWarp(float2 p, float4 rect) {
+  float2 center = (rect.xy + rect.zw) * 0.5;
+  float2 extent = max((rect.zw - rect.xy) * 0.5, float2(1.0));
+  float2 q = p - center;
+  float s = clamp(q.x * sign(droplet.x) / extent.x, 0.0, 1.0);
+  q.y /= max(1.0 - abs(droplet.x) * s * s, 0.2);
+  q.y *= q.y < 0.0 ? 1.0 + droplet.y : 1.0 / (1.0 + droplet.z);
+  return center + q;
+}
+
+float field(float2 pos) {
   float d = 100000.0;
   for (int i = 0; i < 4; i++) {
     if (float(i) < shapeCount) {
+      float2 p = i == 0 && (droplet.x != 0.0 || droplet.y != 0.0 || droplet.z != 0.0)
+        ? dropletWarp(pos, shapes[i])
+        : pos;
+      bool pulled = float(i) == pressPull.x;
+      if (pulled) {
+        float2 middle = (shapes[i].xy + shapes[i].zw) * 0.5;
+        p = middle + (p - middle) / pressPull.yz;
+      }
       float shape = i == 0 && wall.x != 0.0 ? wallCapsule(p, shapes[i]) : capsule(p, shapes[i]);
       if (continuous > 0.0) {
         shape = mix(shape, continuousCapsule(p, shapes[i]), continuous);
@@ -175,11 +215,14 @@ float field(float2 p) {
       if (i == 0 && ellipse > 0.0) {
         shape = mix(shape, oval(p, shapes[i]), ellipse);
       }
+      if (pulled) {
+        shape *= min(pressPull.y, pressPull.z);
+      }
       d = smoothUnion(d, shape, blend);
     }
   }
   if (clipOn > 0.0) {
-    float2 q = (p - size * 0.5) * clipScale;
+    float2 q = (pos - size * 0.5) * clipScale;
     float wall = stadium(q, clipRect) / max(min(clipScale.x, clipScale.y), 0.01);
     float clipped = -smoothUnion(-d, -wall, clipSoft);
     d = mix(d, clipped, clipOn);
@@ -194,6 +237,23 @@ float bumpBend(float depth, float axis, float width, float curve) {
 
 float luma(float3 c) {
   return dot(c, float3(0.2126, 0.7152, 0.0722));
+}
+
+// The backdrop's brightness that the glass's tone curve (gamma 1) takes to `y`.
+float untone(float y) {
+  float rise = tone.y + toneBow.x;
+  float lift = y - tone.x;
+  if (toneBow.x < 0.0001) {
+    return clamp(lift / max(tone.y, 0.0001), 0.0, 1.0);
+  }
+  return clamp((rise - sqrt(max(rise * rise - 4.0 * toneBow.x * lift, 0.0))) / (2.0 * toneBow.x), 0.0, 1.0);
+}
+
+// The backdrop that TONE_SHADER's tint and tone took to `c`.
+float3 backdropOf(float3 c, float4 glassTint) {
+  float toned = clamp(luma(c), 0.0, 1.0);
+  float3 tinted = c + untone(toned) - toned;
+  return (tinted - glassTint.rgb * glassTint.a) / max(1.0 - glassTint.a, 0.01);
 }
 
 float shadowAlpha(float2 p, float dp) {
@@ -224,7 +284,7 @@ half4 main(float2 coord) {
   }
   float4 rimColor = float4(rim);
   float rimHalf = max(rimWidth, 0.5) * 0.5;
-  if (rimOutside > 0.0 && rimColor.a > 0.0 && d > -max(rimHalf, 0.5) && d < max(rimHalf * 3.0, rimWidth + 0.5)) {
+  if (rimOutside > 0.0 && (rimColor.a > 0.0 || rimOutside > 2.5) && d > -max(rimHalf, 0.5) && d < max(rimHalf * 3.0, rimWidth + 0.5)) {
     float2 g = float2(field(coord + float2(1.0, 0.0)) - field(coord - float2(1.0, 0.0)),
                       field(coord + float2(0.0, 1.0)) - field(coord - float2(0.0, 1.0)));
     float gl = length(g);
@@ -233,8 +293,22 @@ half4 main(float2 coord) {
     float stroke = rimOutside > 1.5
       ? clamp(clamp(0.5 - (dn - rimWidth), 0.0, 1.0) - clamp(0.5 - dn, 0.0, 1.0), 0.0, 1.0) * (1.0 - cover)
       : clamp(1.0 - abs(d - rimHalf) / (rimHalf * 2.0), 0.0, 1.0) * (1.0 - cover);
-    float sa = rimColor.a * stroke * (rimOutside > 1.5 ? (rimSide > 0.0 ? mix(rimFloor, 1.0, pow(max(side, 0.0001), rimSide)) : 1.0) : mix(1.0, rimSide, side));
-    outer = float4(rimColor.rgb * sa, sa) + outer * (1.0 - sa);
+    if (rimOutside > 2.5) {
+      // iOS 27's outline isn't a stroke: it's the backdrop under it, darkened along a curve (0.118 + 0.572b of itself, so
+      // it vanishes over black and keeps 69% of white), eased off over light backdrops in dark mode, and weaker where
+      // the edge faces up or down. Drawn as a premultiplied colour over the backdrop, so each channel darkens on its own.
+      float3 b = content.eval(clamp(coord, float2(0.5), size - float2(0.5))).rgb;
+      if (tonePre > 0.5) {
+        b = clamp(backdropOf(b, float4(tint)), float3(0.0), float3(1.0));
+      }
+      float w = stroke * mix(rimOptic.x, 1.0, side);
+      float3 m = mix(float3(1.0), (0.118 + 0.572 * b) * (1.0 - rimOptic.y * max(luma(b) - 0.5, 0.0)), w);
+      float keep = min(m.r, min(m.g, m.b));
+      outer = float4(b * (m - keep), 1.0 - keep) + outer * keep;
+    } else {
+      float sa = rimColor.a * stroke * (rimOutside > 1.5 ? (rimSide > 0.0 ? mix(rimFloor, 1.0, pow(max(side, 0.0001), rimSide)) : 1.0) : mix(1.0, rimSide, side));
+      outer = float4(rimColor.rgb * sa, sa) + outer * (1.0 - sa);
+    }
   }
   if (cover <= 0.004) {
     return half4(outer);
@@ -328,7 +402,24 @@ half4 main(float2 coord) {
     col = centre;
   }
 
-  float frosted = frost > 0.0 ? frost * clamp(0.5 - capsule(coord, frostRect), 0.0, 1.0) : 0.0;
+  // A blur on top of the view's own that eases off down it: radius, then where it starts and stops easing, in y.
+  float fadeRadius = fadeBlur.x * (1.0 - smoothstep(fadeBlur.y, fadeBlur.z, coord.y));
+  if (fadeRadius > 0.5) {
+    float2 at = base + offset;
+    float3 disc = float3(0.0);
+    float total = 0.0;
+    for (int i = 0; i < 24; i++) {
+      float f = (float(i) + 0.5) / 24.0;
+      float ang = float(i) * 2.39996;
+      float w = exp(-2.0 * f);
+      disc += content.eval(clamp(at + float2(cos(ang), sin(ang)) * fadeRadius * sqrt(f), lo, hi)).rgb * w;
+      total += w;
+    }
+    col = disc / total;
+  }
+
+  float frostEdge = continuous > 0.0 ? mix(capsule(coord, frostRect), continuousCapsule(coord, frostRect), continuous) : capsule(coord, frostRect);
+  float frosted = frost > 0.0 ? frost * clamp(0.5 - frostEdge, 0.0, 1.0) : 0.0;
   if (frosted > 0.0 && frostRadius > 0.5) {
     float2 at = base + offset;
     float2 frostMid = (frostRect.xy + frostRect.zw) * 0.5;
@@ -385,13 +476,37 @@ half4 main(float2 coord) {
   }
 
   float4 tintColor = float4(tint);
-  col = mix(col, tintColor.rgb, tintColor.a * (1.0 - frosted * frostClear));
+  if (tonePre > 0.5) {
+    // Tinted and toned before the haze's blur (TONE_SHADER), so detail averaged on the curve: back to the backdrop it
+    // stands for, to tint and tone as any glass.
+    col = backdropOf(col, tintColor);
+  }
+  float3 under = col;
+  float tintAmount = tintColor.a * (1.0 - frosted * frostClear);
+  col = mix(col, tintColor.rgb, tintAmount);
+  // Tinted (level.z) leans toward what this glass makes of plain white or black, through the same tint and tone.
+  float lean = level.z;
+  float3 far = mix(float3(lean > 0.0 ? 1.0 : 0.0), tintColor.rgb, tintAmount);
   if (tone.w > 0.0) {
     float base = mix(tone.x, frostTone.x, frosted);
     float gain = mix(tone.y, frostTone.y, frosted);
     float curve = mix(tone.z, frostTone.z, frosted);
-    float3 mapped = base + gain * pow(max(col, float3(0.0)), float3(curve));
+    float bow = mix(toneBow.x, toneBow.y, frosted);
+    // On brightness, with the colour carried over on top, as iOS 27's dark glass does: per channel, the curve would
+    // squash a full channel (an orange's red) along with the light.
+    float lit = clamp(luma(col), 0.0, 1.0);
+    float3 mapped = col - lit + base + gain * pow(lit, curve) + bow * lit * (1.0 - lit);
     col = mix(col, mapped, tone.w);
+    float farLit = clamp(luma(far), 0.0, 1.0);
+    far = mix(far, far - farLit + base + gain * pow(farLit, curve) + bow * farLit * (1.0 - farLit), tone.w);
+  }
+  if (lean != 0.0) {
+    col = mix(col, clamp(far, float3(0.0), float3(1.0)), abs(lean));
+  }
+  // Clear (level.xy) lets the backdrop back through, more of it under the frost.
+  float seeThrough = mix(level.x, level.y, frosted);
+  if (seeThrough > 0.0) {
+    col = mix(col, under, seeThrough);
   }
   float saturate = tone.w > 0.0 ? mix(chroma, frostTone.w, frosted) : chroma;
   if (saturate != 1.0) {
@@ -403,16 +518,24 @@ half4 main(float2 coord) {
     float floor = tone.x * tone.w;
     float lift = clamp((base - floor) / max(1.0 - floor, 0.01), 0.0, 1.0);
     float3 tinted = 1.0 - (1.0 - float3(colorTint.rgb)) * (1.0 - colorTintModel.y * lift) - colorTintModel.x * (1.0 - base);
-    col = mix(col, clamp(tinted, float3(0.0), float3(1.0)), float(colorTint.a));
+    // Dimmed (the screen a swipe back uncovers): the backdrop comes in dimmed already, so only the tint is.
+    col = mix(col, clamp(tinted, float3(0.0), float3(1.0)) * (1.0 - dim), float(colorTint.a));
   }
   if (adaptive > 0.0) {
     float e = smoothstep(0.35, 0.75, luma(col));
     col = mix(col, mix(col, float3(1.0 - e), 0.14 + 0.08 * e), adaptive);
   }
-  col *= 1.0 - dim;
   if (glowStrength > 0.0) {
     float2 gd = (coord - glowCenter) / max(glowSpread, 1.0);
-    float glowMask = glowShape.z > glowShape.x ? clamp(0.5 - capsule(coord, glowShape), 0.0, 1.0) : shapeCount > 1.5 ? clamp(0.5 - capsule(coord, shapes[0]), 0.0, 1.0) : 1.0;
+    // A pulled press lights its whole stretched shape, not the outline it had before the pull.
+    float2 glowAt = coord;
+    float glowScale = 1.0;
+    if (pressPull.x >= 0.0) {
+      float2 middle = (glowShape.xy + glowShape.zw) * 0.5;
+      glowAt = middle + (coord - middle) / pressPull.yz;
+      glowScale = min(pressPull.y, pressPull.z);
+    }
+    float glowMask = glowShape.z > glowShape.x ? clamp(0.5 - capsule(glowAt, glowShape) * glowScale, 0.0, 1.0) : shapeCount > 1.5 ? clamp(0.5 - capsule(coord, shapes[0]), 0.0, 1.0) : 1.0;
     col += float3(glowStrength * exp(-0.5 * dot(gd, gd)) * glowMask);
   }
 
@@ -430,8 +553,10 @@ half4 main(float2 coord) {
   } else {
     float bevel = clamp(1.0 - depth / max(sharpWidth, 0.1), 0.0, 1.0);
     float edge = (edgeSharp * bevel + edgeSoft * exp(-depth / max(softWidth, 0.1))) * facingY * facingY;
-    float3 screened = col + edge / max(1.0 - tone.x, 0.1) * (1.0 - col);
-    col = mix(col + float3(edge), screened, tone.w);
+    // On toned (dark) glass the band fades with the fill as iOS 27's does, +0.248 - 0.137 of the fill's brightness
+    // (simulator, both modes), scaled to what it adds over the darkest fill, the tone's base.
+    float3 faded = col + edge * (0.248 - 0.137 * luma(col)) / (0.248 - 0.137 * tone.x);
+    col = mix(col + float3(edge), faded, tone.w);
   }
   col = clamp(col, float3(0.0), float3(1.0));
 
@@ -457,5 +582,43 @@ half4 main(float2 coord) {
   col += float3((sheen * 0.7 * (lead + trail) + glow * 0.1 * lead) * specular);
   col = clamp(col, float3(0.0), float3(1.0));
   return half4(float4(col * cover, cover) + outer);
+}
+"""
+
+// The glass's tint, then its tone curve on brightness with the colour carried over, ahead of the haze's blur (tonePre):
+// base, gain, bow.
+internal const val TONE_SHADER = """
+uniform shader content;
+uniform float3 curve;
+layout(color) uniform half4 tint;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float3 v = mix(float3(c.rgb) / max(float(c.a), 0.0001), float3(tint.rgb), float(tint.a));
+  float lit = clamp(dot(v, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+  v += curve.x + curve.y * lit + curve.z * lit * (1.0 - lit) - lit;
+  return half4(half3(clamp(v, float3(0.0), float3(1.0)) * float(c.a)), c.a);
+}
+"""
+
+// The haze's wide blur averages on ((x + 0.2)^2 - 0.04) / 1.4 and back: near enough linear light, as iOS 27's does, to
+// land black and white detail's mean where its does, with a slope at black (0.29) that 8 bits a channel between
+// effects still carry. A plain square or a cube would band dark colours into blocks.
+internal const val HAZE_IN_SHADER = """
+uniform shader content;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float3 v = clamp(float3(c.rgb) / max(float(c.a), 0.0001), float3(0.0), float3(1.0));
+  v = ((v + 0.2) * (v + 0.2) - 0.04) / 1.4;
+  return half4(half3(v * float(c.a)), c.a);
+}
+"""
+
+internal const val HAZE_OUT_SHADER = """
+uniform shader content;
+half4 main(float2 p) {
+  half4 c = content.eval(p);
+  float3 v = clamp(float3(c.rgb) / max(float(c.a), 0.0001), float3(0.0), float3(1.0));
+  v = sqrt(v * 1.4 + 0.04) - 0.2;
+  return half4(half3(v * float(c.a)), c.a);
 }
 """

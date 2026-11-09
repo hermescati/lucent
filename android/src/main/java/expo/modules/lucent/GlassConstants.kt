@@ -7,6 +7,17 @@ internal const val HIGH_TEXT_CONTRAST = "high_text_contrast_enabled"
 internal const val DEFAULT_LIGHT_ANGLE = 30f
 internal const val DEFAULT_HIGHLIGHT_WIDTH = 2f
 internal const val SHAPE_STEPS = 4f
+// Android 7 and 8's solid shadow (GlassPlain.drawSoftShadow): blurred at this fraction of its size, reaching this
+// many radii past its shape, and redrawn when what builds its shape moves more than the slop. SOFT_SHADOW_TEST draws
+// it on any Android, to check it on a newer device.
+internal const val SOFT_SCALE = 0.25f
+internal const val SOFT_REACH = 1.5f
+internal const val SOFT_KEY_SLOP = 0.05f
+internal const val SOFT_KEY_HEAD = 12
+internal const val SOFT_SHADOW_TEST = false
+// How much a press shades solid glass: black over a light fill, white over a dark one.
+internal const val PRESS_SHADE_LIGHT = 0.06f
+internal const val PRESS_SHADE_DARK = 0.08f
 internal const val OPEN_CLIP = 100000f
 internal const val REFERENCE_SIDE = 110f
 internal const val BEZEL_RATIO = 0.5f
@@ -14,23 +25,22 @@ internal const val REFRACTION_RATIO = 1.2f
 internal const val WIDE_SIGMA_RATIO = 0.6f
 internal const val HIGHLIGHT_RATIO = 0.05f
 internal const val MIN_BAND = 2f
-internal const val GLOW_REACH = 2.5f
-internal const val EDGE_SHARP_STRENGTH = 1.2f
-internal const val EDGE_SOFT_STRENGTH = 0.6f
-internal val EDGE_STOPS = floatArrayOf(0f, 0.3f, 0.7f, 1f)
-internal const val ADAPTIVE_LIFT = 0.14f
-internal const val ADAPTIVE_DARKEN = 0.22f
-internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 65
+internal const val STATE_SIZE = 3 + MAX_SHAPES * 4 + 62 + 81
 internal const val SAMPLE_SIZE = 8
 internal const val CONTINUOUS_STEPS = 128
+// Apple's continuous corner, as an angle about the corner's centre: its wedge's middle and half-width, in radians.
+internal const val APPLE_MID = 0.7853982f
+internal const val APPLE_SPREAD = 1.2717138f
 internal const val SAMPLE_INTERVAL_MS = 16L
 internal const val SAMPLE_INSET = 6f
 internal const val SAMPLE_WIDTH = 8f
 internal const val SAMPLE_STEP = 0.015f
 internal const val TINT_STRENGTH = 0.85f
-internal const val PRESS_IN_OMEGA = 35f
-internal const val PRESS_IN_DAMPING = 0.8f
-internal const val PRESS_OUT_OMEGA = 17.6f
+// The press spring, fitted to recordings of iOS 26's bar and glass buttons, which share it: about 130ms to full size,
+// overshooting a little, so a quick tap lets go halfway; then a bouncier release that dips below the rest size.
+internal const val PRESS_IN_OMEGA = 24.2f
+internal const val PRESS_IN_DAMPING = 0.75f
+internal const val PRESS_OUT_OMEGA = 15.4f
 internal const val PRESS_OUT_DAMPING = 0.36f
 internal const val GLOW_RISE = 0.025f
 internal const val GLOW_FALL = 0.12f
@@ -40,8 +50,20 @@ internal const val OUTSIDE_REACH = 28f
 internal const val LIGHT_FOLLOW = 0.35f
 internal const val PRESS_LEAN = 1.5f
 internal const val PRESS_STRETCH = 0.01f
+// A finger dragged off pressed glass pulls it along (iOS 27 simulator, held 8 to 578pt below a bar capsule): it grows
+// this much longer toward the finger per point beyond its edge, and as much narrower across, its centre moving this far
+// toward it per point, without letting up, to this far.
+internal const val PULL_STRETCH = 0.000256f
+internal const val PULL_SHIFT = 0.014f
+internal const val PULL_REACH = 700f
+// A pressed shape this many times as wide as it's tall holds more than one button: its light follows the finger along it.
+internal const val WIDE_SHAPE = 1.5f
 internal const val FOLLOW_TIME = 0.05f
 internal const val MAX_STEP = 0.05f
 internal const val IDLE_GAP = 0.1f
 internal const val FRAME_STEP = 1f / 60f
 internal const val SUB_STEP = 0.004f
+// react-native-screens' screen containers, whose later children (whole screens) draw over the earlier. Only these: the
+// views inside a screen are its own, and its header's sits over its content without covering anything.
+internal const val SCREEN_VIEW = "com.swmansion.rnscreens.Screen"
+internal val SCREEN_CONTAINERS = setOf("com.swmansion.rnscreens.ScreenStack", "com.swmansion.rnscreens.ScreenContainer")

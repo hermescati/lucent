@@ -17,7 +17,7 @@ Give one trigger `role="search"` (see [Tab bar](tabs.md)), then place `SearchBar
 
 ```tsx
 // app/(tabs)/search/index.tsx
-import { SearchBar } from 'expo-lucent';
+import { SearchBar } from 'expo-lucent/navigation';
 
 const [query, setQuery] = useState('');
 
@@ -53,7 +53,7 @@ const [query, setQuery] = useState('');
 The search tab's state and commands, from any screen inside `NativeTabs`, without a ref or your own query state.
 
 ```tsx
-import { useTabSearch } from 'expo-lucent';
+import { useTabSearch } from 'expo-lucent/navigation';
 
 const { query, isFocused, setText } = useTabSearch();
 ```
@@ -71,3 +71,4 @@ const { query, isFocused, setText } = useTabSearch();
 - While the field has text, it shows iOS's clear button.
 - The field sits above the keyboard and follows it as it opens and closes.
 - The circle next to the field shows the tab you came from; tap it to leave search and go back to the bar.
+- Opening and closing is the whole tab bar's motion: the tabs gather into the circle as the search tab grows into the field and becomes its close button, all in the tab bar's one piece of glass. A `Stack.SearchBar` in a navigation bar, toolbar or at the bottom of a screen grows out of what was tapped instead (see [Navigation bar](stack.md)); both close buttons split off and melt back in the same way.
