@@ -46,6 +46,8 @@ export const list = {
     fullSwipe: 0.79,
     armJump: 45,
     commit: 200,
+    // A destructive action takes its row away: the row's height closes up, measured on the simulator.
+    remove: 120,
     spring: { duration: 380, dampingRatio: 0.9 },
   },
   // Pull to refresh: the spinner shows as the content comes down, and lets go into a refresh past `threshold`, held

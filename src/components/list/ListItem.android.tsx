@@ -4,6 +4,7 @@ import { Children, isValidElement, useContext, useState, type ReactNode } from '
 import { I18nManager, PixelRatio, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
@@ -111,14 +112,14 @@ const ActionButton = ({
   index,
   count,
   swipe,
-  onDone,
+  onRun,
 }: {
   action: SwipeAction;
   side: 'leading' | 'trailing';
   index: number;
   count: number;
   swipe: SwipeState;
-  onDone: () => void;
+  onRun: (action: SwipeAction, side: 'leading' | 'trailing') => void;
 }) => {
   const colors = useListColors();
   const fill = action.tintColor ?? (action.destructive ? colors.destructive : '#8E8E93');
@@ -162,10 +163,7 @@ const ActionButton = ({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={action.label}
-      onPress={() => {
-        onDone();
-        action.onPress();
-      }}
+      onPress={() => onRun(action, side)}
       style={styles.action}>
       <Animated.View style={[styles.capsule, { backgroundColor: fill }, capsule]}>
         {action.icon?.md ? (
@@ -222,6 +220,8 @@ export const ListItem = ({
   const offset = useSharedValue(0);
   const start = useSharedValue(0);
   const armed = useSharedValue(0);
+  // Whether a full swipe is armed now, apart from its animation: a quick drag lets go the moment it arms.
+  const fullArmed = useSharedValue(false);
   const closing = useSharedValue(false);
   const swipe: SwipeState = { offset, armed, closing, rowWidth };
   const leadingOpen = openWidth(leadingActions.length);
@@ -247,6 +247,33 @@ export const ListItem = ({
     close();
     action?.onPress();
   };
+  // How far a destructive action has closed its row up (0 to 1), and the row's height before it did.
+  const gone = useSharedValue(0);
+  const rowHeight = useSharedValue(0);
+  // The row is still there a moment after its action ran (the app kept it): it opens back up and closes its actions.
+  const restore = () => {
+    gone.set(withTiming(0, { duration: list.swipe.remove }));
+    close();
+  };
+  const finish = (action: SwipeAction) => {
+    action.onPress();
+    setTimeout(restore, 300);
+  };
+  const collapse = (action: SwipeAction) => {
+    gone.set(
+      withTiming(1, { duration: list.swipe.remove, easing: Easing.out(Easing.cubic) }, (finished) => {
+        if (finished) scheduleOnRN(finish, action);
+      }),
+    );
+  };
+  // An action from its button or a screen reader. A destructive one takes its row away as iOS does: the row slides out
+  // as its height closes up, and the action runs once it's gone. Any other closes the row and runs.
+  const perform = (action: SwipeAction | undefined, side: 'leading' | 'trailing') => {
+    if (!action) return;
+    if (!action.destructive) return run(action);
+    offset.set(withTiming((side === 'leading' ? 1 : -1) * (rowWidth || 1), { duration: list.swipe.commit }));
+    collapse(action);
+  };
   const pan = usePanGesture({
     enabled: !disabled && (leadingActions.length > 0 || trailingActions.length > 0),
     activeOffsetX: [-10, 10],
@@ -254,6 +281,7 @@ export const ListItem = ({
     onActivate: () => {
       start.set(offset.get());
       closing.set(false);
+      fullArmed.set(false);
       openRow?.set(id);
     },
     onUpdate: (event) => {
@@ -268,7 +296,8 @@ export const ListItem = ({
       offset.set(next);
       // Far enough across, a full swipe arms: the row jumps on and a tick marks it, and disarms the same way back.
       const now = full && open > 0 && Math.abs(next) > (rowWidth || 1) * list.swipe.fullSwipe;
-      if (now !== armed.get() > 0.5) {
+      if (now !== fullArmed.get()) {
+        fullArmed.set(now);
         armed.set(withSpring(now ? 1 : 0, list.swipe.spring));
         scheduleOnRN(tick);
       }
@@ -277,16 +306,19 @@ export const ListItem = ({
       const now = offset.get();
       const velocity = mirrored ? -event.velocityX : event.velocityX;
       const open = now > 0 ? leadingOpen : trailingOpen;
-      // Let go armed, the row slides the rest of the way out and the outermost action runs.
-      if (armed.get() > 0.5) {
+      // Let go armed, the row slides the rest of the way out and the outermost action runs: a destructive one once the
+      // row has closed up after it.
+      if (fullArmed.get()) {
+        fullArmed.set(false);
         const action = now > 0 ? leadingActions[0] : trailingActions[0];
         offset.set(
           withTiming(Math.sign(now) * (rowWidth || 1), { duration: list.swipe.commit }, (finished) => {
-            if (finished) scheduleOnRN(run, action);
+            if (finished) scheduleOnRN(action?.destructive ? collapse : run, action);
           }),
         );
         return;
       }
+      armed.set(withSpring(0, list.swipe.spring));
       const flung = Math.abs(velocity) > 500 && Math.sign(velocity) === Math.sign(now);
       const keep = open > 0 && (Math.abs(now) > open / 2 || flung);
       if (!keep) closing.set(true);
@@ -299,6 +331,9 @@ export const ListItem = ({
   });
   // Slid aside, the row sits on a grey fill with rounded ends, as iOS 27's does.
   const slidFill = useAnimatedStyle(() => ({ opacity: Math.min(Math.abs(offset.get()) / 24, 1) }));
+  const closedUp = useAnimatedStyle(() => ({
+    maxHeight: gone.get() > 0 ? rowHeight.get() * (1 - gone.get()) : 100000,
+  }));
   const leadingShown = useAnimatedStyle(() => ({ opacity: offset.get() > 0 ? 1 : 0 }));
   const trailingShown = useAnimatedStyle(() => ({ opacity: offset.get() < 0 ? 1 : 0 }));
 
@@ -387,15 +422,22 @@ export const ListItem = ({
         name: action.label,
         label: action.label,
       }))}
-      onAccessibilityAction={(event) =>
-        run([...leadingActions, ...trailingActions].find((action) => action.label === event.nativeEvent.actionName))
-      }>
+      onAccessibilityAction={(event) => {
+        const named = (action: SwipeAction) => action.label === event.nativeEvent.actionName;
+        const leadingAction = leadingActions.find(named);
+        perform(leadingAction ?? trailingActions.find(named), leadingAction ? 'leading' : 'trailing');
+      }}>
       {({ pressed }) => content(pressed)}
     </Pressable>
   );
   if (leadingActions.length === 0 && trailingActions.length === 0) return row;
   return (
-    <View onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}>
+    <Animated.View
+      style={[styles.swipeable, closedUp]}
+      onLayout={(event) => {
+        setRowWidth(event.nativeEvent.layout.width);
+        if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
+      }}>
       <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
         {leadingActions.map((action, index) => (
           <ActionButton
@@ -405,7 +447,7 @@ export const ListItem = ({
             index={index}
             count={leadingActions.length}
             swipe={swipe}
-            onDone={close}
+            onRun={perform}
           />
         ))}
       </Animated.View>
@@ -419,7 +461,7 @@ export const ListItem = ({
               index={index}
               count={trailingActions.length}
               swipe={swipe}
-              onDone={close}
+              onRun={perform}
             />
           ))
           .reverse()}
@@ -433,7 +475,7 @@ export const ListItem = ({
           {row}
         </Animated.View>
       </GestureDetector>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -480,4 +522,5 @@ const styles = StyleSheet.create({
   },
   actionLabel: { fontSize: list.swipe.labelSize },
   slidFill: { borderRadius: list.cardRadius },
+  swipeable: { overflow: 'hidden' },
 });

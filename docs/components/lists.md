@@ -113,7 +113,7 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
 - Swipe actions are iOS 27's capsules beside the row, with their labels under them. The row slides aside onto a grey fill. One row is open at a time, and a tap or a scroll closes it.
   - Measured frame by frame on the simulator: each capsule pops in as the row uncovers its slot, and they all shrink away as it closes.
   - Dragged further, the outermost capsule stretches into the room and the others fade. Past 79% of the row's width a full swipe arms, with a haptic tick: the row jumps on, the icon moves to the capsule's leading end and the label fades. Let go there, and the action runs.
-  - Not yet: iOS shrinks a removed row's height away; on Android it goes at once.
+  - A destructive action, from its button, a full swipe or a screen reader, takes its row away as iOS does: the row slides out as its height closes up, and the action runs once it's gone. If the app keeps the row, it comes back. Any other action closes the row and runs.
 - With Reduce Motion on, iOS animates its swipe actions as usual. Android has only "Remove animations", which Lucent follows: the row and its buttons settle at once.
 - Pull to refresh pulls the content down with resistance and shows iOS's spinner. Its trigger distance is set by feel: iOS's couldn't be measured, because a held drag can't be scripted on the simulator.
 - Screen readers read each row as a button, a ticked row as selected, and its swipe actions as custom actions.
