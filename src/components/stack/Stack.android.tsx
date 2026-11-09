@@ -12,10 +12,20 @@ import {
   cloneElement,
   isValidElement,
   type ComponentProps,
+  type ComponentType,
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { BackHandler, processColor, StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
+import {
+  BackHandler,
+  processColor,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ColorValue,
+  ScrollView,
+  type ScrollViewProps,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useEvent, useSharedValue } from 'react-native-reanimated';
@@ -54,8 +64,10 @@ import { useBackClaimed } from '../../core/back/claims';
 import { displayCornerRadius } from '../../core/display/corner.android';
 import { InsideGlassBackdrop, useInsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
+import { HeaderScrollView } from '../../core/header/HeaderScrollView';
 import { HeaderScrollProvider } from '../../core/header/scroll.android';
 import { useHasKeyboardProvider } from '../../core/keyboard';
+import { ListScrollViewContext } from '../../core/scroll';
 import { useInsideTabs, useTabBarReach } from '../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../theme/LucentProvider';
 import { createLucentContext } from '../../theme/context';
@@ -261,6 +273,10 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const search = useSearch(key);
   const offset = useToolbarOffset();
   const tabBar = useTabBarReach();
+  // A list on the screen scrolls in a view its header follows; one the tabs above gave already does, and minimizes the
+  // tab bar as well.
+  const outerListScroll = useContext(ListScrollViewContext);
+  const listScroll = outerListScroll === ScrollView ? headerListScrollView : outerListScroll;
   const tint = typeof options.headerTintColor === 'string' ? options.headerTintColor : undefined;
   const inTabs = useInsideTabs();
   const placement = search ? searchPlacement(search.props, bottomToolbar, inTabs) : undefined;
@@ -399,7 +415,8 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
         {arriving ? <AnimatedScreenEnter armed style={styles.enter} onEnter={onEnter} /> : null}
         <MenuHost>
           <SwipeFrame top={top} background={backgroundOf(options, colors.background)}>
-            {layout ? layout(args) : args.children}
+            {/* A list on the screen scrolls in a view that follows the bars, as a SwiftUI list under UIKit's. */}
+            <ListScrollViewContext value={listScroll}>{layout ? layout(args) : args.children}</ListScrollViewContext>
           </SwipeFrame>
           <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
             <StackBackContext value={goBack}>
@@ -572,3 +589,5 @@ const styles = StyleSheet.create({
   enter: { position: 'absolute', width: 0, height: 0 },
   shadow: { position: 'absolute', top: 0, left: 0, boxShadow: swipeMotion.shadow },
 });
+
+const headerListScrollView = HeaderScrollView as ComponentType<ScrollViewProps>;

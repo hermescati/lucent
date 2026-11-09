@@ -5,8 +5,18 @@ import type {
   NativeTabsTriggerLabelProps,
 } from 'expo-router/native-tabs';
 import { TabList, TabSlot, TabTrigger, Tabs, type TabSlotProps } from 'expo-router/ui';
-import { Children, isValidElement, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
+import {
+  Children,
+  isValidElement,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
+import { StyleSheet, useWindowDimensions, View, type ColorValue, type ScrollViewProps } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import Animated, {
@@ -20,6 +30,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { TabScrollView } from './TabScrollView';
 import { FloatingTabBar } from './components/FloatingTabBar';
 import { MoreList } from './components/MoreList';
 import { TabIcon } from './components/TabIcon';
@@ -36,6 +47,7 @@ import { displayCornerRadius } from '../../core/display/corner.android';
 import { InsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
 import { pushMotion, pushSpring } from '../../core/motion/push';
+import { ListScrollViewContext } from '../../core/scroll';
 import {
   InsideTabsContext,
   TabBarReachContext,
@@ -295,7 +307,10 @@ const NativeTabsRoot = ({
                   <TabsTintContext value={colorString(tintColor)}>
                     <TabBarReachProvider shown={!hidden && primary.length > 0}>
                       <AccessoryShownContext value={!hidden && primary.length > 0 && accessory !== undefined}>
-                        <Screens background={colors.background} />
+                        {/* A list in a tab scrolls in the tab's scroll view: it minimizes the bar and clears it. */}
+                        <ListScrollViewContext value={tabListScrollView}>
+                          <Screens background={colors.background} />
+                        </ListScrollViewContext>
                       </AccessoryShownContext>
                     </TabBarReachProvider>
                   </TabsTintContext>
@@ -376,3 +391,5 @@ const styles = StyleSheet.create({
     boxShadow: pushMotion.shadow,
   },
 });
+
+const tabListScrollView = TabScrollView as ComponentType<ScrollViewProps>;
