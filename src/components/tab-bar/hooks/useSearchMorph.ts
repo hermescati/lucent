@@ -10,6 +10,7 @@ import {
 } from 'react-native-reanimated';
 
 import { leanBy } from '../../../core/glass/useShapePress';
+import { withReturnDip } from '../../../core/motion/island';
 import { useSolidGlass } from '../../../theme/solid';
 import { clamp01, fieldGlyphCenter, fullHeight, lerp, modeHeight, modeInset, modeShrink, pullBy } from '../helpers/bar';
 import { layout, motion } from '../tokens';
@@ -143,12 +144,7 @@ export const useSearchMorph = (bar: BarState) => {
     () => ({ closing: modeTarget.get() === 0, raised: searchRaise.get() >= motion.searchKeyboard.dipAt }),
     (next, previous) => {
       if (next.closing && !next.raised && previous?.raised) {
-        searchDip.set(
-          withSequence(
-            withSpring(motion.searchKeyboard.dip, motion.springs.searchDipIn),
-            withSpring(0, motion.springs.searchDipOut),
-          ),
-        );
+        searchDip.set(withReturnDip(motion.searchKeyboard.dip));
       }
     },
   );

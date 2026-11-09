@@ -1,5 +1,12 @@
 // Shared by the navigation bar's island and the tab bar, which moves as it does as tabs come and go.
 
+import { withSequence, withSpring } from 'react-native-reanimated';
+
+const clamp01 = (value: number) => {
+  'worklet';
+  return Math.min(Math.max(value, 0), 1);
+};
+
 /**
  * A bar item shown or hidden in place (`hidden`), measured on iOS 27 frame by frame with a heart beside a trash button.
  * The capsule and every glyph on it swell together, about 17% taller and up to 8pt wider each side (a circle grows evenly,
@@ -60,3 +67,43 @@ export const islandReturn = {
   from: 0.4,
   spring: { duration: 350, dampingRatio: 0.6 },
 } as const;
+
+// The split and the return as each frame draws them, from how far along they are: every component that splits or
+// returns glass reads these, so the motion is defined once. Their defaults are read inside rather than as default
+// parameters, which a worklet doesn't carry over to the UI thread.
+
+/** A splitting capsule's size, of its own, `apart` of the way off (0 melted in, 1 apart): from `from` up to whole. */
+export const splitScale = (apart: number, from?: number) => {
+  'worklet';
+  const start = from ?? islandSplit.from;
+  return start + (1 - start) * clamp01(apart);
+};
+
+/** How much a splitting capsule's glass blends with its neighbour's: a neck that's thickest halfway and gone at rest. */
+export const splitNeck = (apart: number, blend?: number) => {
+  'worklet';
+  return (blend ?? islandSplit.blend) * Math.sin(Math.PI * clamp01(apart));
+};
+
+/**
+ * A splitting capsule's glyph, 0 to 1: splitting off (`out`), it shows almost at once; melting back, it's gone by
+ * `goneBy` of the way back.
+ */
+export const splitGlyph = (apart: number, out: boolean, goneBy?: number) => {
+  'worklet';
+  const from = out ? islandSplit.iconFrom : (goneBy ?? islandSplit.iconMeltFrom);
+  return clamp01((apart - from) / (1 - from));
+};
+
+/** How far a returning capsule has grown back, 0 to 1, from its size on the way (`from` of it to whole). */
+export const returnGrown = (scale: number, from?: number) => {
+  'worklet';
+  const start = from ?? islandReturn.from;
+  return clamp01((scale - start) / (1 - start));
+};
+
+/** The return's dip, for a shared value of how far down returning glass is: down `dip` and back up. */
+export const withReturnDip = (dip?: number) => {
+  'worklet';
+  return withSequence(withSpring(dip ?? islandReturn.dip, islandReturn.dipIn), withSpring(0, islandReturn.dipOut));
+};

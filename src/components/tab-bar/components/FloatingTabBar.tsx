@@ -17,13 +17,12 @@ import { SearchMode } from './SearchMode';
 import { TabIcon } from './TabIcon';
 import { TabItem } from './TabItem';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView, NativeGlassBackdrop } from '../../../core/glass/NativeGlass';
+import { splitGlyph, splitScale } from '../../../core/motion/island';
 import { useSolidGlass } from '../../../theme/solid';
 import { glass } from '../../../theme/tokens';
 import {
-  clamp01,
   fullHeight,
   inlinePad,
-  lerp,
   lensFullHeight,
   pastEdge,
   revealGroup,
@@ -219,12 +218,11 @@ export const FloatingTabBar = (props: FloatingTabBarProps) => {
   const searchSplitStyle = useAnimatedStyle(() => {
     const apart = state.searchApart.get();
     // Splitting off, the magnifier shows at once; melting back, it's gone by halfway, as the tab's own grows in.
-    const from = apartNow ? motion.searchSplit.iconFrom : motion.searchSplit.iconMeltFrom;
     return {
-      opacity: clamp01((apart - from) / (1 - from)),
+      opacity: splitGlyph(apart, apartNow),
       transform: [
         { translateX: (state.frameWidth.get() - fullHeight / 2 - state.circleCenter) * (1 - apart) },
-        { scale: lerp(motion.searchSplit.from, 1, clamp01(apart)) },
+        { scale: splitScale(apart) },
       ],
     };
   });
