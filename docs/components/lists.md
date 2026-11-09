@@ -85,7 +85,7 @@ Swipe actions and pull to refresh:
 `List.ForEach` takes `@expo/ui`'s `data`, `keyExtractor` and render function, and SwiftUI's `onDelete` and `onMove`. On Android it draws every row at once, so keep it to a few hundred rows.
 
 - `onDelete(indices)`: its rows get SwiftUI's Delete action, swiped to from the trailing edge unless a row has trailing actions of its own, and a delete control in edit mode that opens it.
-- `onMove(from, to)`: its rows show a reorder handle in edit mode. The destination counts places before the row is taken out, as SwiftUI's. Android: the handle shows, dragging it is not yet built.
+- `onMove(from, to)`: its rows show a reorder handle in edit mode. The destination counts places before the row is taken out, as SwiftUI's; update the data in it, or the row goes back.
 
 ## `ListItem`
 
@@ -130,4 +130,5 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
 - At accessibility text sizes a row's value moves under its title, as iOS's Settings rows do, so neither breaks mid-word.
 - Edit mode, measured on the simulator: rows its `List.ForEach` can delete move their content 40 along for a red delete control, and rows it can move show a reorder handle that slides in from the end as it fades in. All on one spring, about 0.35s each way. Swipes are off while editing.
 - Separators end 16 short of the row's end, inset grouped and plain alike, as iOS 27's.
-- Not yet: dragging rows to reorder, and multi-select.
+- Reordering, measured on the simulator: a row dragged by its handle lifts at once, 85% opaque on a card that reaches 11 further out at its leading end, with a soft shadow. Rows slide aside as its middle crosses their edges, and let go it settles into its place. Screen readers get Move up and Move down actions in edit mode.
+- Not yet: scrolling the list as a dragged row nears its top or bottom, and multi-select.

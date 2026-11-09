@@ -17,6 +17,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import {
   ListEditContext,
+  ListScrollGestureContext,
   ListStyleContext,
   nextRowId,
   OpenRowContext,
@@ -119,6 +120,17 @@ const ReorderHandle = ({ color }: { color: string }) => {
       ))}
     </View>
   );
+};
+
+// Where a row's slot starts in its `List.ForEach`: the heights of the rows before it, in `keys`' order.
+const slotAt = (keys: string[], heights: Record<string, number>, key: string) => {
+  'worklet';
+  let y = 0;
+  for (const other of keys) {
+    if (other === key) return y;
+    y += heights[other] ?? 0;
+  }
+  return y;
 };
 
 /** The row's swipe state, which its buttons draw from. */
@@ -272,6 +284,87 @@ export const ListItem = ({
   const handleIn = useAnimatedStyle(() => {
     const p = editProgress?.get() ?? 0;
     return { opacity: p, transform: [{ translateX: along * list.edit.shift * (1 - p) }] };
+  });
+
+  // Reordering, by the handle in edit mode. The row draws itself at its place in its group's order, less where React has
+  // laid it out: it slides as other rows are dragged past it, and as `onMove` lays it out again nothing jumps.
+  const reorder = rowEdit.reorder;
+  const group = reorder?.group;
+  const myKey = reorder?.key ?? '';
+  const laidOut = reorder?.keys ?? [];
+  const placed = useSharedValue(0);
+  const liftedFrom = useSharedValue(0);
+  const lift = useSharedValue(0);
+  useAnimatedReaction(
+    () => (group ? slotAt(group.order.get(), group.heights.get(), myKey) : 0),
+    (y, before) => {
+      if (!group || group.active.get() === myKey) return;
+      placed.set(before !== null && group.moving.get() ? withSpring(y, list.edit.move) : y);
+    },
+  );
+  const moved = useAnimatedStyle(() => {
+    if (!group || (!group.moving.get() && group.active.get() !== myKey)) return { transform: [{ translateY: 0 }] };
+    const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() : placed.get();
+    return {
+      opacity: 1 - (1 - list.edit.lift.opacity) * lift.get(),
+      // Lifted, over the rows it passes.
+      zIndex: lift.get() > 0 ? 1 : 0,
+      transform: [{ translateY: y - slotAt(laidOut, group.heights.get(), myKey) }],
+    };
+  });
+  const liftedCard = useAnimatedStyle(() => ({ opacity: lift.get() }));
+  // Let go in a new place: SwiftUI's `onMove`, whose destination counts places before the row is taken out.
+  const moveTo = (from: number, to: number) => group?.onMove?.([from], to > from ? to + 1 : to);
+  const scrollGesture = useContext(ListScrollGestureContext);
+  const handleDrag = usePanGesture({
+    enabled: editing && Boolean(group),
+    minDistance: 0,
+    block: scrollGesture ?? undefined,
+    onActivate: () => {
+      if (!group) return;
+      liftedFrom.set(placed.get());
+      group.drag.set(0);
+      group.active.set(myKey);
+      group.moving.set(true);
+      lift.set(withTiming(1, { duration: list.edit.lift.duration }));
+      group.lifted.set(true);
+    },
+    onUpdate: (event) => {
+      if (!group) return;
+      group.drag.set(event.translationY);
+      // Its place among the others, as iOS's: past each one whose far edge its middle has crossed.
+      const heights = group.heights.get();
+      const order = group.order.get();
+      const middle = liftedFrom.get() + event.translationY + (heights[myKey] ?? 0) / 2;
+      const others = order.filter((key) => key !== myKey);
+      let y = 0;
+      let at = 0;
+      for (const key of others) {
+        const height = heights[key] ?? 0;
+        if (y + height < middle) at += 1;
+        y += height;
+      }
+      if (order.indexOf(myKey) !== at) group.order.set([...others.slice(0, at), myKey, ...others.slice(at)]);
+    },
+    onDeactivate: () => {
+      if (!group) return;
+      const order = group.order.get();
+      placed.set(liftedFrom.get() + group.drag.get());
+      group.active.set('');
+      placed.set(
+        withSpring(slotAt(order, group.heights.get(), myKey), list.edit.drop, (finished) => {
+          if (finished) group.moving.set(false);
+        }),
+      );
+      lift.set(
+        withTiming(0, { duration: list.edit.drop.duration }, (finished) => {
+          if (finished) group.lifted.set(false);
+        }),
+      );
+      const from = laidOut.indexOf(myKey);
+      const to = order.indexOf(myKey);
+      if (from !== to) scheduleOnRN(moveTo, from, to);
+    },
   });
 
   // A row its `List.ForEach` can delete gets SwiftUI's Delete action: swiped to from the trailing edge unless the row
@@ -496,9 +589,14 @@ export const ListItem = ({
         </Animated.View>
       ) : null}
       {edit && rowEdit.movable ? (
-        <Animated.View pointerEvents="none" style={[styles.editSlot, styles.handleSlot, handleIn]}>
-          <ReorderHandle color={colors.handle} />
-        </Animated.View>
+        <GestureDetector gesture={handleDrag}>
+          <Animated.View
+            pointerEvents={editing ? 'auto' : 'none'}
+            accessible={false}
+            style={[styles.editSlot, styles.handleSlot, handleIn]}>
+            <ReorderHandle color={colors.handle} />
+          </Animated.View>
+        </GestureDetector>
       ) : null}
       {last ? null : (
         <Animated.View
@@ -528,11 +626,14 @@ export const ListItem = ({
       }}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityState={{ disabled, selected: accessory === 'checkmark' }}
-      accessibilityActions={[...leadingActions, ...trailingActions].map((action) => ({
-        name: action.label,
-        label: action.label,
-      }))}
+      accessibilityActions={[
+        ...[...leadingActions, ...trailingActions].map((action) => ({ name: action.label, label: action.label })),
+        ...(editing && reorder ? [moveUp, moveDown] : []),
+      ]}
       onAccessibilityAction={(event) => {
+        // A screen reader moves a row a place at a time, as VoiceOver's reorder actions do.
+        if (reorder && event.nativeEvent.actionName === moveUp.name) return moveTo(reorder.index, reorder.index - 1);
+        if (reorder && event.nativeEvent.actionName === moveDown.name) return moveTo(reorder.index, reorder.index + 1);
         const named = (action: SwipeAction) => action.label === event.nativeEvent.actionName;
         const leadingAction = leadingActions.find(named);
         perform(leadingAction ?? trailingActions.find(named), leadingAction ? 'leading' : 'trailing');
@@ -540,54 +641,75 @@ export const ListItem = ({
       {({ pressed }) => content(pressed)}
     </Pressable>
   );
-  if (leadingActions.length === 0 && trailingActions.length === 0) return row;
-  return (
-    <Animated.View
-      style={[styles.swipeable, closedUp]}
-      onLayout={(event) => {
-        setRowWidth(event.nativeEvent.layout.width);
-        if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
-      }}>
-      <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
-        {leadingActions.map((action, index) => (
-          <ActionButton
-            key={`${action.label}-${index}`}
-            action={action}
-            side="leading"
-            index={index}
-            count={leadingActions.length}
-            swipe={swipe}
-            onRun={perform}
-          />
-        ))}
-      </Animated.View>
-      <Animated.View style={[styles.actions, styles.actionsTrailing, trailingShown]} pointerEvents="box-none">
-        {trailingActions
-          .map((action, index) => (
+  const body =
+    leadingActions.length === 0 && trailingActions.length === 0 ? (
+      row
+    ) : (
+      <Animated.View
+        style={[styles.swipeable, closedUp]}
+        onLayout={(event) => {
+          setRowWidth(event.nativeEvent.layout.width);
+          if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
+        }}>
+        <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
+          {leadingActions.map((action, index) => (
             <ActionButton
               key={`${action.label}-${index}`}
               action={action}
-              side="trailing"
+              side="leading"
               index={index}
-              count={trailingActions.length}
+              count={leadingActions.length}
               swipe={swipe}
               onRun={perform}
             />
-          ))
-          .reverse()}
-      </Animated.View>
-      <GestureDetector gesture={pan}>
-        <Animated.View style={slide}>
-          <Animated.View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, styles.slidFill, { backgroundColor: colors.pressed }, slidFill]}
-          />
-          {row}
+          ))}
         </Animated.View>
-      </GestureDetector>
+        <Animated.View style={[styles.actions, styles.actionsTrailing, trailingShown]} pointerEvents="box-none">
+          {trailingActions
+            .map((action, index) => (
+              <ActionButton
+                key={`${action.label}-${index}`}
+                action={action}
+                side="trailing"
+                index={index}
+                count={trailingActions.length}
+                swipe={swipe}
+                onRun={perform}
+              />
+            ))
+            .reverse()}
+        </Animated.View>
+        <GestureDetector gesture={pan}>
+          <Animated.View style={slide}>
+            <Animated.View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFill, styles.slidFill, { backgroundColor: colors.pressed }, slidFill]}
+            />
+            {row}
+          </Animated.View>
+        </GestureDetector>
+      </Animated.View>
+    );
+  if (!reorder) return body;
+  return (
+    <Animated.View
+      style={moved}
+      onLayout={(event) => {
+        const height = event.nativeEvent.layout.height;
+        // Each row adds its own, on the UI thread, so rows laid out together don't overwrite each other.
+        group?.heights.modify((heights) => {
+          'worklet';
+          return heights[myKey] === height ? heights : { ...heights, [myKey]: height };
+        });
+      }}>
+      <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
+      {body}
     </Animated.View>
   );
 };
+
+const moveUp = { name: 'moveUp', label: 'Move up' };
+const moveDown = { name: 'moveDown', label: 'Move down' };
 
 ListItem.Leading = Leading;
 ListItem.Trailing = Trailing;
@@ -613,7 +735,8 @@ const styles = StyleSheet.create({
   separator: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
   editSlot: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
   controlSlot: { start: list.edit.controlAt - list.edit.control / 2 },
-  handleSlot: { end: list.edit.handle.end },
+  // The handle takes touches a little around it.
+  handleSlot: { end: list.edit.handle.end - 12, paddingHorizontal: 12 },
   deleteControl: { alignItems: 'center', justifyContent: 'center' },
   flipped: { transform: [{ scaleX: -1 }] },
   actions: {
@@ -637,4 +760,13 @@ const styles = StyleSheet.create({
   actionLabel: { fontSize: list.swipe.labelSize },
   slidFill: { borderRadius: list.cardRadius },
   swipeable: { overflow: 'hidden' },
+  liftedCard: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    start: -list.edit.lift.widen,
+    end: 0,
+    borderRadius: list.edit.lift.radius,
+    boxShadow: list.edit.lift.shadow,
+  },
 });

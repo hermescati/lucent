@@ -17,6 +17,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import {
   ListEditContext,
   ListForEach,
+  ListScrollGestureContext,
   ListStyleContext,
   OpenRowContext,
   sectionsOf,
@@ -176,15 +177,17 @@ export const ListScroll = ({
   );
   return (
     <OpenRowContext value={openRow}>
-      {onRefresh ? (
-        <GestureDetector gesture={pan}>
-          <View style={styles.fill}>
-            <GestureDetector gesture={native}>{scroll}</GestureDetector>
-          </View>
-        </GestureDetector>
-      ) : (
-        scroll
-      )}
+      <ListScrollGestureContext value={native}>
+        {onRefresh ? (
+          <GestureDetector gesture={pan}>
+            <View style={styles.fill}>
+              <GestureDetector gesture={native}>{scroll}</GestureDetector>
+            </View>
+          </GestureDetector>
+        ) : (
+          <GestureDetector gesture={native}>{scroll}</GestureDetector>
+        )}
+      </ListScrollGestureContext>
     </OpenRowContext>
   );
 };

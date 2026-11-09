@@ -64,6 +64,11 @@ export const list = {
     handle: { width: 21, line: 1, gap: 3.8, end: 18 },
     handleRoom: 47,
     spring: { duration: 350, dampingRatio: 1 },
+    // Dragging by the handle (measured): the row lifts at once, 85% opaque on a card that reaches `widen` further out
+    // at its leading end, with a soft shadow; the rows it passes slide aside, and let go it settles into its place.
+    lift: { duration: 150, opacity: 0.85, widen: 11, radius: 10, shadow: '0px 0px 30px rgba(0, 0, 0, 0.25)' },
+    move: { duration: 250, dampingRatio: 1 },
+    drop: { duration: 330, dampingRatio: 1 },
   },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
