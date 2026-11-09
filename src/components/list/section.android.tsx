@@ -9,9 +9,19 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { useNativeGesture } from 'react-native-gesture-handler';
-import Animated, { makeMutable, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, {
+  makeMutable,
+  measure,
+  useAnimatedReaction,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useSharedValue,
+  type AnimatedRef,
+  type SharedValue,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { list, listColors } from './tokens';
 import type { FieldSectionProps, ListForEachProps, ListStyle } from './types';
@@ -41,6 +51,8 @@ export const ListScrollGestureContext = createLucentContext<ReturnType<typeof us
 export interface ListAutoScroll {
   finger: SharedValue<number>;
   scrollY: SharedValue<number>;
+  // The scroll view, which a recycling `List.ForEach` measures itself against to find the rows on screen.
+  scrollRef: AnimatedRef<Animated.ScrollView>;
 }
 
 export const ListAutoScrollContext = createLucentContext<ListAutoScroll | null>('ListAutoScroll', null);
@@ -68,17 +80,24 @@ export interface ReorderGroup {
   active: SharedValue<string>;
   drag: SharedValue<number>;
   moving: SharedValue<boolean>;
+  // Whether a drop has called `onMove` and React hasn't laid the rows out in their new order yet: until it has, the
+  // rows keep drawing themselves at their places in `order`, however long that takes.
+  pending: SharedValue<boolean>;
   onMove?: (sourceIndices: number[], destination: number) => void;
   // Whether a row is lifted: its section lets its rows draw outside its card meanwhile, for the lifted row's shadow.
   lifted: SharedValue<boolean>;
+  // The rows' heights on the JS thread too, for the room a recycling `List.ForEach` keeps for the rows it doesn't draw.
+  sizes: Map<string, number>;
 }
 
 const reorderGroup = (keys: string[]): ReorderGroup => ({
+  sizes: new Map(),
   order: makeMutable(keys),
   heights: makeMutable<Record<string, number>>({}),
   active: makeMutable(''),
   drag: makeMutable(0),
   moving: makeMutable(false),
+  pending: makeMutable(false),
   lifted: makeMutable(false),
 });
 
@@ -90,6 +109,9 @@ export interface RowEdit {
   // Its key, for selection, and the next row's, whose selection hides the separator between them.
   key?: string;
   nextKey?: string;
+  // A movable row reports its height here: a recycling `List.ForEach` can't wrap it to measure it, which would keep
+  // the lifted row from drawing over the others.
+  onHeight?: (height: number) => void;
 }
 
 export const RowEditContext = createLucentContext<RowEdit>('ListRowEdit', { movable: false });
@@ -109,6 +131,7 @@ const editableRow = <T,>(
   index: number,
   keys: string[],
   group?: ReorderGroup,
+  onHeight?: (height: number) => void,
 ) => {
   const key = keyExtractor(item, index);
   const movable = Boolean(onMove) && data.length > 1;
@@ -121,6 +144,7 @@ const editableRow = <T,>(
         reorder: movable && group ? { group, key, index, keys } : undefined,
         key,
         nextKey: keys[index + 1],
+        onHeight,
       }}>
       {render({ item, index })}
     </RowEditContext>
@@ -138,11 +162,143 @@ export const ListForEach = <T,>(props: ListForEachProps<T>) => {
   return <>{props.data.map((item, index) => editableRow(props, item, index, keys))}</>;
 };
 
+/**
+ * A recycling `List.ForEach`'s rows, as `@expo/ui`'s web one draws them: only the rows on screen and `overscanCount`
+ * either side (three times as many ahead of a scroll), with room kept above and below for the rest, at the height each had when drawn, or `estimatedItemSize`
+ * until it has been. The rows on screen are found on the UI thread as the list scrolls, and React draws again only as
+ * they near the edge of what's drawn. A dragged row, and every row between it and the screen, stay drawn, so a drag that
+ * scrolls the list keeps its row; each row is drawn once for its data, so drawing more doesn't interrupt the drag.
+ */
+const RecycledRows = <T,>({
+  each,
+  keys,
+  group,
+  scroll,
+}: {
+  each: ListForEachProps<T>;
+  keys: string[];
+  group: ReorderGroup;
+  scroll: ListAutoScroll;
+}) => {
+  const { data, overscanCount = 10, estimatedItemSize = 64 } = each;
+  const count = keys.length;
+  const endsSection = useContext(RowLastContext);
+  const { height: screen } = useWindowDimensions();
+  // Before the list is laid out, as many rows as would fill the screen and `overscanCount` more: the rest come once
+  // it's on screen, so a screen with a long list opens as quickly as one with a short list.
+  const [range, setRange] = useState(() => ({ start: 0, end: Math.ceil(screen / estimatedItemSize) + overscanCount }));
+  const drawn = useSharedValue(range);
+  // Which way the list last scrolled: down, or up.
+  const down = useSharedValue(true);
+  const container = useAnimatedRef<Animated.View>();
+  const laidOut = useSharedValue(0);
+  // Each row's element, made once for what it's made from, so a row React draws again unchanged is left alone.
+  const [cache] = useState(() => new Map<string, { from: unknown[]; row: ReactElement }>());
+
+  useAnimatedReaction(
+    () => {
+      scroll.scrollY.get();
+      laidOut.get();
+      const box = measure(container);
+      const view = measure(scroll.scrollRef);
+      if (!box || !view) return null;
+      const top = view.pageY - box.pageY;
+      const bottom = top + view.height;
+      const heights = group.heights.get();
+      let y = 0;
+      let first = count;
+      let last = count - 1;
+      for (let i = 0; i < count; i++) {
+        if (y >= bottom) {
+          last = i - 1;
+          break;
+        }
+        const height = heights[keys[i]] ?? estimatedItemSize;
+        if (first === count && y + height > top) first = i;
+        y += height;
+      }
+      return { first, last: Math.max(last, first - 1), active: keys.indexOf(group.active.get()) };
+    },
+    (now, before) => {
+      if (!now) return;
+      const { start, end } = drawn.get();
+      // Drawn ahead of a scroll three times as far as behind it, and drawn again while twice `overscanCount` rows are
+      // still ahead: a fling reaches rows faster than they mount.
+      if (before && now.first !== before.first) down.set(now.first > before.first);
+      const ahead = down.get();
+      const covered =
+        (start === 0 || now.first >= start + (ahead ? 0 : 2 * overscanCount)) &&
+        (end >= count || now.last < end - (ahead ? 2 * overscanCount : 0)) &&
+        (now.active < 0 || (now.active >= start && now.active < end));
+      if (covered) return;
+      const first = Math.min(now.first, count);
+      let next = {
+        start: Math.max(0, first - overscanCount * (ahead ? 1 : 3)),
+        end: Math.min(count, now.last + 1 + overscanCount * (ahead ? 3 : 1)),
+      };
+      if (now.active >= 0) next = { start: Math.min(next.start, now.active), end: Math.max(next.end, now.active + 1) };
+      drawn.set(next);
+      scheduleOnRN(setRange, next);
+    },
+  );
+  // Over the section's other rows while one of these is lifted.
+  const lifted = useAnimatedStyle(() => ({ zIndex: group.active.get() === '' ? 0 : 1 }));
+
+  const start = Math.min(range.start, count);
+  const end = Math.min(Math.max(range.end, start), count);
+  const room = (from: number, to: number) => {
+    let height = 0;
+    for (let i = from; i < to; i++) height += group.sizes.get(keys[i]) ?? estimatedItemSize;
+    return height;
+  };
+  // Rows deleted from the data go from the cache now and then.
+  if (cache.size > count * 2 + 50) cache.clear();
+  const row = (index: number) => {
+    const key = keys[index];
+    const from = [data, index, each.children, each.keyExtractor, each.onDelete, each.onMove, endsSection];
+    const known = cache.get(key);
+    if (known && known.from.every((part, i) => part === from[i])) return known.row;
+    const movable = Boolean(each.onMove) && count > 1;
+    const sized = (height: number) => group.sizes.set(key, height);
+    const made = (
+      <RowLastContext key={key} value={endsSection && index === count - 1}>
+        {movable ? (
+          editableRow(each, data[index], index, keys, group, sized)
+        ) : (
+          // Wrapped to be measured, for the room kept for it once it's no longer drawn.
+          <View
+            onLayout={(event) => {
+              const height = event.nativeEvent.layout.height;
+              sized(height);
+              group.heights.modify((heights) => {
+                'worklet';
+                return heights[key] === height ? heights : { ...heights, [key]: height };
+              });
+            }}>
+            {editableRow(each, data[index], index, keys, group)}
+          </View>
+        )}
+      </RowLastContext>
+    );
+    cache.set(key, { from, row: made });
+    return made;
+  };
+  return (
+    <Animated.View ref={container} style={lifted} onLayout={() => laidOut.set(laidOut.get() + 1)}>
+      <View style={{ height: room(0, start) }} />
+      {Array.from({ length: end - start }, (_, i) => row(start + i))}
+      <View style={{ height: room(end, count) }} />
+    </Animated.View>
+  );
+};
+
 // A section's rows, flattened out of fragments and `List.ForEach`, its header and footer taken out. Each `List.ForEach`
-// takes the next of the section's reorder groups, made as first needed.
+// takes the next of the section's reorder groups, made as first needed, and recycles its rows unless told not to (or
+// it's outside a list's scroll view).
 const rowsOf = (
   children: ReactNode,
   groupFor: (n: number, keys: string[], props: ListForEachProps<unknown>) => ReorderGroup,
+  scroll: ListAutoScroll | null,
 ) => {
   let groups = 0;
   let header: ReactNode;
@@ -157,8 +313,11 @@ const rowsOf = (
       else if (child.type === ListForEach || child.type === UniversalList.ForEach) {
         const props = child.props as unknown as ListForEachProps<unknown>;
         const keys = props.data.map((item, index) => props.keyExtractor(item, index));
-        const group = groupFor(groups++, keys, props);
-        props.data.forEach((item, index) => rows.push(editableRow(props, item, index, keys, group)));
+        const n = groups++;
+        const group = groupFor(n, keys, props);
+        if (scroll && props.recycling !== false)
+          rows.push(<RecycledRows key={`lucent-each-${n}`} each={props} keys={keys} group={group} scroll={scroll} />);
+        else props.data.forEach((item, index) => rows.push(editableRow(props, item, index, keys, group)));
       } else rows.push(child);
     });
   walk(children);
@@ -194,22 +353,31 @@ export const Section = ({
   // A lifted row draws outside the card, for its shadow, without a render mid-drag.
   const [lifted] = useState(() => makeMutable(false));
   const card = useAnimatedStyle(() => ({ overflow: lifted.get() ? 'visible' : 'hidden' }));
+  const scroll = useContext(ListAutoScrollContext);
   const {
     header: slot,
     footer,
     rows,
-  } = rowsOf(children, (n, keys, props) => {
-    const known = groups.get(n) ?? { group: reorderGroup(keys), keys };
-    known.keys = keys;
-    known.group.onMove = props.onMove;
-    known.group.lifted = lifted;
-    groups.set(n, known);
-    return known.group;
-  });
+  } = rowsOf(
+    children,
+    (n, keys, props) => {
+      const known = groups.get(n) ?? { group: reorderGroup(keys), keys };
+      known.keys = keys;
+      known.group.onMove = props.onMove;
+      known.group.lifted = lifted;
+      groups.set(n, known);
+      return known.group;
+    },
+    scroll,
+  );
   // Laid out again (after a move, or new data), each group draws its rows in their new order, unless one is being
   // dragged.
   useEffect(() => {
-    for (const { group, keys } of groups.values()) if (group.active.get() === '') group.order.set(keys);
+    for (const { group, keys } of groups.values()) {
+      if (group.active.get() !== '') continue;
+      group.order.set(keys);
+      group.pending.set(false);
+    }
   });
   if (hidden) return null;
   const header = slot ?? title;

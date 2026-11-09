@@ -82,7 +82,7 @@ Swipe actions and pull to refresh:
 | `testID`            | `string`                    | —                |                                                                                                   |
 | `style`             | `StyleProp<ViewStyle>`      | —                | **Lucent.** Layout only.                                                                          |
 
-`List.ForEach` takes `@expo/ui`'s `data`, `keyExtractor` and render function, and SwiftUI's `onDelete` and `onMove`. On Android it draws every row at once, so keep it to a few hundred rows.
+`List.ForEach` takes `@expo/ui`'s `data`, `keyExtractor` and render function, and SwiftUI's `onDelete` and `onMove`. It also takes `@expo/ui`'s `recycling` (on by default), `overscanCount` (10) and `estimatedItemSize` (64): on Android only the rows near the screen are drawn, with room kept for the rest at the height each had, or `estimatedItemSize` until drawn, so set it near your rows' height. Rows are drawn by key rather than reused for other items, so a row's own state stays with its item.
 
 - `onDelete(indices)`: its rows get SwiftUI's Delete action, swiped to from the trailing edge unless a row has trailing actions of its own, and a delete control in edit mode that opens it.
 - `onMove(from, to)`: its rows show a reorder handle in edit mode. The destination counts places before the row is taken out, as SwiftUI's; update the data in it, or the row goes back.
@@ -134,3 +134,5 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
 - Multi-select, measured on the simulator: with `selection`, edit mode puts a selection circle in the delete control's place and a tap toggles the row (on iOS too, where Lucent's row then isn't a button, so SwiftUI's list takes the tap). A selected row's circle fills with the accent and a white tick and the row turns grey, without the separators beside it; deselected, the fill fades.
 - Secondary text and chevrons are iOS's translucent label colours, so they darken on a selected row as iOS's do.
 - A dragged row near the list's visible top or bottom (below the navigation bar, above the tab bar or toolbar) scrolls the list, faster the deeper it goes into the last 50, as iOS's does.
+- Long lists: a recycling `List.ForEach` draws the rows on screen and `overscanCount` either side, three times as many ahead of a scroll, and draws more while twice `overscanCount` rows are still ahead, so flings don't outrun it. A dragged row and every row between it and the screen stay drawn while it scrolls the list. A row is drawn with only what it can do: swipes, edit-mode motion and reordering are left out of rows that have none, so plain rows mount several times faster.
+- Into or out of edit mode, a row whose actions are open closes them, as iOS's does.

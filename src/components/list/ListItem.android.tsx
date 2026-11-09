@@ -1,6 +1,6 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
-import { Children, isValidElement, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useContext, useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { I18nManager, PixelRatio, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
@@ -26,6 +26,7 @@ import {
   RowEditContext,
   RowLastContext,
   useListColors,
+  type RowEdit,
 } from './section.android';
 import { list } from './tokens';
 import type { ListItemProps, SwipeAction } from './types';
@@ -113,8 +114,12 @@ const DeleteControl = ({ color }: { color: string }) => {
 };
 
 /** A selecting row's circle: a grey ring, filled with the accent and a white tick as the row is selected. */
-const SelectCircle = ({ ring, fill, filled }: { ring: string; fill: string; filled: SharedValue<number> }) => {
+const SelectCircle = ({ ring, fill, selected }: { ring: string; fill: string; selected: boolean }) => {
   const { circle, ring: stroke, tick } = list.edit.select;
+  const filled = useSharedValue(selected ? 1 : 0);
+  useEffect(() => {
+    filled.set(selected ? 1 : withTiming(0, { duration: list.edit.select.fade }));
+  }, [selected, filled]);
   const fillIn = useAnimatedStyle(() => ({ opacity: filled.get() }));
   const inset = tick.stroke / 2;
   return (
@@ -257,58 +262,33 @@ const ActionButton = ({
   );
 };
 
-/**
- * `@expo/ui`'s `ListItem`, drawn as iOS 27 draws a list row: the headline with a second line under it, a leading view,
- * trailing content, Lucent's value and chevron or checkmark, a separator to the next row from the text's start, a grey
- * fill under a finger, and swipe actions that slide the row aside onto capsule buttons.
- */
-export const ListItem = ({
-  children,
-  onPress,
-  leading: leadingProp,
-  trailing: trailingProp,
-  supportingText,
-  detail,
-  accessory,
-  destructive = false,
-  swipeActions,
-  disabled = false,
-  testID,
-}: ListItemProps) => {
-  const colors = useListColors();
-  const { color } = useLucentTheme();
-  const style = useContext(ListStyleContext) ?? 'insetGrouped';
-  const last = useContext(RowLastContext);
-  const slots = slotsOf(children);
-  const leading = slots.leading ?? leadingProp;
-  const trailing = slots.trailing ?? trailingProp;
-  const supporting = slots.supporting ?? supportingText;
-  const [leadingWidth, setLeadingWidth] = useState(0);
-  const [rowWidth, setRowWidth] = useState(0);
-  // Rows grow with the text size, as iOS's do.
-  const scale = PixelRatio.getFontScale();
-  // At accessibility text sizes iOS stacks a row's value under its title rather than beside it, where it would leave
-  // the title too little room to fit a word.
-  const stacked = scale >= list.stackedFrom;
+/** How a row's parts move into and out of edit mode, for a row edit mode changes. */
+interface EditMotionStyles {
+  startMoved: ReturnType<typeof useAnimatedStyle>;
+  endMoved: ReturnType<typeof useAnimatedStyle>;
+  controlIn: ReturnType<typeof useAnimatedStyle>;
+  handleIn: ReturnType<typeof useAnimatedStyle>;
+  separatorAt: ReturnType<typeof useAnimatedStyle>;
+}
 
-  // Edit mode: a row its `List.ForEach` can delete makes room for the delete control, one it can move shows the handle.
-  // Its content takes its edit-mode place at once and is drawn moving there, so only transforms run per frame.
-  const edit = useContext(ListEditContext);
-  const rowEdit = useContext(RowEditContext);
-  const editing = edit?.editing ?? false;
-  const editProgress = edit?.progress;
-  // A list with `selection` selects in edit mode: a circle takes the delete control's place, and a tap toggles the row.
-  const selection = useContext(ListSelectionContext);
-  const selectable = Boolean(selection && rowEdit.key !== undefined);
-  const selecting = editing && selectable;
-  const selected = selectable && selection!.selected.includes(rowEdit.key!);
-  const nextSelected = selectable && rowEdit.nextKey !== undefined && selection!.selected.includes(rowEdit.nextKey);
-  const filled = useSharedValue(selected ? 1 : 0);
-  useEffect(() => {
-    filled.set(selected ? 1 : withTiming(0, { duration: list.edit.select.fade }));
-  }, [selected, filled]);
-  const editStart = rowEdit.onDelete || selectable ? list.edit.shift : 0;
-  const editEnd = rowEdit.movable ? list.edit.handleRoom : 0;
+/**
+ * A row edit mode changes: its content takes its edit-mode place at once and is drawn moving there, so only transforms
+ * run per frame. A row it doesn't change goes without, and is that much quicker to draw.
+ */
+const EditMotion = ({
+  editStart,
+  editEnd,
+  separatorStart,
+  editing,
+  children,
+}: {
+  editStart: number;
+  editEnd: number;
+  separatorStart: number;
+  editing: boolean;
+  children: (motion: EditMotionStyles) => ReactElement;
+}) => {
+  const editProgress = useContext(ListEditContext)?.progress;
   const along = mirrored ? -1 : 1;
   const from = editing ? 1 : 0;
   const startMoved = useAnimatedStyle(() => ({
@@ -325,117 +305,38 @@ export const ListItem = ({
     const p = editProgress?.get() ?? 0;
     return { opacity: p, transform: [{ translateX: along * list.edit.shift * (1 - p) }] };
   });
+  // From the text's start, wherever edit mode has it.
+  const separatorAt = useAnimatedStyle(() => ({ start: separatorStart + editStart * (editProgress?.get() ?? 0) }));
+  return children({ startMoved, endMoved, controlIn, handleIn, separatorAt });
+};
 
-  // Reordering, by the handle in edit mode. The row draws itself at its place in its group's order, less where React has
-  // laid it out: it slides as other rows are dragged past it, and as `onMove` lays it out again nothing jumps.
-  const reorder = rowEdit.reorder;
-  const group = reorder?.group;
-  const myKey = reorder?.key ?? '';
-  const laidOut = reorder?.keys ?? [];
-  const placed = useSharedValue(0);
-  const liftedFrom = useSharedValue(0);
-  // How far the list has scrolled under the dragged row since it lifted, which keeps the row under the finger.
-  const auto = useContext(ListAutoScrollContext);
-  const scrolledFrom = useSharedValue(0);
-  // The dragged row's place among the others, as iOS's: past each one whose far edge its middle has crossed. Worked
-  // out as the finger moves and as the list scrolls under it.
-  useAnimatedReaction(
-    () => (group && group.active.get() === myKey ? group.drag.get() + (auto ? auto.scrollY.get() : 0) : null),
-    (now) => {
-      if (now === null || !group) return;
-      const heights = group.heights.get();
-      const order = group.order.get();
-      const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
-      const middle = liftedFrom.get() + group.drag.get() + scrolled + (heights[myKey] ?? 0) / 2;
-      const others = order.filter((key) => key !== myKey);
-      let y = 0;
-      let at = 0;
-      for (const key of others) {
-        const height = heights[key] ?? 0;
-        if (y + height < middle) at += 1;
-        y += height;
-      }
-      if (order.indexOf(myKey) !== at) group.order.set([...others.slice(0, at), myKey, ...others.slice(at)]);
-    },
-  );
-  const lift = useSharedValue(0);
-  useAnimatedReaction(
-    () => (group ? slotAt(group.order.get(), group.heights.get(), myKey) : 0),
-    (y, before) => {
-      if (!group || group.active.get() === myKey) return;
-      placed.set(before !== null && group.moving.get() ? withSpring(y, list.edit.move) : y);
-    },
-  );
-  const moved = useAnimatedStyle(() => {
-    if (!group || (!group.moving.get() && group.active.get() !== myKey)) return { transform: [{ translateY: 0 }] };
-    // The list's scroll read here, not in a helper: a style only follows the shared values it reads itself.
-    const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
-    const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
-    return {
-      opacity: 1 - (1 - list.edit.lift.opacity) * lift.get(),
-      // Lifted, over the rows it passes.
-      zIndex: lift.get() > 0 ? 1 : 0,
-      transform: [{ translateY: y - slotAt(laidOut, group.heights.get(), myKey) }],
-    };
-  });
-  const liftedCard = useAnimatedStyle(() => ({ opacity: lift.get() }));
-  // Let go in a new place: SwiftUI's `onMove`, whose destination counts places before the row is taken out.
-  const moveTo = (from: number, to: number) => group?.onMove?.([from], to > from ? to + 1 : to);
-  const scrollGesture = useContext(ListScrollGestureContext);
-  const handleDrag = usePanGesture({
-    enabled: editing && Boolean(group),
-    minDistance: 0,
-    block: scrollGesture ?? undefined,
-    onActivate: (event) => {
-      if (!group) return;
-      liftedFrom.set(placed.get());
-      scrolledFrom.set(auto?.scrollY.get() ?? 0);
-      auto?.finger.set(event.absoluteY);
-      group.drag.set(0);
-      group.active.set(myKey);
-      group.moving.set(true);
-      lift.set(withTiming(1, { duration: list.edit.lift.duration }));
-      group.lifted.set(true);
-    },
-    onUpdate: (event) => {
-      if (!group) return;
-      group.drag.set(event.translationY);
-      auto?.finger.set(event.absoluteY);
-    },
-    onDeactivate: () => {
-      if (!group) return;
-      const order = group.order.get();
-      auto?.finger.set(-1);
-      placed.set(liftedFrom.get() + group.drag.get() + (auto ? auto.scrollY.get() - scrolledFrom.get() : 0));
-      group.active.set('');
-      placed.set(
-        withSpring(slotAt(order, group.heights.get(), myKey), list.edit.drop, (finished) => {
-          if (finished) group.moving.set(false);
-        }),
-      );
-      lift.set(
-        withTiming(0, { duration: list.edit.drop.duration }, (finished) => {
-          if (finished) group.lifted.set(false);
-        }),
-      );
-      const from = laidOut.indexOf(myKey);
-      const to = order.indexOf(myKey);
-      if (from !== to) scheduleOnRN(moveTo, from, to);
-    },
-  });
+/** What a row's swipe actions let the rest of it do. */
+interface SwipeControls {
+  opened: () => boolean;
+  close: () => void;
+  revealDelete: () => void;
+  perform: (action: SwipeAction | undefined, side: 'leading' | 'trailing') => void;
+}
 
-  // A row its `List.ForEach` can delete gets SwiftUI's Delete action: swiped to from the trailing edge unless the row
-  // has trailing actions of its own, and in edit mode the only action, which the delete control opens.
-  const deleteAction: SwipeAction | undefined = rowEdit.onDelete
-    ? { label: 'Delete', icon: { sf: 'trash.fill', md: 'delete' }, destructive: true, onPress: rowEdit.onDelete }
-    : undefined;
-  const leadingActions = editing ? [] : (swipeActions?.leading ?? []);
-  const trailingActions = editing
-    ? deleteAction
-      ? [deleteAction]
-      : []
-    : (swipeActions?.trailing ?? (deleteAction ? [deleteAction] : []));
-  const full = swipeActions?.allowsFullSwipe ?? true;
+/**
+ * A row with swipe actions: it slides aside onto their buttons. Only a row that has some, or that its `List.ForEach`
+ * can delete, is drawn with it.
+ */
+const Swipeable = ({
+  leadingActions,
+  trailingActions,
+  full,
+  enabled,
+  children,
+}: {
+  leadingActions: SwipeAction[];
+  trailingActions: SwipeAction[];
+  full: boolean;
+  enabled: boolean;
+  children: (controls: SwipeControls) => ReactElement;
+}) => {
+  const colors = useListColors();
+  const [rowWidth, setRowWidth] = useState(0);
   // The row's slide: positive reveals the leading actions, negative the trailing ones (flipped right to left).
   const offset = useSharedValue(0);
   const start = useSharedValue(0);
@@ -463,6 +364,13 @@ export const ListItem = ({
       offset.set(withSpring(0, list.swipe.spring));
     },
   );
+  // Into or out of edit mode, an open row closes, as iOS's does.
+  useEffect(() => {
+    if (offset.get() === 0) return;
+    closing.set(true);
+    armed.set(withSpring(0, list.swipe.spring));
+    offset.set(withSpring(0, list.swipe.spring));
+  }, [enabled, offset, closing, armed]);
   // Out the rest of the way: fast from the start, as the row is already moving.
   const slideOut = { duration: list.swipe.commit, easing: Easing.out(Easing.cubic) };
   // Edit mode's delete control opens the row's Delete action, as a swipe would.
@@ -503,7 +411,7 @@ export const ListItem = ({
     collapse(action);
   };
   const pan = usePanGesture({
-    enabled: !disabled && !editing && (leadingActions.length > 0 || trailingActions.length > 0),
+    enabled: enabled && (leadingActions.length > 0 || trailingActions.length > 0),
     activeOffsetX: [-10, 10],
     failOffsetY: [-10, 10],
     onActivate: () => {
@@ -568,122 +476,378 @@ export const ListItem = ({
   const leadingShown = useAnimatedStyle(() => ({ opacity: offset.get() > 0 ? 1 : 0 }));
   const trailingShown = useAnimatedStyle(() => ({ opacity: offset.get() < 0 ? 1 : 0 }));
 
+  const row = children({ opened: () => Math.abs(offset.get()) > 1, close, revealDelete, perform });
+  if (leadingActions.length === 0 && trailingActions.length === 0) return row;
+  return (
+    <Animated.View
+      style={[styles.swipeable, closedUp]}
+      onLayout={(event) => {
+        setRowWidth(event.nativeEvent.layout.width);
+        if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
+      }}>
+      <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
+        {leadingActions.map((action, index) => (
+          <ActionButton
+            key={`${action.label}-${index}`}
+            action={action}
+            side="leading"
+            index={index}
+            count={leadingActions.length}
+            swipe={swipe}
+            onRun={perform}
+          />
+        ))}
+      </Animated.View>
+      <Animated.View style={[styles.actions, styles.actionsTrailing, trailingShown]} pointerEvents="box-none">
+        {trailingActions
+          .map((action, index) => (
+            <ActionButton
+              key={`${action.label}-${index}`}
+              action={action}
+              side="trailing"
+              index={index}
+              count={trailingActions.length}
+              swipe={swipe}
+              onRun={perform}
+            />
+          ))
+          .reverse()}
+      </Animated.View>
+      <GestureDetector gesture={pan}>
+        <Animated.View style={slide}>
+          <Animated.View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, styles.slidFill, { backgroundColor: colors.pressed }, slidFill]}
+          />
+          {row}
+        </Animated.View>
+      </GestureDetector>
+    </Animated.View>
+  );
+};
+
+/** What a row's reorder drag lets the rest of it do. */
+interface ReorderControls {
+  handleDrag: ReturnType<typeof usePanGesture>;
+  moveTo: (from: number, to: number) => void;
+}
+
+/**
+ * Reordering, by the handle in edit mode. The row draws itself at its place in its group's order, less where React has
+ * laid it out: it slides as other rows are dragged past it, and as `onMove` lays it out again nothing jumps. Only a row
+ * its `List.ForEach` can move is drawn with it.
+ */
+const Reorderable = ({
+  reorder: { group, key: myKey, keys: laidOut },
+  editing,
+  onHeight,
+  children,
+}: {
+  reorder: NonNullable<RowEdit['reorder']>;
+  editing: boolean;
+  onHeight?: (height: number) => void;
+  children: (controls: ReorderControls) => ReactElement;
+}) => {
+  const colors = useListColors();
+  const placed = useSharedValue(0);
+  const liftedFrom = useSharedValue(0);
+  // How far the list has scrolled under the dragged row since it lifted, which keeps the row under the finger.
+  const auto = useContext(ListAutoScrollContext);
+  const scrolledFrom = useSharedValue(0);
+  // The dragged row's place among the others, as iOS's: past each one whose far edge its middle has crossed. Worked
+  // out as the finger moves and as the list scrolls under it.
+  useAnimatedReaction(
+    () => (group.active.get() === myKey ? group.drag.get() + (auto ? auto.scrollY.get() : 0) : null),
+    (now) => {
+      if (now === null) return;
+      const heights = group.heights.get();
+      const order = group.order.get();
+      const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
+      const middle = liftedFrom.get() + group.drag.get() + scrolled + (heights[myKey] ?? 0) / 2;
+      const others = order.filter((key) => key !== myKey);
+      let y = 0;
+      let at = 0;
+      for (const key of others) {
+        const height = heights[key] ?? 0;
+        if (y + height < middle) at += 1;
+        y += height;
+      }
+      if (order.indexOf(myKey) !== at) group.order.set([...others.slice(0, at), myKey, ...others.slice(at)]);
+    },
+  );
+  const lift = useSharedValue(0);
+  useAnimatedReaction(
+    () => slotAt(group.order.get(), group.heights.get(), myKey),
+    (y, before) => {
+      if (group.active.get() === myKey) return;
+      placed.set(before !== null && group.moving.get() ? withSpring(y, list.edit.move) : y);
+    },
+  );
+  const moved = useAnimatedStyle(() => {
+    if (!group.moving.get() && !group.pending.get() && group.active.get() !== myKey)
+      return { transform: [{ translateY: 0 }] };
+    // The list's scroll read here, not in a helper: a style only follows the shared values it reads itself.
+    const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
+    const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
+    return {
+      opacity: 1 - (1 - list.edit.lift.opacity) * lift.get(),
+      // Lifted, over the rows it passes.
+      zIndex: lift.get() > 0 ? 1 : 0,
+      transform: [{ translateY: y - slotAt(laidOut, group.heights.get(), myKey) }],
+    };
+  });
+  const liftedCard = useAnimatedStyle(() => ({ opacity: lift.get() }));
+  // Let go in a new place: SwiftUI's `onMove`, whose destination counts places before the row is taken out.
+  const moveTo = (from: number, to: number) => group.onMove?.([from], to > from ? to + 1 : to);
+  const scrollGesture = useContext(ListScrollGestureContext);
+  const handleDrag = usePanGesture({
+    enabled: editing,
+    minDistance: 0,
+    block: scrollGesture ?? undefined,
+    onActivate: (event) => {
+      liftedFrom.set(placed.get());
+      scrolledFrom.set(auto?.scrollY.get() ?? 0);
+      auto?.finger.set(event.absoluteY);
+      group.drag.set(0);
+      group.active.set(myKey);
+      group.moving.set(true);
+      lift.set(withTiming(1, { duration: list.edit.lift.duration }));
+      group.lifted.set(true);
+    },
+    onUpdate: (event) => {
+      group.drag.set(event.translationY);
+      auto?.finger.set(event.absoluteY);
+    },
+    onDeactivate: () => {
+      const order = group.order.get();
+      auto?.finger.set(-1);
+      placed.set(liftedFrom.get() + group.drag.get() + (auto ? auto.scrollY.get() - scrolledFrom.get() : 0));
+      group.active.set('');
+      placed.set(
+        withSpring(slotAt(order, group.heights.get(), myKey), list.edit.drop, (finished) => {
+          if (finished) group.moving.set(false);
+        }),
+      );
+      lift.set(
+        withTiming(0, { duration: list.edit.drop.duration }, (finished) => {
+          if (finished) group.lifted.set(false);
+        }),
+      );
+      const from = laidOut.indexOf(myKey);
+      const to = order.indexOf(myKey);
+      if (from === to) return;
+      group.pending.set(true);
+      scheduleOnRN(moveTo, from, to);
+    },
+  });
+  return (
+    <Animated.View
+      style={moved}
+      onLayout={(event) => {
+        const height = event.nativeEvent.layout.height;
+        onHeight?.(height);
+        // Each row adds its own, on the UI thread, so rows laid out together don't overwrite each other.
+        group.heights.modify((heights) => {
+          'worklet';
+          return heights[myKey] === height ? heights : { ...heights, [myKey]: height };
+        });
+      }}>
+      <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
+      {children({ handleDrag, moveTo })}
+    </Animated.View>
+  );
+};
+
+/**
+ * `@expo/ui`'s `ListItem`, drawn as iOS 27 draws a list row: the headline with a second line under it, a leading view,
+ * trailing content, Lucent's value and chevron or checkmark, a separator to the next row from the text's start, a grey
+ * fill under a finger, and swipe actions that slide the row aside onto capsule buttons. What a row can't do (swipe,
+ * move in edit mode, be reordered) it isn't drawn with, so a long list's plain rows mount quickly.
+ */
+export const ListItem = ({
+  children,
+  onPress,
+  leading: leadingProp,
+  trailing: trailingProp,
+  supportingText,
+  detail,
+  accessory,
+  destructive = false,
+  swipeActions,
+  disabled = false,
+  testID,
+}: ListItemProps) => {
+  const colors = useListColors();
+  const { color } = useLucentTheme();
+  const style = useContext(ListStyleContext) ?? 'insetGrouped';
+  const last = useContext(RowLastContext);
+  const slots = slotsOf(children);
+  const leading = slots.leading ?? leadingProp;
+  const trailing = slots.trailing ?? trailingProp;
+  const supporting = slots.supporting ?? supportingText;
+  const [leadingWidth, setLeadingWidth] = useState(0);
+  // Rows grow with the text size, as iOS's do.
+  const scale = PixelRatio.getFontScale();
+  // At accessibility text sizes iOS stacks a row's value under its title rather than beside it, where it would leave
+  // the title too little room to fit a word.
+  const stacked = scale >= list.stackedFrom;
+
+  // Edit mode: a row its `List.ForEach` can delete makes room for the delete control, one it can move shows the handle.
+  const edit = useContext(ListEditContext);
+  const rowEdit = useContext(RowEditContext);
+  const editing = edit?.editing ?? false;
+  // A list with `selection` selects in edit mode: a circle takes the delete control's place, and a tap toggles the row.
+  const selection = useContext(ListSelectionContext);
+  const selectable = Boolean(selection && rowEdit.key !== undefined);
+  const selecting = editing && selectable;
+  const selected = selectable && selection!.selected.includes(rowEdit.key!);
+  const nextSelected = selectable && rowEdit.nextKey !== undefined && selection!.selected.includes(rowEdit.nextKey);
+  const editStart = rowEdit.onDelete || selectable ? list.edit.shift : 0;
+  const editEnd = rowEdit.movable ? list.edit.handleRoom : 0;
+  const reorder = rowEdit.reorder;
+
+  // A row its `List.ForEach` can delete gets SwiftUI's Delete action: swiped to from the trailing edge unless the row
+  // has trailing actions of its own, and in edit mode the only action, which the delete control opens.
+  const deleteAction: SwipeAction | undefined = rowEdit.onDelete
+    ? { label: 'Delete', icon: { sf: 'trash.fill', md: 'delete' }, destructive: true, onPress: rowEdit.onDelete }
+    : undefined;
+  const leadingActions = editing ? [] : (swipeActions?.leading ?? []);
+  const trailingActions = editing
+    ? deleteAction
+      ? [deleteAction]
+      : []
+    : (swipeActions?.trailing ?? (deleteAction ? [deleteAction] : []));
+  const swipes = Boolean(deleteAction || swipeActions?.leading?.length || swipeActions?.trailing?.length);
+  const openRow = useContext(OpenRowContext);
+
   const textColor = destructive ? colors.destructive : colors.text;
   const separatorStart = list.rowPadding + (leading != null ? leadingWidth + list.leadingGap : 0);
-  // From the text's start, wherever edit mode has it.
-  const separatorAt = useAnimatedStyle(() => ({ start: separatorStart + editStart * (editProgress?.get() ?? 0) }));
-  const content = (pressed: boolean) => (
-    <View
-      style={[
-        styles.row,
-        { minHeight: list.rowMinHeight * scale },
-        pressed && !disabled ? { backgroundColor: colors.pressed } : null,
-        selecting && selected ? { backgroundColor: colors.selected } : null,
-      ]}>
+  const content = (
+    pressed: boolean,
+    motion: EditMotionStyles | null,
+    swipe: SwipeControls | null,
+    drag: ReorderControls | null,
+  ) => {
+    const startMoved = motion?.startMoved ?? null;
+    const endMoved = motion?.endMoved ?? null;
+    return (
       <View
         style={[
-          styles.inner,
-          {
-            paddingStart: list.rowPadding + (editing ? editStart : 0),
-            paddingEnd: list.rowPadding + (editing ? editEnd : 0),
-          },
-          disabled && styles.disabled,
+          styles.row,
+          { minHeight: list.rowMinHeight * scale },
+          pressed && !disabled ? { backgroundColor: colors.pressed } : null,
+          selecting && selected ? { backgroundColor: colors.selected } : null,
         ]}>
-        {leading != null ? (
-          <Animated.View
-            style={[styles.leading, startMoved]}
-            onLayout={(event: LayoutChangeEvent) => setLeadingWidth(event.nativeEvent.layout.width)}>
-            {leading}
-          </Animated.View>
-        ) : null}
-        <Animated.View style={[styles.texts, startMoved]}>
-          {slots.headline.length > 0 ? (
-            slots.headline.every(textual) ? (
-              <Text style={[styles.title, { color: textColor }]}>{slots.headline}</Text>
-            ) : (
-              slots.headline
-            )
-          ) : null}
-          {supporting != null ? (
-            textual(supporting) ? (
-              <Text style={[styles.supporting, { color: colors.secondary }]}>{supporting}</Text>
-            ) : (
-              supporting
-            )
-          ) : null}
-          {detail != null && stacked ? <Text style={[styles.title, { color: colors.secondary }]}>{detail}</Text> : null}
-        </Animated.View>
-        {trailing != null ? (
-          <Animated.View style={[styles.trailing, endMoved]}>
-            {textual(trailing) ? <Text style={[styles.title, { color: colors.text }]}>{trailing}</Text> : trailing}
-          </Animated.View>
-        ) : null}
-        {detail != null && !stacked ? (
-          <Animated.Text numberOfLines={1} style={[styles.title, styles.detail, { color: colors.secondary }, endMoved]}>
-            {detail}
-          </Animated.Text>
-        ) : null}
-        {accessory === 'disclosure' ? (
-          <Animated.View style={[styles.chevron, endMoved]}>
-            <Chevron color={colors.chevron} />
-          </Animated.View>
-        ) : accessory === 'checkmark' ? (
-          <Animated.View style={[styles.checkmark, endMoved]}>
-            <Checkmark color={color.tint} />
-          </Animated.View>
-        ) : null}
-      </View>
-      {edit && selectable ? (
-        <Animated.View pointerEvents="none" style={[styles.editSlot, styles.selectSlot, controlIn]}>
-          <SelectCircle ring={colors.selectRing} fill={color.tint} filled={filled} />
-        </Animated.View>
-      ) : edit && rowEdit.onDelete ? (
-        <Animated.View
-          pointerEvents={editing ? 'box-none' : 'none'}
-          style={[styles.editSlot, styles.controlSlot, controlIn]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-            hitSlop={list.edit.controlAt - list.edit.control / 2}
-            onPress={revealDelete}>
-            <DeleteControl color={colors.destructive} />
-          </Pressable>
-        </Animated.View>
-      ) : null}
-      {edit && rowEdit.movable ? (
-        <GestureDetector gesture={handleDrag}>
-          <Animated.View
-            pointerEvents={editing ? 'auto' : 'none'}
-            accessible={false}
-            style={[styles.editSlot, styles.handleSlot, handleIn]}>
-            <ReorderHandle color={colors.handle} />
-          </Animated.View>
-        </GestureDetector>
-      ) : null}
-      {last || (selecting && (selected || nextSelected)) ? null : (
-        <Animated.View
+        <View
           style={[
-            styles.separator,
+            styles.inner,
             {
-              // iOS 27 ends them short of the row's end, inset grouped and plain alike.
-              end: list.rowPadding,
-              backgroundColor: style === 'plain' ? colors.plainSeparator : colors.separator,
+              paddingStart: list.rowPadding + (editing ? editStart : 0),
+              paddingEnd: list.rowPadding + (editing ? editEnd : 0),
             },
-            separatorAt,
-          ]}
-        />
-      )}
-    </View>
-  );
+            disabled && styles.disabled,
+          ]}>
+          {leading != null ? (
+            <Animated.View
+              style={[styles.leading, startMoved]}
+              onLayout={(event: LayoutChangeEvent) => setLeadingWidth(event.nativeEvent.layout.width)}>
+              {leading}
+            </Animated.View>
+          ) : null}
+          <Animated.View style={[styles.texts, startMoved]}>
+            {slots.headline.length > 0 ? (
+              slots.headline.every(textual) ? (
+                <Text style={[styles.title, { color: textColor }]}>{slots.headline}</Text>
+              ) : (
+                slots.headline
+              )
+            ) : null}
+            {supporting != null ? (
+              textual(supporting) ? (
+                <Text style={[styles.supporting, { color: colors.secondary }]}>{supporting}</Text>
+              ) : (
+                supporting
+              )
+            ) : null}
+            {detail != null && stacked ? (
+              <Text style={[styles.title, { color: colors.secondary }]}>{detail}</Text>
+            ) : null}
+          </Animated.View>
+          {trailing != null ? (
+            <Animated.View style={[styles.trailing, endMoved]}>
+              {textual(trailing) ? <Text style={[styles.title, { color: colors.text }]}>{trailing}</Text> : trailing}
+            </Animated.View>
+          ) : null}
+          {detail != null && !stacked ? (
+            <Animated.Text
+              numberOfLines={1}
+              style={[styles.title, styles.detail, { color: colors.secondary }, endMoved]}>
+              {detail}
+            </Animated.Text>
+          ) : null}
+          {accessory === 'disclosure' ? (
+            <Animated.View style={[styles.chevron, endMoved]}>
+              <Chevron color={colors.chevron} />
+            </Animated.View>
+          ) : accessory === 'checkmark' ? (
+            <Animated.View style={[styles.checkmark, endMoved]}>
+              <Checkmark color={color.tint} />
+            </Animated.View>
+          ) : null}
+        </View>
+        {motion && selectable ? (
+          <Animated.View pointerEvents="none" style={[styles.editSlot, styles.selectSlot, motion.controlIn]}>
+            <SelectCircle ring={colors.selectRing} fill={color.tint} selected={selected} />
+          </Animated.View>
+        ) : motion && rowEdit.onDelete ? (
+          <Animated.View
+            pointerEvents={editing ? 'box-none' : 'none'}
+            style={[styles.editSlot, styles.controlSlot, motion.controlIn]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete"
+              hitSlop={list.edit.controlAt - list.edit.control / 2}
+              onPress={swipe?.revealDelete}>
+              <DeleteControl color={colors.destructive} />
+            </Pressable>
+          </Animated.View>
+        ) : null}
+        {motion && drag ? (
+          <GestureDetector gesture={drag.handleDrag}>
+            <Animated.View
+              pointerEvents={editing ? 'auto' : 'none'}
+              accessible={false}
+              style={[styles.editSlot, styles.handleSlot, motion.handleIn]}>
+              <ReorderHandle color={colors.handle} />
+            </Animated.View>
+          </GestureDetector>
+        ) : null}
+        {last || (selecting && (selected || nextSelected)) ? null : (
+          <Animated.View
+            style={[
+              styles.separator,
+              {
+                // iOS 27 ends them short of the row's end, inset grouped and plain alike.
+                end: list.rowPadding,
+                start: separatorStart,
+                backgroundColor: style === 'plain' ? colors.plainSeparator : colors.separator,
+              },
+              motion?.separatorAt,
+            ]}
+          />
+        )}
+      </View>
+    );
+  };
 
-  const row = (
+  const row = (motion: EditMotionStyles | null, swipe: SwipeControls | null, drag: ReorderControls | null) => (
     <Pressable
       testID={testID}
       disabled={disabled || (!onPress && !selecting)}
       onPress={() => {
         // A tap while a row's actions are open closes them, as iOS's does, rather than pressing the row.
         if (openRow && openRow.get() !== -1) return openRow.set(-1);
-        if (Math.abs(offset.get()) > 1) return close();
+        if (swipe?.opened()) return swipe.close();
         if (selecting) return selection!.toggle(rowEdit.key!);
         onPress?.();
       }}
@@ -695,79 +859,42 @@ export const ListItem = ({
       ]}
       onAccessibilityAction={(event) => {
         // A screen reader moves a row a place at a time, as VoiceOver's reorder actions do.
-        if (reorder && event.nativeEvent.actionName === moveUp.name) return moveTo(reorder.index, reorder.index - 1);
-        if (reorder && event.nativeEvent.actionName === moveDown.name) return moveTo(reorder.index, reorder.index + 1);
+        if (reorder && drag && event.nativeEvent.actionName === moveUp.name)
+          return drag.moveTo(reorder.index, reorder.index - 1);
+        if (reorder && drag && event.nativeEvent.actionName === moveDown.name)
+          return drag.moveTo(reorder.index, reorder.index + 1);
         const named = (action: SwipeAction) => action.label === event.nativeEvent.actionName;
         const leadingAction = leadingActions.find(named);
-        perform(leadingAction ?? trailingActions.find(named), leadingAction ? 'leading' : 'trailing');
+        swipe?.perform(leadingAction ?? trailingActions.find(named), leadingAction ? 'leading' : 'trailing');
       }}>
-      {({ pressed }) => content(pressed)}
+      {({ pressed }) => content(pressed, motion, swipe, drag)}
     </Pressable>
   );
-  const body =
-    leadingActions.length === 0 && trailingActions.length === 0 ? (
-      row
+  const moving = (drag: ReorderControls | null, swipe: SwipeControls | null) =>
+    editStart !== 0 || editEnd !== 0 ? (
+      <EditMotion editStart={editStart} editEnd={editEnd} separatorStart={separatorStart} editing={editing}>
+        {(motion) => row(motion, swipe, drag)}
+      </EditMotion>
     ) : (
-      <Animated.View
-        style={[styles.swipeable, closedUp]}
-        onLayout={(event) => {
-          setRowWidth(event.nativeEvent.layout.width);
-          if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
-        }}>
-        <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
-          {leadingActions.map((action, index) => (
-            <ActionButton
-              key={`${action.label}-${index}`}
-              action={action}
-              side="leading"
-              index={index}
-              count={leadingActions.length}
-              swipe={swipe}
-              onRun={perform}
-            />
-          ))}
-        </Animated.View>
-        <Animated.View style={[styles.actions, styles.actionsTrailing, trailingShown]} pointerEvents="box-none">
-          {trailingActions
-            .map((action, index) => (
-              <ActionButton
-                key={`${action.label}-${index}`}
-                action={action}
-                side="trailing"
-                index={index}
-                count={trailingActions.length}
-                swipe={swipe}
-                onRun={perform}
-              />
-            ))
-            .reverse()}
-        </Animated.View>
-        <GestureDetector gesture={pan}>
-          <Animated.View style={slide}>
-            <Animated.View
-              pointerEvents="none"
-              style={[StyleSheet.absoluteFill, styles.slidFill, { backgroundColor: colors.pressed }, slidFill]}
-            />
-            {row}
-          </Animated.View>
-        </GestureDetector>
-      </Animated.View>
+      row(null, swipe, drag)
     );
-  if (!reorder) return body;
+  const body = (drag: ReorderControls | null) =>
+    swipes ? (
+      <Swipeable
+        leadingActions={leadingActions}
+        trailingActions={trailingActions}
+        full={swipeActions?.allowsFullSwipe ?? true}
+        enabled={!disabled && !editing}>
+        {(swipe) => moving(drag, swipe)}
+      </Swipeable>
+    ) : (
+      moving(drag, null)
+    );
+  if (!reorder) return body(null);
   return (
-    <Animated.View
-      style={moved}
-      onLayout={(event) => {
-        const height = event.nativeEvent.layout.height;
-        // Each row adds its own, on the UI thread, so rows laid out together don't overwrite each other.
-        group?.heights.modify((heights) => {
-          'worklet';
-          return heights[myKey] === height ? heights : { ...heights, [myKey]: height };
-        });
-      }}>
-      <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
-      {body}
-    </Animated.View>
+    <Reorderable reorder={reorder} editing={editing} onHeight={rowEdit.onHeight}>
+      {(drag) => body(drag)}
+    </Reorderable>
   );
 };
 

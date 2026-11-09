@@ -56,7 +56,7 @@ export const ListScroll = ({
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const finger = useSharedValue(-1);
   const contentHeight = useSharedValue(0);
-  const autoScroll = useMemo(() => ({ finger, scrollY }), [finger, scrollY]);
+  const autoScroll = useMemo(() => ({ finger, scrollY, scrollRef }), [finger, scrollY, scrollRef]);
   const barTop = useHeaderInset();
   const toolbar = useToolbarInset();
   const tabBar = useTabBarReach();
