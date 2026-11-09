@@ -120,7 +120,7 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
   - Measured frame by frame on the simulator: each capsule pops in as the row uncovers its slot, and they all shrink away as it closes.
   - Dragged further, the outermost capsule stretches into the room and the others fade. Past 79% of the row's width a full swipe arms, with a haptic tick: the row jumps on, the icon moves to the capsule's leading end and the label fades. Let go there, and the action runs.
   - A destructive action, from its button, a full swipe or a screen reader, takes its row away as iOS does: the row slides out as its height closes up, and the action runs once it's gone. If the app keeps the row, it comes back. Any other action closes the row and runs.
-- With Reduce Motion on, iOS animates its swipe actions as usual. Android has only "Remove animations", which Lucent follows: the row and its buttons settle at once.
+- With Reduce Motion on, iOS animates its swipe actions, edit mode and reordering as usual. Android has only "Remove animations", which Lucent follows: rows, their buttons and edit-mode controls settle at once.
 - Pull to refresh, measured on the simulator with slow held drags:
   - The content follows the finger one to one for 60, then with UIScrollView's rubber band.
   - A screen's large title comes down with it, and iOS's spinner, 30 across, draws its spokes one by one in the title's place.
