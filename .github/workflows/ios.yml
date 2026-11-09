@@ -1,0 +1,60 @@
+name: iOS
+
+# Builds the example app for the iOS simulator, compiling Lucent's Swift with it. On pull requests only when something
+# the iOS build reads changes (the JavaScript isn't bundled into a debug build); on main after every merge.
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'Lucent.podspec'
+      - 'expo-module.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'example/app.json'
+      - 'example/package.json'
+      - 'example/package-lock.json'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS build
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            example/package-lock.json
+
+      - run: npm ci
+      - run: npm ci
+        working-directory: example
+      # Generates example/ios and installs its pods.
+      - run: npx expo prebuild --platform ios
+        working-directory: example
+      # The simulator on the runner's own chip only, and no signing: a check that it compiles, not an app to ship.
+      - run: >
+          xcodebuild build -quiet
+          -workspace lucentexample.xcworkspace
+          -scheme lucentexample
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          ARCHS=arm64
+          ONLY_ACTIVE_ARCH=YES
+          CODE_SIGNING_ALLOWED=NO
+        working-directory: example/ios
