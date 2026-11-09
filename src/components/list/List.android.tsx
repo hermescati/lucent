@@ -1,19 +1,23 @@
+import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
 import { createElement, useCallback, useContext, useState, type ReactNode } from 'react';
-import { StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   interpolate,
   useAnimatedScrollHandler,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { ListForEach, ListStyleContext, OpenRowContext, sectionsOf, useListColors } from './section.android';
 import { list } from './tokens';
 import type { ListProps } from './types';
+import { useHeaderOffset, useHeaderSnap } from '../../core/header/scroll';
 import { ListScrollViewContext } from '../../core/scroll';
 import { Spinner } from '../../core/spinner';
 
@@ -34,26 +38,48 @@ export const ListScroll = ({
   const Scroll = useContext(ListScrollViewContext);
   const scrollY = useSharedValue(0);
   const openRow = useSharedValue(-1);
-  // How far the content is pulled down past its top, and whether a refresh is running.
+  // How far the content is pulled down past its top, whether a refresh is running, and how many of the spinner's spokes
+  // are drawn (a refresh starts as the last one is). `fading` is the spinner going once a refresh is done.
   const pull = useSharedValue(0);
   const refreshingNow = useSharedValue(false);
+  const drawn = useSharedValue(0);
+  const pulledFrom = useSharedValue(0);
+  const fading = useSharedValue(0);
+  // The screen's large title, if it has one, comes down with the content, and the spinner takes its place.
+  const headerOffset = useHeaderOffset();
+  const overTitle = useHeaderSnap() > 0;
+  const [height, setHeight] = useState(0);
   // The spinner is there only while the content is pulled down or refreshing: turning, unseen, it would keep the UI
-  // thread busy for nothing.
-  const [spinning, setSpinning] = useState(false);
+  // thread busy for nothing. It turns once a refresh starts.
+  const [spinnerState, setSpinnerState] = useState<'none' | 'drawing' | 'spinning'>('none');
   useAnimatedReaction(
-    () => pull.get() > 0.5 || refreshingNow.get(),
+    () => (refreshingNow.get() ? 'spinning' : pull.get() > 0.5 ? 'drawing' : 'none'),
     (now, before) => {
-      if (now !== before) scheduleOnRN(setSpinning, now);
+      if (now !== before) scheduleOnRN(setSpinnerState, now);
     },
   );
-  const { threshold, rest, resistance, spring } = list.refresh;
+  useAnimatedReaction(
+    () => pull.get(),
+    (now, before) => {
+      if (headerOffset && scrollY.get() <= 1 && (now > 0 || (before ?? 0) > 0)) headerOffset.set(-now);
+    },
+  );
+  const { lead, band, spokes, size, rest, fade, spring } = list.refresh;
+  const full = spokes.pull[spokes.pull.length - 1];
 
   const finish = useCallback(() => {
-    refreshingNow.set(false);
-    pull.set(withSpring(0, spring));
-  }, [pull, refreshingNow, spring]);
+    // Done: the spinner shrinks and fades where it is, then the content goes back up.
+    fading.set(
+      withTiming(1, { duration: fade, easing: Easing.out(Easing.cubic) }, (finished) => {
+        if (!finished) return;
+        refreshingNow.set(false);
+        pull.set(withSpring(0, spring));
+      }),
+    );
+  }, [fading, fade, refreshingNow, pull, spring]);
   const start = useCallback(() => {
     if (!onRefresh) return;
+    performAndroidHapticsAsync(AndroidHaptics.Segment_Tick);
     onRefresh().finally(finish);
   }, [onRefresh, finish]);
 
@@ -67,37 +93,53 @@ export const ListScroll = ({
     },
   });
   const native = useNativeGesture({});
-  // Down from the top, the content follows the finger at a resisting rate, as iOS's rubber band does, and lets go into
-  // a refresh past `threshold`.
+  // Down from the top, the content follows the finger one to one for a way, then with iOS's rubber band, harder the
+  // further it goes. The refresh starts as the spinner's last spoke is drawn, finger still down.
   const pan = usePanGesture({
     enabled: Boolean(onRefresh),
     activeOffsetY: 10,
     failOffsetX: [-15, 15],
     simultaneousWith: native,
+    // A drag that starts while a refresh runs picks the content up where it rests.
+    onActivate: () => {
+      pulledFrom.set(pull.get());
+    },
     onUpdate: (event) => {
-      if (refreshingNow.get()) return;
-      if (scrollY.get() > 1 || event.translationY <= 0) {
-        if (pull.get() !== 0) pull.set(0);
+      const x = pulledFrom.get() + event.translationY;
+      if (scrollY.get() > 1 || x <= 0) {
+        if (pull.get() !== 0 && !refreshingNow.get()) pull.set(0);
+        if (!refreshingNow.get()) drawn.set(0);
         return;
       }
-      pull.set(event.translationY * resistance);
-    },
-    onDeactivate: () => {
+      const d = height || 800;
+      const next = x <= lead ? x : lead + (1 - 1 / (((x - lead) * band) / d + 1)) * d;
+      pull.set(next);
+      // Once it runs, the content still follows the finger, and the spinner turns.
       if (refreshingNow.get()) return;
-      if (pull.get() >= threshold) {
+      drawn.set(interpolate(next, spokes.pull, spokes.drawn, 'clamp'));
+      if (next >= full) {
         refreshingNow.set(true);
-        pull.set(withSpring(rest, spring));
+        fading.set(0);
         scheduleOnRN(start);
-      } else {
-        pull.set(withSpring(0, spring));
       }
+    },
+    onDeactivate: (event) => {
+      // Let go, the content settles: where a refresh runs, or back up, carrying the finger's speed (slowed by the band).
+      const velocity = event.velocityY * band;
+      pull.set(withSpring(refreshingNow.get() ? rest : 0, { ...spring, velocity }));
+      if (!refreshingNow.get()) drawn.set(0);
     },
   });
   const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateY: pull.get() }] }));
-  const spinnerStyle = useAnimatedStyle(() => ({
-    opacity: refreshingNow.get() ? 1 : interpolate(pull.get(), [threshold * 0.3, threshold], [0, 1], 'clamp'),
-    transform: [{ translateY: pull.get() / 2 - rest / 2 }],
-  }));
+  // In the large title's place as the title comes down, or with no large title, in the middle of the room the pull makes.
+  const spinnerStyle = useAnimatedStyle(() => {
+    const middle = overTitle ? -list.refresh.overTitle : pull.get() / 2;
+    const going = fading.get();
+    return {
+      opacity: 1 - going,
+      transform: [{ translateY: middle - size / 2 }, { scale: 1 - going * 0.5 }],
+    };
+  });
 
   // The screen's scroll view, from context: the same component each render, so drawn with `createElement` rather than
   // as a tag the compiler would take for one made during render.
@@ -110,11 +152,14 @@ export const ListScroll = ({
       overScrollMode: 'never',
       onScroll: onScroll as unknown as ScrollViewProps['onScroll'],
       scrollEventThrottle: 16,
+      onLayout: (event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height),
     },
     onRefresh ? (
       <View>
-        <Animated.View pointerEvents="none" style={[styles.spinner, { height: rest }, spinnerStyle]}>
-          {spinning ? <Spinner /> : null}
+        <Animated.View pointerEvents="none" style={[styles.spinner, { height: size }, spinnerStyle]}>
+          {spinnerState !== 'none' ? (
+            <Spinner size={size} drawn={drawn} spinning={spinnerState === 'spinning'} />
+          ) : null}
         </Animated.View>
         <Animated.View style={contentStyle}>{children}</Animated.View>
       </View>

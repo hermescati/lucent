@@ -142,6 +142,12 @@ export const useHeaderInset = (): number => {
   return scroll?.transparent ? height : 0;
 };
 
+/**
+ * The screen's scroll offset as its header reads it, for a list's pull to refresh: pulled down, the list writes the pull
+ * as a negative offset and the large title comes down with the content, as iOS's does.
+ */
+export const useHeaderOffset = (): SharedValue<number> | undefined => useContext(HeaderScrollContext)?.offset;
+
 /** Where the screen's scroll view starts scrolled to (see `HeaderScroll.start`). */
 export const useHeaderStart = (): number => useContext(HeaderScrollContext)?.start ?? 0;
 

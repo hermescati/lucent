@@ -135,7 +135,7 @@ const ActionButton = ({
     () => !closing.get() && offset.get() * sign >= uncovered,
     (now, before) => {
       if (now === before) return;
-      shown.set(now ? withSpring(1, pop) : withTiming(0, { duration: drop }));
+      shown.set(now ? withSpring(1, pop) : withTiming(0, { duration: drop, easing: Easing.out(Easing.cubic) }));
     },
   );
   const capsule = useAnimatedStyle(() => {
@@ -243,6 +243,8 @@ export const ListItem = ({
       offset.set(withSpring(0, list.swipe.spring));
     },
   );
+  // Out the rest of the way: fast from the start, as the row is already moving.
+  const slideOut = { duration: list.swipe.commit, easing: Easing.out(Easing.cubic) };
   const run = (action: SwipeAction | undefined) => {
     close();
     action?.onPress();
@@ -252,7 +254,7 @@ export const ListItem = ({
   const rowHeight = useSharedValue(0);
   // The row is still there a moment after its action ran (the app kept it): it opens back up and closes its actions.
   const restore = () => {
-    gone.set(withTiming(0, { duration: list.swipe.remove }));
+    gone.set(withTiming(0, { duration: list.swipe.remove, easing: Easing.out(Easing.cubic) }));
     close();
   };
   const finish = (action: SwipeAction) => {
@@ -271,7 +273,7 @@ export const ListItem = ({
   const perform = (action: SwipeAction | undefined, side: 'leading' | 'trailing') => {
     if (!action) return;
     if (!action.destructive) return run(action);
-    offset.set(withTiming((side === 'leading' ? 1 : -1) * (rowWidth || 1), { duration: list.swipe.commit }));
+    offset.set(withTiming((side === 'leading' ? 1 : -1) * (rowWidth || 1), slideOut));
     collapse(action);
   };
   const pan = usePanGesture({
@@ -282,6 +284,8 @@ export const ListItem = ({
       start.set(offset.get());
       closing.set(false);
       fullArmed.set(false);
+      // Caught while sliding out to run, the row drops the jump an armed swipe made.
+      if (armed.get() > 0) armed.set(withSpring(0, list.swipe.arm));
       openRow?.set(id);
     },
     onUpdate: (event) => {
@@ -298,7 +302,7 @@ export const ListItem = ({
       const now = full && open > 0 && Math.abs(next) > (rowWidth || 1) * list.swipe.fullSwipe;
       if (now !== fullArmed.get()) {
         fullArmed.set(now);
-        armed.set(withSpring(now ? 1 : 0, list.swipe.spring));
+        armed.set(withSpring(now ? 1 : 0, list.swipe.arm));
         scheduleOnRN(tick);
       }
     },
@@ -312,17 +316,18 @@ export const ListItem = ({
         fullArmed.set(false);
         const action = now > 0 ? leadingActions[0] : trailingActions[0];
         offset.set(
-          withTiming(Math.sign(now) * (rowWidth || 1), { duration: list.swipe.commit }, (finished) => {
+          withTiming(Math.sign(now) * (rowWidth || 1), slideOut, (finished) => {
             if (finished) scheduleOnRN(action?.destructive ? collapse : run, action);
           }),
         );
         return;
       }
-      armed.set(withSpring(0, list.swipe.spring));
+      armed.set(withSpring(0, list.swipe.arm));
       const flung = Math.abs(velocity) > 500 && Math.sign(velocity) === Math.sign(now);
       const keep = open > 0 && (Math.abs(now) > open / 2 || flung);
       if (!keep) closing.set(true);
-      offset.set(withSpring(keep ? Math.sign(now) * open : 0, list.swipe.spring));
+      // Settling open or shut, it carries on at the finger's speed.
+      offset.set(withSpring(keep ? Math.sign(now) * open : 0, { ...list.swipe.spring, velocity }));
     },
   });
   const slide = useAnimatedStyle(() => {

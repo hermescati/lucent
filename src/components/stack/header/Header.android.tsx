@@ -602,15 +602,16 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
         : withTiming(0, { duration: barMotion.inlineFadeOut, easing: Easing.inOut(Easing.quad) })
       : 1,
   );
+  // Up as the content scrolls; down with it as a list's pull to refresh pulls it (a negative offset), as iOS's comes.
   const largeStyle = useAnimatedStyle(() => {
     const y = collapsible ? offset.get() : 0;
-    return { transform: [{ translateY: -Math.max(y, 0) }], opacity: 1 - largeGone.get() };
+    return { transform: [{ translateY: -y }], opacity: 1 - largeGone.get() };
   });
   const largeBlur = useAnimatedProps(() => ({ radius: largeGone.get() * barMotion.titleBlur }));
   // The copy in the edge's glass rises as a whole: Android doesn't draw a view whose box is outside its parent's, what
   // it holds included, and it starts just below the edge.
   const largeEdgeRise = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.max(collapsible ? offset.get() : 0, 0) }],
+    transform: [{ translateY: -(collapsible ? offset.get() : 0) }],
   }));
   const largeEdgeFade = useAnimatedStyle(() => ({ opacity: 1 - largeGone.get() }));
   // Rising into the row as it comes, sinking as it goes, from a large title under the row; one beside the buttons, on

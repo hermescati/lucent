@@ -115,7 +115,11 @@ SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, 
   - Dragged further, the outermost capsule stretches into the room and the others fade. Past 79% of the row's width a full swipe arms, with a haptic tick: the row jumps on, the icon moves to the capsule's leading end and the label fades. Let go there, and the action runs.
   - A destructive action, from its button, a full swipe or a screen reader, takes its row away as iOS does: the row slides out as its height closes up, and the action runs once it's gone. If the app keeps the row, it comes back. Any other action closes the row and runs.
 - With Reduce Motion on, iOS animates its swipe actions as usual. Android has only "Remove animations", which Lucent follows: the row and its buttons settle at once.
-- Pull to refresh pulls the content down with resistance and shows iOS's spinner. Its trigger distance is set by feel: iOS's couldn't be measured, because a held drag can't be scripted on the simulator.
+- Pull to refresh, measured on the simulator with slow held drags:
+  - The content follows the finger one to one for 60, then with UIScrollView's rubber band.
+  - A screen's large title comes down with it, and iOS's spinner, 30 across, draws its spokes one by one in the title's place.
+  - The refresh starts as the last spoke is drawn, finger still down, with a haptic tick (the simulator can't show iOS's).
+  - Let go, the content rests 60 down while it runs; once done, the spinner shrinks and fades, then the content goes back.
 - Screen readers read each row as a button, a ticked row as selected, and its swipe actions as custom actions.
 - At accessibility text sizes a row's value moves under its title, as iOS's Settings rows do, so neither breaks mid-word.
 - Not yet: multi-select (edit mode) and reordering.

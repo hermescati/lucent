@@ -46,13 +46,29 @@ export const list = {
     fullSwipe: 0.79,
     armJump: 45,
     commit: 200,
+    // A full swipe arming jumps the row on this quickly, measured (iOS: 291 to 336 in about 120ms).
+    arm: { duration: 150, dampingRatio: 1 },
     // A destructive action takes its row away: the row's height closes up, measured on the simulator.
     remove: 120,
     spring: { duration: 380, dampingRatio: 0.9 },
   },
-  // Pull to refresh: the spinner shows as the content comes down, and lets go into a refresh past `threshold`, held
-  // `rest` down while it runs. Not measured on iOS (a held drag can't be scripted there): set to feel like it.
-  refresh: { threshold: 70, rest: 60, resistance: 0.55, spring: { duration: 420, dampingRatio: 1 } },
+  // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
+  // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
+  // spokes as the content comes down (spokes drawn against pull, in `spokes`) and the refresh starts as the last one is
+  // drawn, finger still down. Let go, the content settles `rest` down while it runs; once it's done, the spinner shrinks
+  // and fades over `fade`, then the content goes back.
+  refresh: {
+    lead: 60,
+    band: 0.55,
+    spokes: { pull: [82, 86, 112, 126, 135, 140, 144, 147, 149], drawn: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+    size: 30,
+    // With a large title, the spinner sits in the title's place as the title comes down: its middle this far above
+    // the content's top.
+    overTitle: 22,
+    rest: 60,
+    fade: 450,
+    spring: { duration: 420, dampingRatio: 1 },
+  },
 } as const;
 
 // Measured light and dark (simulator screenshots, sRGB).
