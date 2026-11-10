@@ -17,7 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { scheduleOnRN } from 'react-native-worklets';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import {
   ListAutoScrollContext,
@@ -132,11 +132,35 @@ export const ListScroll = ({
     },
     onUpdate: (event) => pick(event.y),
   });
+  // To a screen reader the index is one adjustable element, as iOS's: its value the section last picked, and a swipe up
+  // or down moving to the next or previous one.
+  const [readAt, setReadAt] = useState(0);
+  useAnimatedReaction(
+    () => picked.get(),
+    (now, before) => {
+      if (now !== before && now >= 0) scheduleOnRN(setReadAt, now);
+    },
+  );
+  const readTo = (at: number) => {
+    const to = Math.max(0, Math.min(entries.length - 1, at));
+    scheduleOnUI(() => {
+      'worklet';
+      picked.set(-1);
+      pick(to * pitch + pitch / 2);
+    });
+  };
   const indexBar =
     entries.length > 0 ? (
       <View pointerEvents="box-none" style={[styles.index, { top: under, bottom: insets.bottom }]}>
         <GestureDetector gesture={indexPan}>
-          <View style={styles.indexTouch}>
+          <View
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel="Section index"
+            accessibilityValue={{ text: entries[Math.min(readAt, entries.length - 1)]?.[0] }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={(event) => readTo(readAt + (event.nativeEvent.actionName === 'increment' ? 1 : -1))}
+            style={styles.indexTouch}>
             {entries.map(([label]) => (
               <Text key={label} style={[styles.indexLabel, { color: color.tint }]}>
                 {label}
