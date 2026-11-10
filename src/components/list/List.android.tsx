@@ -1,6 +1,6 @@
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
 import { createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -16,12 +16,14 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import {
   ListAutoScrollContext,
   ListEditContext,
   ListForEach,
+  ListIndexContext,
   ListScrollGestureContext,
   ListSelectionContext,
   ListStyleContext,
@@ -35,6 +37,7 @@ import { useHeaderInset, useHeaderOffset, useHeaderSnap, useToolbarInset } from 
 import { ListScrollViewContext } from '../../core/scroll';
 import { Spinner } from '../../core/spinner';
 import { useTabBarReach } from '../../core/tabs/TabBarReach';
+import { useLucentTheme } from '../../theme/LucentProvider';
 
 /** The scroll view the screen gives lists (`ListScrollViewContext`), with Lucent's background and no overscroll glow. */
 export const ListScroll = ({
@@ -81,6 +84,68 @@ export const ListScroll = ({
       if (dragging !== before) scheduleOnRN(scrolling.setActive, dragging);
     },
   );
+  // The list's index: its sections' labels where they sit in the content, in order down it.
+  const [indexed, setIndexed] = useState<Record<string, number>>({});
+  const report = useCallback((label: string, y: number | null) => {
+    setIndexed((now) => {
+      if (y === null) {
+        if (!(label in now)) return now;
+        const { [label]: _gone, ...rest } = now;
+        return rest;
+      }
+      return now[label] === y ? now : { ...now, [label]: y };
+    });
+  }, []);
+  const entries = Object.entries(indexed).sort((a, b) => a[1] - b[1]);
+  const indexYs = useSharedValue<number[]>([]);
+  useEffect(() => {
+    indexYs.set(entries.map(([, y]) => y));
+  });
+  const picked = useSharedValue(-1);
+  const insets = useSafeAreaInsets();
+  const { color } = useLucentTheme();
+  const { pitch } = list.index;
+  const onIndexTick = useCallback(() => performAndroidHapticsAsync(AndroidHaptics.Segment_Tick), []);
+  // The compact bar's bottom, where a picked section's header goes, as iOS scrolls it (measured).
+  const snapNow = useHeaderSnap();
+  const under = barTop - snapNow;
+  // A touch or drag along the index scrolls its section to the top at once, with a tick for each new one.
+  const pick = (y: number) => {
+    'worklet';
+    const ys = indexYs.get();
+    if (ys.length === 0) return;
+    const at = Math.max(0, Math.min(ys.length - 1, Math.floor(y / pitch)));
+    if (at === picked.get()) return;
+    picked.set(at);
+    const box = measure(scrollRef);
+    const most = Math.max(0, contentHeight.get() - (box ? box.height : 0));
+    const to = Math.max(0, Math.min(most, ys[at] + (onRefresh ? barTop : 0) - under));
+    scrollY.set(to);
+    scrollTo(scrollRef, 0, to, false);
+    scheduleOnRN(onIndexTick);
+  };
+  const indexPan = usePanGesture({
+    minDistance: 0,
+    onBegin: (event) => {
+      picked.set(-1);
+      pick(event.y);
+    },
+    onUpdate: (event) => pick(event.y),
+  });
+  const indexBar =
+    entries.length > 0 ? (
+      <View pointerEvents="box-none" style={[styles.index, { top: under, bottom: insets.bottom }]}>
+        <GestureDetector gesture={indexPan}>
+          <View style={styles.indexTouch}>
+            {entries.map(([label]) => (
+              <Text key={label} style={[styles.indexLabel, { color: color.tint }]}>
+                {label}
+              </Text>
+            ))}
+          </View>
+        </GestureDetector>
+      </View>
+    ) : null;
   const openRow = useSharedValue(-1);
   // How far the content is pulled down past its top, whether a refresh is running, and how many of the spinner's spokes
   // are drawn (a refresh starts as the last one is). `fading` is the spinner going once a refresh is done.
@@ -221,15 +286,20 @@ export const ListScroll = ({
     <ListAutoScrollContext value={autoScroll}>
       <OpenRowContext value={openRow}>
         <ListScrollGestureContext value={native}>
-          {onRefresh ? (
-            <GestureDetector gesture={pan}>
-              <View style={styles.fill}>
+          <ListIndexContext value={report}>
+            <View style={styles.fill}>
+              {onRefresh ? (
+                <GestureDetector gesture={pan}>
+                  <View style={styles.fill}>
+                    <GestureDetector gesture={native}>{scroll}</GestureDetector>
+                  </View>
+                </GestureDetector>
+              ) : (
                 <GestureDetector gesture={native}>{scroll}</GestureDetector>
-              </View>
-            </GestureDetector>
-          ) : (
-            <GestureDetector gesture={native}>{scroll}</GestureDetector>
-          )}
+              )}
+              {indexBar}
+            </View>
+          </ListIndexContext>
         </ListScrollGestureContext>
       </OpenRowContext>
     </ListAutoScrollContext>
@@ -294,4 +364,17 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { paddingBottom: 24 },
   spinner: { position: 'absolute', top: 0, start: 0, end: 0, alignItems: 'center', justifyContent: 'center' },
+  // The index along the trailing edge, centred between the compact bar and the screen's bottom (measured).
+  index: { position: 'absolute', end: 0, justifyContent: 'center' },
+  // Touchable inward of it too: Android's back gesture takes a drag that starts at the screen's edge.
+  indexTouch: { paddingStart: list.index.touch },
+  indexLabel: {
+    width: list.index.width,
+    height: list.index.pitch,
+    fontSize: list.index.fontSize,
+    lineHeight: list.index.pitch,
+    fontWeight: '600',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
 });

@@ -63,6 +63,12 @@ export const ListAutoScrollContext = createLucentContext<ListAutoScroll | null>(
 /** Where a row sits in its section: the last one draws no separator under it. */
 export const RowLastContext = createLucentContext<boolean>('ListRowLast', true);
 
+/** Where a section with an index label sits in its list's content, for the list's index (`null` once it's gone). */
+export const ListIndexContext = createLucentContext<((label: string, y: number | null) => void) | null>(
+  'ListIndex',
+  null,
+);
+
 /** The list's edit mode: whether it's on, and how far rows have moved into it (0 to 1). */
 export interface ListEdit {
   editing: boolean;
@@ -339,7 +345,11 @@ const Caption = ({ children, kind }: { children: ReactNode; kind: 'header' | 'fo
   const type = kind === 'header' ? list.header : list.footer;
   if (typeof children !== 'string' && typeof children !== 'number') return <>{children}</>;
   return (
-    <Text style={[styles.caption, { fontSize: type.fontSize, lineHeight: type.lineHeight, color: colors.caption }]}>
+    <Text
+      style={[
+        styles.caption,
+        { fontSize: type.fontSize, lineHeight: type.lineHeight, fontWeight: type.fontWeight, color: colors.caption },
+      ]}>
       {children}
     </Text>
   );
@@ -354,9 +364,15 @@ export const Section = ({
   title,
   hidden,
   testID,
+  indexLabel,
   first = false,
 }: FieldSectionProps & { first?: boolean }) => {
   const style = useContext(ListStyleContext) ?? 'insetGrouped';
+  const index = useContext(ListIndexContext);
+  useEffect(() => {
+    if (indexLabel === undefined || !index) return;
+    return () => index(indexLabel, null);
+  }, [indexLabel, index]);
   const colors = useListColors();
   // The section's reorder groups, one per `List.ForEach`, kept for its life: shared values the rows draw from.
   const [groups] = useState(() => new Map<number, { group: ReorderGroup; keys: string[] }>());
@@ -400,7 +416,12 @@ export const Section = ({
   const header = slot ?? title;
   const inset = style === 'insetGrouped';
   return (
-    <View testID={testID} style={inset ? { marginHorizontal: margin } : null}>
+    <View
+      testID={testID}
+      style={inset ? { marginHorizontal: margin } : null}
+      onLayout={
+        indexLabel !== undefined && index ? (event) => index(indexLabel, event.nativeEvent.layout.y) : undefined
+      }>
       {header != null ? (
         <View
           style={[

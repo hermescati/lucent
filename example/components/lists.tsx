@@ -31,6 +31,11 @@ export const listModes: ListMode[] = [
     summary: 'Swipe actions on one-line and two-line rows, and without icons',
   },
   {
+    slug: 'contacts',
+    name: 'Contacts',
+    summary: 'A plain list by first letter, with the index along its edge',
+  },
+  {
     slug: 'edit',
     name: 'Edit',
     summary: 'Edit mode: delete controls and reorder handles, with swipe to delete',

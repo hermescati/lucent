@@ -1,5 +1,6 @@
 import { FieldGroup as UniversalFieldGroup, Host } from '@expo/ui';
 import { Text } from '@expo/ui/swift-ui';
+import { sectionIndexLabel } from '@expo/ui/swift-ui/modifiers';
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -26,8 +27,13 @@ const wrapped = (children: ReactNode): ReactNode =>
       : child;
   });
 
-const Section = ({ children, ...props }: FieldSectionProps) => (
-  <UniversalSection {...props}>{wrapped(children)}</UniversalSection>
+// Its index label as SwiftUI's `sectionIndexLabel`, which iOS 26 draws the list's index from.
+const Section = ({ children, indexLabel, modifiers, ...props }: FieldSectionProps) => (
+  <UniversalSection
+    {...props}
+    modifiers={indexLabel !== undefined ? [sectionIndexLabel(indexLabel), ...(modifiers ?? [])] : modifiers}>
+    {wrapped(children)}
+  </UniversalSection>
 );
 
 FieldGroup.Section = Section;

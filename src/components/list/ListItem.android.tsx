@@ -110,9 +110,31 @@ const tick = () => {
   performAndroidHapticsAsync(AndroidHaptics.Segment_Tick);
 };
 
-// How far the row slides to show `count` buttons: each one and the gaps around them.
-const openWidth = (count: number) =>
-  count > 0 ? count * list.swipe.width + (count - 1) * list.swipe.gap + list.swipe.gap + list.swipe.edge : 0;
+// How far the row slides to show buttons this wide: each one and the gaps around them.
+const openWidth = (widths: number[]) =>
+  widths.length > 0
+    ? widths.reduce((sum, width) => sum + width, 0) + widths.length * list.swipe.gap + list.swipe.edge
+    : 0;
+
+// Where a side's button starts from the side's edge: past the ones outside it.
+const startOf = (widths: number[], index: number) =>
+  widths.slice(0, index).reduce((sum, width) => sum + width + list.swipe.gap, 0);
+
+// A side's buttons all as wide as its widest, as iOS draws ones of about the same size; one much wider than the rest
+// keeps them each their own width (measured: Pin, Read and Done all 84, but "Mute notifications" 152 beside an 82 Delete).
+const sideWidths = (natural: number[]) => {
+  if (natural.length === 0) return natural;
+  const widest = Math.max(...natural);
+  return widest <= Math.min(...natural) * list.swipe.equalUpTo ? natural.map(() => widest) : natural;
+};
+
+/**
+ * How a button draws, from its row and its action (measured): on a one-line row its icon and label side by side in the
+ * capsule, on a taller row its label under the capsule, and without an icon its label alone in the capsule.
+ */
+type ActionLook = 'beside' | 'under' | 'text';
+const lookOf = (action: SwipeAction, tall: boolean): ActionLook =>
+  !action.icon?.md ? 'text' : tall ? 'under' : 'beside';
 
 /** Edit mode's delete control: a red circle with a white minus. */
 const DeleteControl = ({ color }: { color: string }) => {
@@ -231,41 +253,53 @@ const shownOffset = (offset: number, armed: number, soft: boolean) => {
 };
 
 /**
- * One action's button: a coloured capsule with its icon, its label under it. It sits behind the row and grows out from
- * its middle as the row slides past it, and back as the row closes, whatever moves the row: a finger, edit mode's
- * delete control, or a tap that closes it. The outermost one stretches into the room past the buttons and, with a full
- * swipe armed, moves its icon to its leading end, and the others fade as it grows.
+ * One action's button: a coloured capsule with its icon and label, drawn as its row has them (`ActionLook`). It sits
+ * behind the row and grows out from its middle as the row slides past it, and back as the row closes, whatever moves
+ * the row: a finger, edit mode's delete control, or a tap that closes it. The outermost one stretches into the room past
+ * the buttons and, with a full swipe armed, moves its icon to its leading end, and the others fade as it grows.
  */
 const ActionButton = ({
   action,
   side,
   index,
-  count,
+  look,
+  at,
+  width,
+  height,
+  open,
   swipe,
   soft,
   onRun,
+  onMeasure,
 }: {
   action: SwipeAction;
   side: 'leading' | 'trailing';
   index: number;
-  count: number;
+  look: ActionLook;
+  // Where it starts from its side's edge, how wide and tall its capsule is, and how far its side opens.
+  at: number;
+  width: number;
+  height: number;
+  open: number;
   swipe: SwipeState;
   // Its side's outermost action isn't destructive: a full swipe then grows that one over the rest, without the jump.
   soft: boolean;
   onRun: (action: SwipeAction, side: 'leading' | 'trailing') => void;
+  // Its own width, from its content: the side lays its buttons out from these.
+  onMeasure: (index: number, width: number) => void;
 }) => {
   const colors = useListColors();
   const fill = action.tintColor ?? (action.destructive ? colors.destructive : '#8E8E93');
   const { offset, armed, dim, leaving } = swipe;
-  const { width, edge, grow } = list.swipe;
+  const { edge, grow, inside } = list.swipe;
   const outermost = index === 0;
-  const open = openWidth(count);
   // Measured frame by frame on the simulator at four speeds: a button's size follows the row's slide, from `grow.after`
   // past its middle to full `grow.over` further on (or by the time the row is open for the innermost ones), but on a
   // spring that trails it: about 0.2s from start to full however fast the row goes, settling with a slight bulge.
   // Toward the row: the way a button comes in from, and its icon's way to its capsule's leading end.
   const towardRow = (side === 'leading' ? 1 : -1) * (mirrored ? -1 : 1);
-  const from = edge + index * (width + list.swipe.gap) + width / 2 + grow.after;
+  const middle = edge + at + width / 2;
+  const from = middle + grow.after;
   const over = Math.max(grow.least, Math.min(grow.over, open - from));
   const size = useSharedValue(0);
   useAnimatedReaction(
@@ -279,7 +313,6 @@ const ActionButton = ({
   );
   // It comes up against the row's edge, wherever that is, and from there settles into its place: on a slow slide it
   // comes up in place, but flicked open it comes up well inside, and glides out as the row settles (measured).
-  const middle = edge + index * (width + list.swipe.gap) + width / 2;
   const shift = useSharedValue(0);
   useAnimatedReaction(
     () => size.get() > grow.seen,
@@ -314,30 +347,71 @@ const ActionButton = ({
     const fill = Math.max(stretched, slid - edge - list.swipe.gap);
     return { width: soft ? stretched + (fill - stretched) * armed.get() : stretched };
   });
-  const icon = useAnimatedStyle(() => {
+  // Armed, a destructive one's content moves to its leading end, its label going.
+  const content = useAnimatedStyle(() => {
     if (!outermost || soft) return {};
     const slid = Math.abs(shownOffset(offset.get(), armed.get(), soft));
     const room = Math.max(0, slid - open) / 2;
     return { transform: [{ translateX: towardRow * room * armed.get() }] };
   });
   const label = useAnimatedStyle(() => ({ opacity: outermost && !soft ? 1 - armed.get() : 1 }));
+  const icon = action.icon?.md ? (
+    <MaterialSymbol
+      name={action.icon.md}
+      size={look === 'beside' ? inside.iconSize : list.swipe.iconSize}
+      tintColor="#FFFFFF"
+    />
+  ) : null;
+  const words = (style: object) => (
+    <Text numberOfLines={1} style={[styles.actionLabel, style]}>
+      {action.label}
+    </Text>
+  );
+  const own = look === 'under' ? words({ color: colors.caption }) : words(styles.actionLabelInside);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={action.label}
       onPress={() => onRun(action, side)}
       style={styles.action}>
+      {/* Its content at its own size, unseen, for its width. */}
+      <View
+        pointerEvents="none"
+        style={styles.measure}
+        onLayout={(event) => {
+          const own = event.nativeEvent.layout.width;
+          onMeasure(index, look === 'under' ? Math.max(list.swipe.width, own) : own + 2 * inside.pad);
+        }}>
+        {look === 'beside' ? (
+          <View style={styles.beside}>
+            {icon}
+            {own}
+          </View>
+        ) : (
+          own
+        )}
+      </View>
       <Animated.View style={[styles.action, button]}>
-        <Animated.View style={[styles.capsule, { backgroundColor: fill }, capsule]}>
-          {action.icon?.md ? (
-            <Animated.View style={icon}>
-              <MaterialSymbol name={action.icon.md} size={list.swipe.iconSize} tintColor="#FFFFFF" />
+        <Animated.View
+          style={[
+            styles.capsule,
+            { backgroundColor: fill, height, borderRadius: Math.min(height / 2, list.swipe.corner) },
+            capsule,
+          ]}>
+          {look === 'under' ? (
+            <Animated.View style={content}>{icon}</Animated.View>
+          ) : (
+            <Animated.View style={[styles.beside, content]}>
+              {look === 'beside' ? icon : null}
+              <Animated.View style={label}>{words(styles.actionLabelInside)}</Animated.View>
             </Animated.View>
-          ) : null}
+          )}
         </Animated.View>
-        <Animated.Text numberOfLines={1} style={[styles.actionLabel, { color: colors.caption }, label]}>
-          {action.label}
-        </Animated.Text>
+        {look === 'under' ? (
+          <Animated.Text numberOfLines={1} style={[styles.actionLabel, { color: colors.caption }, label]}>
+            {action.label}
+          </Animated.Text>
+        ) : null}
       </Animated.View>
     </Pressable>
   );
@@ -415,6 +489,25 @@ const Swipeable = ({
 }) => {
   const colors = useListColors();
   const [rowWidth, setRowWidth] = useState(0);
+  const [rowTall, setRowTall] = useState(0);
+  // Each button's own width, as it measures its content; a side lays its buttons out from these.
+  const [leadingNatural, setLeadingNatural] = useState<number[]>(() => leadingActions.map(() => list.swipe.width));
+  const [trailingNatural, setTrailingNatural] = useState<number[]>(() => trailingActions.map(() => list.swipe.width));
+  const measured = (set: typeof setLeadingNatural, count: number) => (index: number, width: number) =>
+    set((now) => {
+      const next = Array.from({ length: count }, (_, i) => now[i] ?? list.swipe.width);
+      if (Math.abs((next[index] ?? 0) - width) < 0.5) return now.length === count ? now : next;
+      next[index] = width;
+      return next;
+    });
+  const onLeadingMeasure = measured(setLeadingNatural, leadingActions.length);
+  const onTrailingMeasure = measured(setTrailingNatural, trailingActions.length);
+  const leadingWidths = sideWidths(leadingActions.map((_, i) => leadingNatural[i] ?? list.swipe.width));
+  const trailingWidths = sideWidths(trailingActions.map((_, i) => trailingNatural[i] ?? list.swipe.width));
+  // A one-line row's buttons have their icon and label side by side, a taller one's their label under (measured); a
+  // capsule with its label in it is the row's height less `inset`.
+  const tall = rowTall >= list.swipe.under;
+  const insideHeight = rowTall > 0 ? rowTall - list.swipe.inset : list.rowMinHeight - list.swipe.inset;
   // The row's slide: positive reveals the leading actions, negative the trailing ones (flipped right to left).
   const offset = useSharedValue(0);
   const start = useSharedValue(0);
@@ -446,12 +539,12 @@ const Swipeable = ({
     tintGoal.set(to);
     tint.set(withSpring(to, list.swipe.tint));
   };
-  const leadingOpen = openWidth(leadingActions.length);
+  const leadingOpen = openWidth(leadingWidths);
   // A side whose outermost action isn't destructive full-swipes as iOS's do for them (measured): it arms at half the
   // row's width, without a jump, the row following the finger slowly past it, and let go it runs and the row closes.
   const leadingSoft = leadingActions.length > 0 && !leadingActions[0].destructive;
   const trailingSoft = trailingActions.length > 0 && !trailingActions[0].destructive;
-  const trailingOpen = openWidth(trailingActions.length);
+  const trailingOpen = openWidth(trailingWidths);
   const close = () => {
     tintTo(0);
     armed.set(withSpring(0, list.swipe.spring));
@@ -628,7 +721,10 @@ const Swipeable = ({
       style={[styles.swipeable, closedUp]}
       onLayout={(event) => {
         setRowWidth(event.nativeEvent.layout.width);
-        if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
+        if (gone.get() === 0) {
+          rowHeight.set(event.nativeEvent.layout.height);
+          setRowTall(event.nativeEvent.layout.height);
+        }
       }}>
       <Animated.View
         pointerEvents="none"
@@ -641,10 +737,15 @@ const Swipeable = ({
             action={action}
             side="leading"
             index={index}
-            count={leadingActions.length}
+            look={lookOf(action, tall)}
+            at={startOf(leadingWidths, index)}
+            width={leadingWidths[index]}
+            height={lookOf(action, tall) === 'under' ? list.swipe.height : insideHeight}
+            open={leadingOpen}
             swipe={swipe}
             soft={leadingSoft}
             onRun={perform}
+            onMeasure={onLeadingMeasure}
           />
         ))}
       </Animated.View>
@@ -656,10 +757,15 @@ const Swipeable = ({
               action={action}
               side="trailing"
               index={index}
-              count={trailingActions.length}
+              look={lookOf(action, tall)}
+              at={startOf(trailingWidths, index)}
+              width={trailingWidths[index]}
+              height={lookOf(action, tall) === 'under' ? list.swipe.height : insideHeight}
+              open={trailingOpen}
               swipe={swipe}
               soft={trailingSoft}
               onRun={perform}
+              onMeasure={onTrailingMeasure}
             />
           ))
           .reverse()}
@@ -1214,13 +1320,13 @@ const styles = StyleSheet.create({
   actionsTrailing: { end: list.swipe.edge },
   action: { alignItems: 'center', gap: list.swipe.labelGap },
   capsule: {
-    width: list.swipe.width,
-    height: list.swipe.height,
-    borderRadius: list.swipe.height / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionLabel: { fontSize: list.swipe.labelSize },
+  actionLabelInside: { color: '#FFFFFF', fontWeight: '500' },
+  beside: { flexDirection: 'row', alignItems: 'center', gap: list.swipe.inside.gap },
+  measure: { position: 'absolute', opacity: 0 },
   swipeable: { overflow: 'hidden' },
   liftedCard: {
     position: 'absolute',

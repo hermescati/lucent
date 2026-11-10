@@ -349,11 +349,88 @@ const Swipes = ({ mode }: ScreenProps) => (
   </>
 );
 
+// Contacts, by first letter: each section has its letter in the list's index.
+const people = [
+  'Aaron Blake',
+  'Abby Chen',
+  'Adam Ford',
+  'Alice Hart',
+  'Ben Cole',
+  'Bella Diaz',
+  'Brian Moss',
+  'Carla Reyes',
+  'Chris Lane',
+  'Clara Voss',
+  'Dan Park',
+  'Diana Ross',
+  'Eli Grant',
+  'Emma Stone',
+  'Ethan Wu',
+  'Felix Ward',
+  'Fiona Bell',
+  'Grace Lee',
+  'Gus Mills',
+  'Hana Ito',
+  'Henry Shaw',
+  'Ian Burke',
+  'Isla Quinn',
+  'Jack Price',
+  'Jade Kim',
+  'Kai Novak',
+  'Kara Fox',
+  'Leo Marsh',
+  'Lily Young',
+  'Mason Reed',
+  'Mia Torres',
+  'Nina Patel',
+  'Noah Brooks',
+  'Olivia Hunt',
+  'Oscar Lowe',
+  'Paul Stone',
+  'Quinn Ellis',
+  'Ruby West',
+  'Ryan Hale',
+  'Sara Lin',
+  'Sam Ortiz',
+  'Theo Grant',
+  'Tina Shah',
+  'Uma Rao',
+  'Victor Hugo',
+  'Wendy Ng',
+  'Will Dunn',
+  'Xena Park',
+  'Yara Haddad',
+  'Zane Cruz',
+  'Zoe Adler',
+];
+const byLetter = people.reduce<Record<string, string[]>>((groups, name) => {
+  (groups[name[0]] ??= []).push(name);
+  return groups;
+}, {});
+
+const Contacts = ({ mode }: ScreenProps) => (
+  <>
+    <Stack.Screen options={{ title: mode.name }} />
+    <List listStyle="plain">
+      {Object.entries(byLetter).map(([letter, names]) => (
+        <FieldGroup.Section key={letter} title={letter} indexLabel={letter}>
+          {names.map((name) => (
+            <ListItem key={name} onPress={() => {}}>
+              {name}
+            </ListItem>
+          ))}
+        </FieldGroup.Section>
+      ))}
+    </List>
+  </>
+);
+
 const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   settings: Settings,
   picker: Picker,
   inbox: Inbox,
   swipes: Swipes,
+  contacts: Contacts,
   edit: Edit,
   select: Select,
   long: Long,

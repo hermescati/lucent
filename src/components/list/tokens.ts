@@ -29,9 +29,9 @@ export const list = {
   detailGap: 12,
   chevron: { width: 7, height: 12, stroke: 2, end: 4 },
   checkmark: { width: 15, height: 14, stroke: 2.2 },
-  // Section headers (body, sentence case) and footers (footnote), in the card's inset; spacing around them.
-  header: { fontSize: 17, lineHeight: 22, above: 26, below: 10, first: 6 },
-  footer: { fontSize: 13, lineHeight: 18, above: 7, below: 0 },
+  // Section headers (body semibold, sentence case) and footers (footnote), in the card's inset; spacing around them.
+  header: { fontSize: 17, lineHeight: 22, fontWeight: '600', above: 26, below: 10, first: 6 },
+  footer: { fontSize: 13, lineHeight: 18, fontWeight: '400', above: 7, below: 0 },
   // Between two sections without a header between them.
   sectionGap: 22,
   // iOS 27's swipe actions: capsules beside the row, labels under them, the row slid aside on a grey fill.
@@ -49,6 +49,18 @@ export const list = {
     shape: { quick: 0.12 },
     gap: 10,
     edge: 10,
+    // A one-line row's buttons have their icon and label side by side in the capsule, from a row `under` tall their label
+    // under it (measured: one-line rows beside, two-line under). A capsule with its label in it (side by side, or text
+    // alone) is the row's height less `inset` (44 on a 52 row), its content `inside.pad` from its ends, a 13pt label in
+    // white and a smaller icon `inside.gap` before it (measured: Delete 82, Read 55 without an icon). A side's buttons
+    // all take its widest one's width while that's at most `equalUpTo` times its narrowest's (measured: about 1.2
+    // times, all equal; 1.8 times or more, each its own).
+    under: 60,
+    inset: 8,
+    // Taller than a one-line row's, a capsule keeps a one-line one's corners (measured: a two-line row's text-only Delete).
+    corner: 22,
+    inside: { pad: 13, gap: 6, iconSize: 16 },
+    equalUpTo: 1.5,
     labelSize: 13,
     labelGap: 2,
     iconSize: 22,
@@ -139,6 +151,10 @@ export const list = {
     // 0.25s, settled by 0.6s); its button comes up as a swipe's does.
     reveal: { spring: { duration: 550, dampingRatio: 1 } },
   },
+  // The section index (measured, iOS 26's `sectionIndexLabel`): 11pt semibold letters in the accent, about 13.7 apart,
+  // their middles 8 from the screen's edge, centred between the compact bar and the bottom; a touch or drag along it
+  // jumps the list (no animation) so the section's header sits under the bar. `touch` widens where it can be touched.
+  index: { fontSize: 11, pitch: 13.67, width: 16, touch: 16 },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
   // spokes as the content comes down (spokes drawn against pull, in `spokes`) and the refresh starts as the last one is

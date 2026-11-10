@@ -94,5 +94,12 @@ export interface ListItemProps extends Omit<ExpoListItemProps, 'colors'> {
 
 /** `@expo/ui`'s `FieldGroup`: grouped settings rows, as SwiftUI's `Form`. */
 export type FieldGroupProps = ExpoFieldGroupProps;
-export type FieldSectionProps = ExpoFieldSectionProps;
+/** `@expo/ui`'s `FieldGroup.Section`, in a `List` or `FieldGroup`. */
+export interface FieldSectionProps extends ExpoFieldSectionProps {
+  /**
+   * Lucent. The section's letter in the list's index, as SwiftUI's `sectionIndexLabel`: a list whose sections have them
+   * shows the index along its trailing edge, and a tap or a drag along it scrolls to the section.
+   */
+  indexLabel?: string;
+}
 export type { FieldSectionFooterProps, FieldSectionHeaderProps };
