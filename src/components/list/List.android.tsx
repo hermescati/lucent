@@ -56,8 +56,8 @@ export const ListScroll = ({
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const finger = useSharedValue(-1);
   const contentHeight = useSharedValue(0);
-  const autoScroll = useMemo(() => ({ finger, scrollY, scrollRef }), [finger, scrollY, scrollRef]);
   const barTop = useHeaderInset();
+  const autoScroll = useMemo(() => ({ finger, scrollY, scrollRef, barTop }), [finger, scrollY, scrollRef, barTop]);
   const toolbar = useToolbarInset();
   const tabBar = useTabBarReach();
   const scrolling = useFrameCallback((frame) => {
@@ -275,7 +275,8 @@ export const List = ({
       <ListSelectionContext value={selecting}>
         <ListStyleContext value={listStyle}>
           <ListScroll
-            background={listStyle === 'plain' ? colors.plain : colors.page}
+            // Plain or inset grouped, the list sits on the grouped grey: a plain list's rows are white on it, as iOS 27's.
+            background={colors.page}
             onRefresh={onRefresh}
             style={style}
             testID={testID}>

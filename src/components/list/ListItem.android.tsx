@@ -1,18 +1,32 @@
 import { ListItem as UniversalListItem } from '@expo/ui';
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
-import { Children, isValidElement, useContext, useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  Children,
+  isValidElement,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { I18nManager, PixelRatio, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  measure,
+  useAnimatedProps,
   useAnimatedReaction,
+  useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withSequence,
   withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Polyline } from 'react-native-svg';
+import Svg, { Path, Polyline } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import {
@@ -26,11 +40,14 @@ import {
   RowEditContext,
   RowLastContext,
   useListColors,
+  useListMargin,
   type RowEdit,
 } from './section.android';
 import { list } from './tokens';
 import type { ListItemProps, SwipeAction } from './types';
+import { continuousRect } from '../../core/glass/continuous';
 import { MaterialSymbol } from '../../core/icons/MaterialSymbol';
+import { ScreenOverlayContext } from '../../core/overlay';
 import { useLucentTheme } from '../../theme/LucentProvider';
 
 const { Leading, Trailing, Supporting } = UniversalListItem;
@@ -115,29 +132,53 @@ const DeleteControl = ({ color }: { color: string }) => {
 
 /** A selecting row's circle: a grey ring, filled with the accent and a white tick as the row is selected. */
 const SelectCircle = ({ ring, fill, selected }: { ring: string; fill: string; selected: boolean }) => {
-  const { circle, ring: stroke, tick } = list.edit.select;
+  const { circle, ring: stroke, tick, fillIn, draw, fade } = list.edit.select;
+  // Ticked, the fill comes in and the tick draws itself on, short leg first; unticked, the two fade together (measured).
   const filled = useSharedValue(selected ? 1 : 0);
+  const drawn = useSharedValue(selected ? 1 : 0);
+  const was = useRef(selected);
   useEffect(() => {
-    filled.set(selected ? 1 : withTiming(0, { duration: list.edit.select.fade }));
-  }, [selected, filled]);
-  const fillIn = useAnimatedStyle(() => ({ opacity: filled.get() }));
+    if (was.current === selected) return;
+    was.current = selected;
+    if (selected) {
+      filled.set(withTiming(1, { duration: fillIn, easing: Easing.linear }));
+      drawn.set(
+        withSequence(
+          withTiming(0, { duration: 0 }),
+          withDelay(draw.delay, withTiming(1, { duration: draw.duration, easing: Easing.inOut(Easing.cubic) })),
+        ),
+      );
+    } else filled.set(withTiming(0, { duration: fade, easing: Easing.out(Easing.cubic) }));
+  }, [selected, filled, drawn, fillIn, draw, fade]);
+  const fillStyle = useAnimatedStyle(() => ({ opacity: filled.get() }));
   const inset = tick.stroke / 2;
+  const points: [number, number][] = [
+    [inset, tick.height * 0.55],
+    [tick.width * 0.38, tick.height - inset],
+    [tick.width - inset, inset],
+  ];
+  const length =
+    Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]) +
+    Math.hypot(points[2][0] - points[1][0], points[2][1] - points[1][1]);
+  const tickDrawn = useAnimatedProps(() => ({ strokeDashoffset: length * (1 - drawn.get()) }));
   return (
     <View style={{ width: circle, height: circle, borderRadius: circle / 2, borderWidth: stroke, borderColor: ring }}>
       <Animated.View
         style={[
           styles.selectFill,
           { width: circle, height: circle, borderRadius: circle / 2, backgroundColor: fill },
-          fillIn,
+          fillStyle,
         ]}>
         <Svg width={tick.width} height={tick.height}>
-          <Polyline
-            points={`${inset},${tick.height * 0.55} ${tick.width * 0.38},${tick.height - inset} ${tick.width - inset},${inset}`}
+          <AnimatedPath
+            d={`M${points[0].join(',')} L${points[1].join(',')} L${points[2].join(',')}`}
             fill="none"
             stroke="#FFFFFF"
             strokeWidth={tick.stroke}
             strokeLinecap="round"
             strokeLinejoin="round"
+            strokeDasharray={[length, length]}
+            animatedProps={tickDrawn}
           />
         </Svg>
       </Animated.View>
@@ -168,25 +209,31 @@ const slotAt = (keys: string[], heights: Record<string, number>, key: string) =>
   return y;
 };
 
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
 /** The row's swipe state, which its buttons draw from. */
 interface SwipeState {
-  // The finger's slide (positive reveals the leading actions), how armed a full swipe is (0 to 1), and whether the row
-  // is closing.
+  // The finger's slide (positive reveals the leading actions) and how armed a full swipe is (0 to 1).
   offset: SharedValue<number>;
   armed: SharedValue<number>;
-  closing: SharedValue<boolean>;
-  rowWidth: number;
+  // How far the inner buttons are dimmed (0 to 1), while a finger drags the row past them.
+  dim: SharedValue<number>;
+  // A non-destructive full swipe that ran: its button shrinks away (0 to 1) as the row closes.
+  leaving: SharedValue<number>;
+  // Opened by edit mode's delete control rather than a finger: the row then slides on a softer spring.
+  following: SharedValue<boolean>;
 }
 
-// The row's slide as drawn: the finger's, and the jump an armed full swipe makes.
-const shownOffset = (offset: number, armed: number) => {
+// The row's slide as drawn: the finger's, and the jump an armed full swipe makes (a destructive one's only).
+const shownOffset = (offset: number, armed: number, soft: boolean) => {
   'worklet';
-  return offset + Math.sign(offset) * armed * list.swipe.armJump;
+  return soft ? offset : offset + Math.sign(offset) * armed * list.swipe.armJump;
 };
 
 /**
- * One action's button: a coloured capsule with its icon, its label under it. It pops in once the row uncovers its slot
- * and shrinks away as the row closes; the outermost one stretches into the room past the buttons and, with a full
+ * One action's button: a coloured capsule with its icon, its label under it. It sits behind the row and grows out from
+ * its middle as the row slides past it, and back as the row closes, whatever moves the row: a finger, edit mode's
+ * delete control, or a tap that closes it. The outermost one stretches into the room past the buttons and, with a full
  * swipe armed, moves its icon to its leading end, and the others fade as it grows.
  */
 const ActionButton = ({
@@ -195,6 +242,7 @@ const ActionButton = ({
   index,
   count,
   swipe,
+  soft,
   onRun,
 }: {
   action: SwipeAction;
@@ -202,101 +250,131 @@ const ActionButton = ({
   index: number;
   count: number;
   swipe: SwipeState;
+  // Its side's outermost action isn't destructive: a full swipe then grows that one over the rest, without the jump.
+  soft: boolean;
   onRun: (action: SwipeAction, side: 'leading' | 'trailing') => void;
 }) => {
   const colors = useListColors();
   const fill = action.tintColor ?? (action.destructive ? colors.destructive : '#8E8E93');
-  const { offset, armed, closing, rowWidth } = swipe;
-  const { width, edge, popFrom, pop, drop } = list.swipe;
+  const { offset, armed, dim, leaving } = swipe;
+  const { width, edge, grow } = list.swipe;
   const outermost = index === 0;
   const open = openWidth(count);
-  const sign = side === 'leading' ? 1 : -1;
-  // Where this button's slot is uncovered: the edge and the buttons up to it.
-  const uncovered = edge + (index + 1) * width;
-  const shown = useSharedValue(0);
+  // Measured frame by frame on the simulator at four speeds: a button's size follows the row's slide, from `grow.after`
+  // past its middle to full `grow.over` further on (or by the time the row is open for the innermost ones), but on a
+  // spring that trails it: about 0.2s from start to full however fast the row goes, settling with a slight bulge.
+  // Toward the row: the way a button comes in from, and its icon's way to its capsule's leading end.
+  const towardRow = (side === 'leading' ? 1 : -1) * (mirrored ? -1 : 1);
+  const from = edge + index * (width + list.swipe.gap) + width / 2 + grow.after;
+  const over = Math.max(grow.least, Math.min(grow.over, open - from));
+  const size = useSharedValue(0);
   useAnimatedReaction(
-    () => !closing.get() && offset.get() * sign >= uncovered,
+    () => {
+      const p = Math.max(0, Math.min(1, (Math.abs(offset.get()) - from) / over));
+      return 1 - Math.pow(1 - p, grow.ease);
+    },
     (now, before) => {
-      if (now === before) return;
-      shown.set(now ? withSpring(1, pop) : withTiming(0, { duration: drop, easing: Easing.out(Easing.cubic) }));
+      if (now !== before) size.set(withSpring(now, grow.spring));
     },
   );
-  const capsule = useAnimatedStyle(() => {
-    const slid = Math.abs(shownOffset(offset.get(), armed.get()));
-    const past = Math.max(0, slid - open);
-    const p = shown.get();
+  // It comes up against the row's edge, wherever that is, and from there settles into its place: on a slow slide it
+  // comes up in place, but flicked open it comes up well inside, and glides out as the row settles (measured).
+  const middle = edge + index * (width + list.swipe.gap) + width / 2;
+  const shift = useSharedValue(0);
+  useAnimatedReaction(
+    () => size.get() > grow.seen,
+    (seen, before) => {
+      if (!seen || before !== false) return;
+      const against = Math.abs(offset.get()) - (width * size.get()) / 2;
+      shift.set(withSequence(withTiming(against - middle - grow.after, { duration: 0 }), withSpring(0, grow.place)));
+    },
+  );
+  const button = useAnimatedStyle(() => {
+    const scale = Math.max(0, size.get());
+    // Fades in over the first two thirds of its growth.
+    const p = scale >= 1 ? 1 : 1 - Math.pow(1 - scale, 1 / grow.ease);
+    const shown = Math.min(1, p / grow.fade);
+    // Dragged past the buttons, the inner ones dim while the outermost stretches, and further once a full swipe arms.
+    // A non-destructive one's inner buttons dim further, and go once it arms, under the outermost.
+    const { to, armedTo, softTo } = list.swipe.dim;
+    const a = armed.get();
+    const dimmed = 1 - (1 - (soft ? softTo : to)) * dim.get();
+    const back = outermost ? 1 : soft ? dimmed * (1 - a) : dimmed * (1 - a + (a * armedTo) / to);
+    const left = 1 - leaving.get();
     return {
-      width: outermost ? width + past : width,
-      opacity: Math.min(1, p * 3) * (outermost ? 1 : Math.max(0, 1 - past / (rowWidth || 1))),
-      transform: [{ scale: popFrom + (1 - popFrom) * p }],
+      opacity: (1 - Math.pow(1 - shown, 1.5)) * back,
+      transform: [{ translateX: towardRow * shift.get() }, { scale: scale * left }],
     };
   });
-  // Toward the row: the icon's way to its capsule's leading end.
-  const towardRow = (side === 'leading' ? 1 : -1) * (mirrored ? -1 : 1);
+  const capsule = useAnimatedStyle(() => {
+    if (!outermost) return { width };
+    const slid = Math.abs(shownOffset(offset.get(), armed.get(), soft));
+    const stretched = width + Math.max(0, slid - open);
+    // Armed, a non-destructive one grows over the other buttons, up to a gap short of the row (measured).
+    const fill = Math.max(stretched, slid - edge - list.swipe.gap);
+    return { width: soft ? stretched + (fill - stretched) * armed.get() : stretched };
+  });
   const icon = useAnimatedStyle(() => {
-    if (!outermost) return {};
-    const slid = Math.abs(shownOffset(offset.get(), armed.get()));
+    if (!outermost || soft) return {};
+    const slid = Math.abs(shownOffset(offset.get(), armed.get(), soft));
     const room = Math.max(0, slid - open) / 2;
     return { transform: [{ translateX: towardRow * room * armed.get() }] };
   });
-  const label = useAnimatedStyle(() => ({
-    opacity: (outermost ? 1 - armed.get() : 1) * Math.min(1, shown.get() * 3),
-  }));
+  const label = useAnimatedStyle(() => ({ opacity: outermost && !soft ? 1 - armed.get() : 1 }));
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={action.label}
       onPress={() => onRun(action, side)}
       style={styles.action}>
-      <Animated.View style={[styles.capsule, { backgroundColor: fill }, capsule]}>
-        {action.icon?.md ? (
-          <Animated.View style={icon}>
-            <MaterialSymbol name={action.icon.md} size={list.swipe.iconSize} tintColor="#FFFFFF" />
-          </Animated.View>
-        ) : null}
+      <Animated.View style={[styles.action, button]}>
+        <Animated.View style={[styles.capsule, { backgroundColor: fill }, capsule]}>
+          {action.icon?.md ? (
+            <Animated.View style={icon}>
+              <MaterialSymbol name={action.icon.md} size={list.swipe.iconSize} tintColor="#FFFFFF" />
+            </Animated.View>
+          ) : null}
+        </Animated.View>
+        <Animated.Text numberOfLines={1} style={[styles.actionLabel, { color: colors.caption }, label]}>
+          {action.label}
+        </Animated.Text>
       </Animated.View>
-      <Animated.Text numberOfLines={1} style={[styles.actionLabel, { color: colors.caption }, label]}>
-        {action.label}
-      </Animated.Text>
     </Pressable>
   );
 };
 
 /** How a row's parts move into and out of edit mode, for a row edit mode changes. */
 interface EditMotionStyles {
-  startMoved: ReturnType<typeof useAnimatedStyle>;
-  endMoved: ReturnType<typeof useAnimatedStyle>;
+  inner: ReturnType<typeof useAnimatedStyle>;
   controlIn: ReturnType<typeof useAnimatedStyle>;
   handleIn: ReturnType<typeof useAnimatedStyle>;
   separatorAt: ReturnType<typeof useAnimatedStyle>;
 }
 
 /**
- * A row edit mode changes: its content takes its edit-mode place at once and is drawn moving there, so only transforms
- * run per frame. A row it doesn't change goes without, and is that much quicker to draw.
+ * A row edit mode changes: its content makes room for the delete control and the handle as the list's edit progress
+ * springs, its padding following it frame by frame. Moving it by transforms from a layout that jumps at once would
+ * flash for a frame, as Reanimated lands a layout change a frame after a transform. A row edit mode doesn't change goes
+ * without, and is that much quicker to draw.
  */
 const EditMotion = ({
   editStart,
   editEnd,
   separatorStart,
-  editing,
   children,
 }: {
   editStart: number;
   editEnd: number;
   separatorStart: number;
-  editing: boolean;
   children: (motion: EditMotionStyles) => ReactElement;
 }) => {
   const editProgress = useContext(ListEditContext)?.progress;
+  const margin = useListMargin();
   const along = mirrored ? -1 : 1;
-  const from = editing ? 1 : 0;
-  const startMoved = useAnimatedStyle(() => ({
-    transform: [{ translateX: along * editStart * ((editProgress?.get() ?? 0) - from) }],
-  }));
-  const endMoved = useAnimatedStyle(() => ({
-    transform: [{ translateX: -along * editEnd * ((editProgress?.get() ?? 0) - from) }],
-  }));
+  const inner = useAnimatedStyle(() => {
+    const p = editProgress?.get() ?? 0;
+    return { paddingStart: margin + editStart * p, paddingEnd: margin + editEnd * p };
+  });
   const controlIn = useAnimatedStyle(() => {
     const p = editProgress?.get() ?? 0;
     return { opacity: p > 0.001 ? 1 : 0, transform: [{ translateX: along * editStart * (p - 1) }] };
@@ -307,7 +385,7 @@ const EditMotion = ({
   });
   // From the text's start, wherever edit mode has it.
   const separatorAt = useAnimatedStyle(() => ({ start: separatorStart + editStart * (editProgress?.get() ?? 0) }));
-  return children({ startMoved, endMoved, controlIn, handleIn, separatorAt });
+  return children({ inner, controlIn, handleIn, separatorAt });
 };
 
 /** What a row's swipe actions let the rest of it do. */
@@ -343,14 +421,41 @@ const Swipeable = ({
   const armed = useSharedValue(0);
   // Whether a full swipe is armed now, apart from its animation: a quick drag lets go the moment it arms.
   const fullArmed = useSharedValue(false);
-  const closing = useSharedValue(false);
-  const swipe: SwipeState = { offset, armed, closing, rowWidth };
+  const following = useSharedValue(false);
+  const dim = useSharedValue(0);
+  const dimmed = useSharedValue(false);
+  const dimTo = (on: boolean) => {
+    'worklet';
+    if (dimmed.get() === on) return;
+    dimmed.set(on);
+    dim.set(
+      on
+        ? withTiming(1, { duration: list.swipe.dim.in, easing: Easing.out(Easing.cubic) })
+        : withTiming(0, { duration: list.swipe.dim.out, easing: Easing.inOut(Easing.quad) }),
+    );
+  };
+  const leaving = useSharedValue(0);
+  const swipe: SwipeState = { offset, armed, dim, leaving, following };
+  // The row's grey, on a clock rather than the slide (measured): it comes in as the row starts to move and goes as it's
+  // closed, on a soft spring each way.
+  const tint = useSharedValue(0);
+  const tintGoal = useSharedValue(0);
+  const tintTo = (to: number) => {
+    'worklet';
+    if (tintGoal.get() === to) return;
+    tintGoal.set(to);
+    tint.set(withSpring(to, list.swipe.tint));
+  };
   const leadingOpen = openWidth(leadingActions.length);
+  // A side whose outermost action isn't destructive full-swipes as iOS's do for them (measured): it arms at half the
+  // row's width, without a jump, the row following the finger slowly past it, and let go it runs and the row closes.
+  const leadingSoft = leadingActions.length > 0 && !leadingActions[0].destructive;
+  const trailingSoft = trailingActions.length > 0 && !trailingActions[0].destructive;
   const trailingOpen = openWidth(trailingActions.length);
   const close = () => {
-    closing.set(true);
+    tintTo(0);
     armed.set(withSpring(0, list.swipe.spring));
-    offset.set(withSpring(0, list.swipe.spring));
+    offset.set(withSpring(0, following.get() ? list.edit.reveal.spring : list.swipe.close));
   };
   // One row open at a time in a list: another opening closes this one.
   const openRow = useContext(OpenRowContext);
@@ -359,25 +464,27 @@ const Swipeable = ({
     () => openRow?.get() ?? -1,
     (open) => {
       if (open === id || offset.get() === 0) return;
-      closing.set(true);
+      tintTo(0);
       armed.set(withSpring(0, list.swipe.spring));
-      offset.set(withSpring(0, list.swipe.spring));
+      offset.set(withSpring(0, following.get() ? list.edit.reveal.spring : list.swipe.close));
     },
   );
   // Into or out of edit mode, an open row closes, as iOS's does.
   useEffect(() => {
     if (offset.get() === 0) return;
-    closing.set(true);
+    tintTo(0);
     armed.set(withSpring(0, list.swipe.spring));
     offset.set(withSpring(0, list.swipe.spring));
-  }, [enabled, offset, closing, armed]);
+  }, [enabled, offset, armed]);
   // Out the rest of the way: fast from the start, as the row is already moving.
   const slideOut = { duration: list.swipe.commit, easing: Easing.out(Easing.cubic) };
   // Edit mode's delete control opens the row's Delete action, as a swipe would.
   const revealDelete = () => {
-    closing.set(false);
+    following.set(true);
+    leaving.set(0);
     openRow?.set(id);
-    offset.set(withSpring(-trailingOpen, list.swipe.spring));
+    tintTo(1);
+    offset.set(withSpring(-trailingOpen, list.edit.reveal.spring));
   };
   const run = (action: SwipeAction | undefined) => {
     close();
@@ -416,7 +523,8 @@ const Swipeable = ({
     failOffsetY: [-10, 10],
     onActivate: () => {
       start.set(offset.get());
-      closing.set(false);
+      leaving.set(0);
+      following.set(false);
       fullArmed.set(false);
       // Caught while sliding out to run, the row drops the jump an armed swipe made.
       if (armed.get() > 0) armed.set(withSpring(0, list.swipe.arm));
@@ -430,10 +538,16 @@ const Swipeable = ({
       if (next < 0 && trailingOpen === 0) next = 0;
       const open = next > 0 ? leadingOpen : trailingOpen;
       const past = Math.abs(next) - open;
+      const soft = next > 0 ? leadingSoft : trailingSoft;
+      const arms = (rowWidth || 1) * (soft ? list.swipe.softSwipe : list.swipe.fullSwipe);
       if (past > 0 && !full) next = Math.sign(next) * (open + past * 0.3);
+      else if (soft && Math.abs(next) > arms)
+        next = Math.sign(next) * (arms + (Math.abs(next) - arms) * list.swipe.softBand);
       offset.set(next);
+      tintTo(Math.abs(next) > list.swipe.tintFrom ? 1 : 0);
+      dimTo(open > 0 && Math.abs(next) > open);
       // Far enough across, a full swipe arms: the row jumps on and a tick marks it, and disarms the same way back.
-      const now = full && open > 0 && Math.abs(next) > (rowWidth || 1) * list.swipe.fullSwipe;
+      const now = full && open > 0 && Math.abs(next) > arms - 0.01;
       if (now !== fullArmed.get()) {
         fullArmed.set(now);
         armed.set(withSpring(now ? 1 : 0, list.swipe.arm));
@@ -449,6 +563,13 @@ const Swipeable = ({
       if (fullArmed.get()) {
         fullArmed.set(false);
         const action = now > 0 ? leadingActions[0] : trailingActions[0];
+        if (now > 0 ? leadingSoft : trailingSoft) {
+          // It runs as the row closes, its button shrinking away at once (measured).
+          dimTo(false);
+          leaving.set(withTiming(1, { duration: list.swipe.leave, easing: Easing.in(Easing.quad) }));
+          scheduleOnRN(run, action);
+          return;
+        }
         offset.set(
           withTiming(Math.sign(now) * (rowWidth || 1), slideOut, (finished) => {
             if (finished) scheduleOnRN(action?.destructive ? collapse : run, action);
@@ -456,20 +577,44 @@ const Swipeable = ({
         );
         return;
       }
+      dimTo(false);
       armed.set(withSpring(0, list.swipe.arm));
-      const flung = Math.abs(velocity) > 500 && Math.sign(velocity) === Math.sign(now);
-      const keep = open > 0 && (Math.abs(now) > open / 2 || flung);
-      if (!keep) closing.set(true);
+      // Open or shut by where it's headed, as iOS decides: a short drag let go moving still opens (measured).
+      const ahead = now + velocity * list.swipe.project;
+      const keep = open > 0 && Math.sign(ahead) === Math.sign(now) && Math.abs(ahead) > open / 2;
+      tintTo(keep ? 1 : 0);
       // Settling open or shut, it carries on at the finger's speed.
       offset.set(withSpring(keep ? Math.sign(now) * open : 0, { ...list.swipe.spring, velocity }));
     },
   });
   const slide = useAnimatedStyle(() => {
-    const shown = shownOffset(offset.get(), armed.get());
+    const raw = offset.get();
+    const shown = shownOffset(raw, armed.get(), raw > 0 ? leadingSoft : trailingSoft);
     return { transform: [{ translateX: mirrored ? -shown : shown }] };
   });
-  // Slid aside, the row sits on a grey fill with rounded ends, as iOS 27's does.
-  const slidFill = useAnimatedStyle(() => ({ opacity: Math.min(Math.abs(offset.get()) / 24, 1) }));
+  // Slid aside, the row draws with Apple's continuous corners, on its own colour with the grey over it. The corners
+  // come in as soon as it moves and, closing, go with the grey, so the row is square again by the time it's white
+  // (measured). Reads its shared values in the props themselves: an animated prop doesn't follow ones a nested worklet
+  // reads.
+  const { quick } = list.swipe.shape;
+  const radius = list.cardRadius;
+  const outline = (shown: number, goal: number, height: number) => {
+    'worklet';
+    const k = goal === 1 ? Math.min(1, shown / quick) : shown;
+    return continuousRect(rowWidth || 1, Math.max(1, height), radius * k);
+  };
+  const baseFill = useAnimatedProps(() => ({
+    d: outline(tint.get(), tintGoal.get(), rowHeight.get()),
+    fillOpacity: Math.abs(offset.get()) > list.swipe.slot ? 1 : 0,
+  }));
+  const greyFill = useAnimatedProps(() => ({
+    d: outline(tint.get(), tintGoal.get(), rowHeight.get()),
+    fillOpacity: tint.get(),
+  }));
+  // Behind it, its slot in the card is the page's grey, at once, from its first few points of slide until it's home.
+  const listStyle = useContext(ListStyleContext) ?? 'insetGrouped';
+  const rowColor = listStyle === 'plain' ? colors.plain : colors.card;
+  const slotFill = useAnimatedStyle(() => ({ opacity: Math.abs(offset.get()) > list.swipe.slot ? 1 : 0 }));
   const closedUp = useAnimatedStyle(() => ({
     maxHeight: gone.get() > 0 ? rowHeight.get() * (1 - gone.get()) : 100000,
   }));
@@ -485,6 +630,10 @@ const Swipeable = ({
         setRowWidth(event.nativeEvent.layout.width);
         if (gone.get() === 0) rowHeight.set(event.nativeEvent.layout.height);
       }}>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.page }, slotFill]}
+      />
       <Animated.View style={[styles.actions, styles.actionsLeading, leadingShown]} pointerEvents="box-none">
         {leadingActions.map((action, index) => (
           <ActionButton
@@ -494,6 +643,7 @@ const Swipeable = ({
             index={index}
             count={leadingActions.length}
             swipe={swipe}
+            soft={leadingSoft}
             onRun={perform}
           />
         ))}
@@ -508,6 +658,7 @@ const Swipeable = ({
               index={index}
               count={trailingActions.length}
               swipe={swipe}
+              soft={trailingSoft}
               onRun={perform}
             />
           ))
@@ -515,10 +666,13 @@ const Swipeable = ({
       </Animated.View>
       <GestureDetector gesture={pan}>
         <Animated.View style={slide}>
-          <Animated.View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, styles.slidFill, { backgroundColor: colors.pressed }, slidFill]}
-          />
+          {/* Off its slot, the row keeps its own colour under the grey, which comes in over it. */}
+          <Animated.View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <Svg width="100%" height="100%">
+              <AnimatedPath animatedProps={baseFill} fill={rowColor} />
+              <AnimatedPath animatedProps={greyFill} fill={colors.pressed} />
+            </Svg>
+          </Animated.View>
           {row}
         </Animated.View>
       </GestureDetector>
@@ -541,16 +695,26 @@ const Reorderable = ({
   reorder: { group, key: myKey, keys: laidOut },
   editing,
   onHeight,
+  still,
   children,
 }: {
   reorder: NonNullable<RowEdit['reorder']>;
   editing: boolean;
   onHeight?: (height: number) => void;
+  // The row drawn still, without its live parts: for its faded copy, and for the copy that's lifted.
+  still: ReactElement | null;
   children: (controls: ReorderControls) => ReactElement;
 }) => {
   const colors = useListColors();
   const placed = useSharedValue(0);
   const liftedFrom = useSharedValue(0);
+  // Lifted, the row is drawn in the screen's overlay, over the bars, as iOS 27 draws it: a still copy of it there
+  // follows the finger from where the row was (`liftedAt`, in the overlay), and the row itself goes unseen meanwhile.
+  const self = useAnimatedRef<Animated.View>();
+  const overlay = useContext(ScreenOverlayContext);
+  const overlayRef = overlay?.ref;
+  const liftedAt = useSharedValue({ x: 0, y: 0, width: 0 });
+  const overlaid = useSharedValue(false);
   // How far the list has scrolled under the dragged row since it lifted, which keeps the row under the finger.
   const auto = useContext(ListAutoScrollContext);
   const scrolledFrom = useSharedValue(0);
@@ -572,10 +736,18 @@ const Reorderable = ({
         if (y + height < middle) at += 1;
         y += height;
       }
+      // Up past the list's visible top, under the navigation bar, it would go back where it came from (measured).
+      const finger = auto ? auto.finger.get() : -1;
+      const box = auto && finger >= 0 ? measure(auto.scrollRef) : null;
+      if (box && finger < box.pageY + auto!.barTop) at = Math.max(0, laidOut.indexOf(myKey));
       if (order.indexOf(myKey) !== at) group.order.set([...others.slice(0, at), myKey, ...others.slice(at)]);
     },
   );
   const lift = useSharedValue(0);
+  // Whether the row is lifted under a finger now, and how far across the finger has taken it: lifted, it follows the
+  // finger every way, off the screen's edges too, as iOS's does (measured).
+  const holding = useSharedValue(false);
+  const across = useSharedValue(0);
   useAnimatedReaction(
     () => slotAt(group.order.get(), group.heights.get(), myKey),
     (y, before) => {
@@ -585,64 +757,135 @@ const Reorderable = ({
   );
   const moved = useAnimatedStyle(() => {
     if (!group.moving.get() && !group.pending.get() && group.active.get() !== myKey)
-      return { transform: [{ translateY: 0 }] };
+      return { opacity: 1, transform: [{ translateY: 0 }] };
     // The list's scroll read here, not in a helper: a style only follows the shared values it reads itself.
     const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
     const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
     return {
-      opacity: 1 - (1 - list.edit.lift.opacity) * lift.get(),
-      // Lifted, over the rows it passes.
-      zIndex: lift.get() > 0 ? 1 : 0,
+      opacity: overlaid.get() ? 0 : 1 - (1 - list.edit.lift.opacity) * lift.get(),
       transform: [{ translateY: y - slotAt(laidOut, group.heights.get(), myKey) }],
     };
   });
   const liftedCard = useAnimatedStyle(() => ({ opacity: lift.get() }));
+  // The copy follows the finger, and let go, the row's settling into its place, until it has settled.
+  const copyAt = useAnimatedStyle(() => {
+    const at = liftedAt.get();
+    const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
+    const y = holding.get() ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
+    return {
+      opacity: overlaid.get() ? 1 - (1 - list.edit.lift.opacity) * lift.get() : 0,
+      left: at.x,
+      top: at.y,
+      width: at.width,
+      transform: [{ translateX: across.get() }, { translateY: y - liftedFrom.get() - scrolled }],
+    };
+  });
+  const copy = still ? (
+    <Animated.View style={[styles.copy, copyAt]}>
+      <Animated.View style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
+      {still}
+    </Animated.View>
+  ) : null;
+  const present = (shown: boolean) => overlay?.show(shown ? copy : null);
   // Let go in a new place: SwiftUI's `onMove`, whose destination counts places before the row is taken out.
   const moveTo = (from: number, to: number) => group.onMove?.([from], to > from ? to + 1 : to);
   const scrollGesture = useContext(ListScrollGestureContext);
+  function pickUp(fingerY: number) {
+    'worklet';
+    if (holding.get()) return;
+    holding.set(true);
+    liftedFrom.set(placed.get());
+    scrolledFrom.set(auto?.scrollY.get() ?? 0);
+    auto?.finger.set(fingerY);
+    group.drag.set(0);
+    across.set(0);
+    group.active.set(myKey);
+    group.moving.set(true);
+    lift.set(withTiming(1, { duration: list.edit.lift.duration, easing: Easing.out(Easing.cubic) }));
+    group.lifted.set(true);
+    group.held.set(true);
+    const row = measure(self);
+    const layer = overlayRef ? measure(overlayRef) : null;
+    if (row && layer) {
+      // Where the row is drawn now: where it's laid out, and any way it's still moving from a drop.
+      const drawnAt = placed.get() - slotAt(laidOut, group.heights.get(), myKey);
+      liftedAt.set({ x: row.pageX - layer.pageX, y: row.pageY - layer.pageY + drawnAt, width: row.width });
+      overlaid.set(true);
+      scheduleOnRN(present, true);
+    }
+  }
+  function drop(velocity: number, velocityAcross: number) {
+    'worklet';
+    if (!holding.get()) return;
+    holding.set(false);
+    const order = group.order.get();
+    auto?.finger.set(-1);
+    placed.set(liftedFrom.get() + group.drag.get() + (auto ? auto.scrollY.get() - scrolledFrom.get() : 0));
+    group.active.set('');
+    group.held.set(false);
+    // Let go, the copy settles into the row's place, its card and shadow going and its content coming back as it does,
+    // and the row takes over from it once it's there.
+    across.set(withSpring(0, { ...list.edit.drop, velocity: velocityAcross }));
+    placed.set(
+      // Settling, it carries on at the finger's speed.
+      withSpring(slotAt(order, group.heights.get(), myKey), { ...list.edit.drop, velocity }, (finished) => {
+        if (finished) group.moving.set(false);
+      }),
+    );
+    lift.set(
+      withTiming(0, { duration: list.edit.settle, easing: Easing.inOut(Easing.quad) }, (finished) => {
+        if (!finished) return;
+        group.lifted.set(false);
+        if (overlaid.get()) {
+          overlaid.set(false);
+          scheduleOnRN(present, false);
+        }
+      }),
+    );
+    const from = laidOut.indexOf(myKey);
+    const to = order.indexOf(myKey);
+    if (from === to) return;
+    group.pending.set(true);
+    scheduleOnRN(moveTo, from, to);
+  }
   const handleDrag = usePanGesture({
     enabled: editing,
     minDistance: 0,
     block: scrollGesture ?? undefined,
+    // Lifted as the handle is pressed, as iOS's is, before the finger moves; let go without moving, it settles back.
+    onBegin: (event) => {
+      pickUp(event.absoluteY);
+    },
     onActivate: (event) => {
-      liftedFrom.set(placed.get());
-      scrolledFrom.set(auto?.scrollY.get() ?? 0);
-      auto?.finger.set(event.absoluteY);
-      group.drag.set(0);
-      group.active.set(myKey);
-      group.moving.set(true);
-      lift.set(withTiming(1, { duration: list.edit.lift.duration }));
-      group.lifted.set(true);
+      pickUp(event.absoluteY);
     },
     onUpdate: (event) => {
       group.drag.set(event.translationY);
+      across.set(event.translationX);
       auto?.finger.set(event.absoluteY);
     },
-    onDeactivate: () => {
-      const order = group.order.get();
-      auto?.finger.set(-1);
-      placed.set(liftedFrom.get() + group.drag.get() + (auto ? auto.scrollY.get() - scrolledFrom.get() : 0));
-      group.active.set('');
-      placed.set(
-        withSpring(slotAt(order, group.heights.get(), myKey), list.edit.drop, (finished) => {
-          if (finished) group.moving.set(false);
-        }),
-      );
-      lift.set(
-        withTiming(0, { duration: list.edit.drop.duration }, (finished) => {
-          if (finished) group.lifted.set(false);
-        }),
-      );
-      const from = laidOut.indexOf(myKey);
-      const to = order.indexOf(myKey);
-      if (from === to) return;
-      group.pending.set(true);
-      scheduleOnRN(moveTo, from, to);
+    onDeactivate: (event) => {
+      drop(event.velocityY, event.velocityX);
     },
+    onFinalize: () => {
+      drop(0, 0);
+    },
+  });
+  // Lifted, over the rows it passes.
+  const above = useAnimatedStyle(() => ({ zIndex: lift.get() > 0 ? 1 : 0 }));
+  // While it's dragged, a faded copy of the row holds the place it would land in, as iOS 27's does; let go, it's gone
+  // at once, and the row settles into its place.
+  const ghostAt = useAnimatedStyle(() => {
+    const heights = group.heights.get();
+    return {
+      opacity: group.active.get() === myKey ? 1 : 0,
+      transform: [{ translateY: slotAt(group.order.get(), heights, myKey) - slotAt(laidOut, heights, myKey) }],
+    };
   });
   return (
     <Animated.View
-      style={moved}
+      ref={self}
+      style={above}
       onLayout={(event) => {
         const height = event.nativeEvent.layout.height;
         onHeight?.(height);
@@ -652,17 +895,26 @@ const Reorderable = ({
           return heights[myKey] === height ? heights : { ...heights, [myKey]: height };
         });
       }}>
-      <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
-      {children({ handleDrag, moveTo })}
+      {still ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.ghost }, ghostAt]}>
+          <View style={styles.ghost}>{still}</View>
+        </Animated.View>
+      ) : null}
+      <Animated.View style={moved}>
+        <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
+        {children({ handleDrag, moveTo })}
+      </Animated.View>
     </Animated.View>
   );
 };
 
 /**
  * `@expo/ui`'s `ListItem`, drawn as iOS 27 draws a list row: the headline with a second line under it, a leading view,
- * trailing content, Lucent's value and chevron or checkmark, a separator to the next row from the text's start, a grey
- * fill under a finger, and swipe actions that slide the row aside onto capsule buttons. What a row can't do (swipe,
- * move in edit mode, be reordered) it isn't drawn with, so a long list's plain rows mount quickly.
+ * trailing content, Lucent's value and chevron or checkmark, a separator to the next row from the text's start, its
+ * content dimmed under a finger, and swipe actions that slide the row aside onto capsule buttons. What a row can't do
+ * (swipe, move in edit mode, be reordered) it isn't drawn with, so a long list's plain rows mount quickly.
  */
 export const ListItem = ({
   children,
@@ -681,6 +933,7 @@ export const ListItem = ({
   const { color } = useLucentTheme();
   const style = useContext(ListStyleContext) ?? 'insetGrouped';
   const last = useContext(RowLastContext);
+  const margin = useListMargin();
   const slots = slotsOf(children);
   const leading = slots.leading ?? leadingProp;
   const trailing = slots.trailing ?? trailingProp;
@@ -721,40 +974,46 @@ export const ListItem = ({
   const openRow = useContext(OpenRowContext);
 
   const textColor = destructive ? colors.destructive : colors.text;
-  const separatorStart = list.rowPadding + (leading != null ? leadingWidth + list.leadingGap : 0);
+  const separatorStart = margin + (leading != null ? leadingWidth + list.leadingGap : 0);
   const content = (
     pressed: boolean,
     motion: EditMotionStyles | null,
     swipe: SwipeControls | null,
     drag: ReorderControls | null,
+    // The faded copy a dragged row leaves in its place: drawn the same, but without its separator or a live handle.
+    ghost = false,
   ) => {
-    const startMoved = motion?.startMoved ?? null;
-    const endMoved = motion?.endMoved ?? null;
+    const handle = (
+      <Animated.View
+        pointerEvents={editing && !ghost ? 'auto' : 'none'}
+        accessible={false}
+        style={[styles.editSlot, styles.handleSlot, motion?.handleIn]}>
+        <ReorderHandle color={colors.handle} />
+      </Animated.View>
+    );
     return (
       <View
         style={[
           styles.row,
           { minHeight: list.rowMinHeight * scale },
-          pressed && !disabled ? { backgroundColor: colors.pressed } : null,
           selecting && selected ? { backgroundColor: colors.selected } : null,
         ]}>
-        <View
+        <Animated.View
           style={[
             styles.inner,
-            {
-              paddingStart: list.rowPadding + (editing ? editStart : 0),
-              paddingEnd: list.rowPadding + (editing ? editEnd : 0),
-            },
+            { paddingHorizontal: margin },
             disabled && styles.disabled,
+            pressed && !disabled && (onPress || selecting) && styles.pressed,
+            motion?.inner,
           ]}>
           {leading != null ? (
             <Animated.View
-              style={[styles.leading, startMoved]}
+              style={styles.leading}
               onLayout={(event: LayoutChangeEvent) => setLeadingWidth(event.nativeEvent.layout.width)}>
               {leading}
             </Animated.View>
           ) : null}
-          <Animated.View style={[styles.texts, startMoved]}>
+          <Animated.View style={styles.texts}>
             {slots.headline.length > 0 ? (
               slots.headline.every(textual) ? (
                 <Text style={[styles.title, { color: textColor }]}>{slots.headline}</Text>
@@ -774,27 +1033,25 @@ export const ListItem = ({
             ) : null}
           </Animated.View>
           {trailing != null ? (
-            <Animated.View style={[styles.trailing, endMoved]}>
+            <Animated.View style={styles.trailing}>
               {textual(trailing) ? <Text style={[styles.title, { color: colors.text }]}>{trailing}</Text> : trailing}
             </Animated.View>
           ) : null}
           {detail != null && !stacked ? (
-            <Animated.Text
-              numberOfLines={1}
-              style={[styles.title, styles.detail, { color: colors.secondary }, endMoved]}>
+            <Animated.Text numberOfLines={1} style={[styles.title, styles.detail, { color: colors.secondary }]}>
               {detail}
             </Animated.Text>
           ) : null}
           {accessory === 'disclosure' ? (
-            <Animated.View style={[styles.chevron, endMoved]}>
+            <Animated.View style={styles.chevron}>
               <Chevron color={colors.chevron} />
             </Animated.View>
           ) : accessory === 'checkmark' ? (
-            <Animated.View style={[styles.checkmark, endMoved]}>
+            <Animated.View style={styles.checkmark}>
               <Checkmark color={color.tint} />
             </Animated.View>
           ) : null}
-        </View>
+        </Animated.View>
         {motion && selectable ? (
           <Animated.View pointerEvents="none" style={[styles.editSlot, styles.selectSlot, motion.controlIn]}>
             <SelectCircle ring={colors.selectRing} fill={color.tint} selected={selected} />
@@ -812,23 +1069,16 @@ export const ListItem = ({
             </Pressable>
           </Animated.View>
         ) : null}
-        {motion && drag ? (
-          <GestureDetector gesture={drag.handleDrag}>
-            <Animated.View
-              pointerEvents={editing ? 'auto' : 'none'}
-              accessible={false}
-              style={[styles.editSlot, styles.handleSlot, motion.handleIn]}>
-              <ReorderHandle color={colors.handle} />
-            </Animated.View>
-          </GestureDetector>
-        ) : null}
-        {last || (selecting && (selected || nextSelected)) ? null : (
+        {motion && drag ? <GestureDetector gesture={drag.handleDrag}>{handle}</GestureDetector> : null}
+        {motion && ghost && rowEdit.movable ? handle : null}
+        {/* A plain list's last row has one too, as iOS 27's does; an inset grouped card's doesn't. */}
+        {ghost || (last && style !== 'plain') || (selecting && (selected || nextSelected)) ? null : (
           <Animated.View
             style={[
               styles.separator,
               {
                 // iOS 27 ends them short of the row's end, inset grouped and plain alike.
-                end: list.rowPadding,
+                end: margin,
                 start: separatorStart,
                 backgroundColor: style === 'plain' ? colors.plainSeparator : colors.separator,
               },
@@ -840,10 +1090,19 @@ export const ListItem = ({
     );
   };
 
+  // The faded copy's parts, at their edit-mode places.
+  const ghostMotion = {
+    inner: { paddingStart: margin + editStart, paddingEnd: margin + editEnd },
+    controlIn: { opacity: 1 },
+    handleIn: { opacity: 1 },
+    separatorAt: {},
+  } as unknown as EditMotionStyles;
   const row = (motion: EditMotionStyles | null, swipe: SwipeControls | null, drag: ReorderControls | null) => (
     <Pressable
       testID={testID}
-      disabled={disabled || (!onPress && !selecting)}
+      // A row that swipes takes a tap even with nothing to do itself: the one that closes its actions.
+      disabled={disabled || (!onPress && !selecting && !swipes)}
+      unstable_pressDelay={list.pressDelay}
       onPress={() => {
         // A tap while a row's actions are open closes them, as iOS's does, rather than pressing the row.
         if (openRow && openRow.get() !== -1) return openRow.set(-1);
@@ -872,7 +1131,7 @@ export const ListItem = ({
   );
   const moving = (drag: ReorderControls | null, swipe: SwipeControls | null) =>
     editStart !== 0 || editEnd !== 0 ? (
-      <EditMotion editStart={editStart} editEnd={editEnd} separatorStart={separatorStart} editing={editing}>
+      <EditMotion editStart={editStart} editEnd={editEnd} separatorStart={separatorStart}>
         {(motion) => row(motion, swipe, drag)}
       </EditMotion>
     ) : (
@@ -892,7 +1151,11 @@ export const ListItem = ({
     );
   if (!reorder) return body(null);
   return (
-    <Reorderable reorder={reorder} editing={editing} onHeight={rowEdit.onHeight}>
+    <Reorderable
+      reorder={reorder}
+      editing={editing}
+      onHeight={rowEdit.onHeight}
+      still={editing ? content(false, ghostMotion, null, null, true) : null}>
       {(drag) => body(drag)}
     </Reorderable>
   );
@@ -910,10 +1173,12 @@ const styles = StyleSheet.create({
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: list.rowPadding,
     paddingVertical: list.rowPaddingVertical,
   },
   disabled: { opacity: 0.5 },
+  pressed: { opacity: list.pressedOpacity },
+  ghost: { opacity: list.edit.ghost.opacity },
+  copy: { position: 'absolute' },
   leading: { marginEnd: list.leadingGap },
   texts: { flex: 1, gap: list.supportingGap },
   title: { fontSize: list.title.fontSize, lineHeight: list.title.lineHeight },
@@ -956,14 +1221,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionLabel: { fontSize: list.swipe.labelSize },
-  slidFill: { borderRadius: list.cardRadius },
   swipeable: { overflow: 'hidden' },
   liftedCard: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     start: -list.edit.lift.widen,
-    end: 0,
+    end: -list.edit.lift.widen,
     borderRadius: list.edit.lift.radius,
     boxShadow: list.edit.lift.shadow,
   },

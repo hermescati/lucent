@@ -25,6 +25,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { list, listColors } from './tokens';
 import type { FieldSectionProps, ListForEachProps, ListStyle } from './types';
+import { ScreenOverlayContext } from '../../core/overlay';
 import { useLucentTheme } from '../../theme/LucentProvider';
 import { createLucentContext } from '../../theme/context';
 
@@ -53,6 +54,8 @@ export interface ListAutoScroll {
   scrollY: SharedValue<number>;
   // The scroll view, which a recycling `List.ForEach` measures itself against to find the rows on screen.
   scrollRef: AnimatedRef<Animated.ScrollView>;
+  // How far down the scroll view its content shows from, under the navigation bar.
+  barTop: number;
 }
 
 export const ListAutoScrollContext = createLucentContext<ListAutoScroll | null>('ListAutoScroll', null);
@@ -86,6 +89,9 @@ export interface ReorderGroup {
   onMove?: (sourceIndices: number[], destination: number) => void;
   // Whether a row is lifted: its section lets its rows draw outside its card meanwhile, for the lifted row's shadow.
   lifted: SharedValue<boolean>;
+  // Whether that row is still held: drawn in the screen's overlay, its card clips its faded copy; let go, it settles in
+  // the list with its widened card and shadow, so the card lets it draw outside until it has.
+  held: SharedValue<boolean>;
   // The rows' heights on the JS thread too, for the room a recycling `List.ForEach` keeps for the rows it doesn't draw.
   sizes: Map<string, number>;
 }
@@ -99,6 +105,7 @@ const reorderGroup = (keys: string[]): ReorderGroup => ({
   moving: makeMutable(false),
   pending: makeMutable(false),
   lifted: makeMutable(false),
+  held: makeMutable(false),
 });
 
 /** What a row can do in edit mode, from its `List.ForEach`: be deleted, and be moved. */
@@ -152,6 +159,9 @@ const editableRow = <T,>(
 };
 
 export const useListColors = () => listColors[useLucentTheme().scheme === 'dark' ? 'dark' : 'light'];
+
+/** A list's margins: a card's from the screen's edges and a row's content from the card's, 20 on wide phones. */
+export const useListMargin = () => (useWindowDimensions().width >= list.wide.from ? list.wide.margin : list.rowPadding);
 
 export const SectionHeader = UniversalFieldGroup.SectionHeader;
 export const SectionFooter = UniversalFieldGroup.SectionFooter;
@@ -350,9 +360,14 @@ export const Section = ({
   const colors = useListColors();
   // The section's reorder groups, one per `List.ForEach`, kept for its life: shared values the rows draw from.
   const [groups] = useState(() => new Map<number, { group: ReorderGroup; keys: string[] }>());
-  // A lifted row draws outside the card, for its shadow, without a render mid-drag.
+  // A lifted row draws outside the card, for its shadow, without a render mid-drag; where the screen has an overlay it
+  // draws there instead, and the card keeps its corners over the faded copy left in the row's place.
   const [lifted] = useState(() => makeMutable(false));
-  const card = useAnimatedStyle(() => ({ overflow: lifted.get() ? 'visible' : 'hidden' }));
+  const [held] = useState(() => makeMutable(false));
+  const overlaid = useContext(ScreenOverlayContext) !== null;
+  const card = useAnimatedStyle(() => ({
+    overflow: lifted.get() && !(overlaid && held.get()) ? 'visible' : 'hidden',
+  }));
   const scroll = useContext(ListAutoScrollContext);
   const {
     header: slot,
@@ -365,6 +380,7 @@ export const Section = ({
       known.keys = keys;
       known.group.onMove = props.onMove;
       known.group.lifted = lifted;
+      known.group.held = held;
       groups.set(n, known);
       return known.group;
     },
@@ -379,15 +395,16 @@ export const Section = ({
       group.pending.set(false);
     }
   });
+  const margin = useListMargin();
   if (hidden) return null;
   const header = slot ?? title;
   const inset = style === 'insetGrouped';
   return (
-    <View testID={testID} style={inset ? styles.inset : null}>
+    <View testID={testID} style={inset ? { marginHorizontal: margin } : null}>
       {header != null ? (
         <View
           style={[
-            styles.captionBlock,
+            { paddingHorizontal: margin },
             { paddingTop: first ? list.header.first : list.header.above, paddingBottom: list.header.below },
           ]}>
           <Caption kind="header">{header}</Caption>
@@ -405,9 +422,16 @@ export const Section = ({
             {row}
           </RowLastContext>
         ))}
+        {/* A plain list draws a separator over its first row, as iOS 27's does. */}
+        {!inset && first && header == null ? (
+          <View
+            pointerEvents="none"
+            style={[styles.topSeparator, { start: margin, end: margin, backgroundColor: colors.plainSeparator }]}
+          />
+        ) : null}
       </Animated.View>
       {footer != null ? (
-        <View style={[styles.captionBlock, { paddingTop: list.footer.above }]}>
+        <View style={[{ paddingHorizontal: margin }, { paddingTop: list.footer.above }]}>
           <Caption kind="footer">{footer}</Caption>
         </View>
       ) : null}
@@ -451,7 +475,6 @@ export const sectionsOf = (children: ReactNode) => {
 };
 
 const styles = StyleSheet.create({
-  inset: { marginHorizontal: list.cardMargin },
-  captionBlock: { paddingHorizontal: list.rowPadding },
+  topSeparator: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth },
   caption: { textAlign: 'auto' },
 });

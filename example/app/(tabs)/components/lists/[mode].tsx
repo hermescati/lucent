@@ -1,6 +1,7 @@
-import { FieldGroup, List, ListItem } from 'expo-lucent';
+import { FieldGroup, List, ListItem, type SwipeActions } from 'expo-lucent';
 import { Stack } from 'expo-lucent/navigation';
 import { useLocalSearchParams } from 'expo-router';
+import type { AndroidSymbol, SFSymbol } from 'expo-symbols';
 import { useCallback, useState, type ReactNode } from 'react';
 
 import { findListMode, RowIcon, UnreadDot, type ListMode } from '@/components/lists';
@@ -287,10 +288,72 @@ const Long = ({ mode }: ScreenProps) => {
   );
 };
 
+// The kit's three actions a side, and two with a long label, so each swipe style can be measured against iOS: one-line
+// and two-line rows, and actions without icons.
+const swipeSides = (icons: boolean, few = false): SwipeActions => {
+  const icon = (sf: SFSymbol, md: AndroidSymbol) => (icons ? { sf, md } : undefined);
+  return few
+    ? {
+        leading: [
+          { label: 'Read', icon: icon('envelope.open.fill', 'drafts'), tintColor: '#007AFF', onPress: () => {} },
+        ],
+        trailing: [
+          { label: 'Delete', icon: icon('trash.fill', 'delete'), destructive: true, onPress: () => {} },
+          {
+            label: 'Mute notifications',
+            icon: icon('bell.slash.fill', 'notifications_off'),
+            tintColor: '#5856D6',
+            onPress: () => {},
+          },
+        ],
+      }
+    : {
+        leading: [
+          { label: 'Pin', icon: icon('pin.fill', 'push_pin'), tintColor: '#8E8E93', onPress: () => {} },
+          { label: 'Read', icon: icon('envelope.open.fill', 'drafts'), tintColor: '#007AFF', onPress: () => {} },
+          { label: 'Done', icon: icon('checkmark', 'check'), tintColor: '#34C759', onPress: () => {} },
+        ],
+        trailing: [
+          { label: 'Delete', icon: icon('trash.fill', 'delete'), destructive: true, onPress: () => {} },
+          { label: 'Flag', icon: icon('flag.fill', 'flag'), tintColor: '#FF9500', onPress: () => {} },
+          { label: 'More', icon: icon('ellipsis', 'more_horiz'), tintColor: '#8E8E93', onPress: () => {} },
+        ],
+      };
+};
+
+const Swipes = ({ mode }: ScreenProps) => (
+  <>
+    <Stack.Screen options={{ title: mode.name }} />
+    <List>
+      <FieldGroup.Section title="One line">
+        <ListItem swipeActions={swipeSides(true)}>Spring sale</ListItem>
+        <ListItem detail="Active" swipeActions={swipeSides(true, true)}>
+          Germany offer
+        </ListItem>
+      </FieldGroup.Section>
+      <FieldGroup.Section title="Two lines">
+        <ListItem supportingText="Active" swipeActions={swipeSides(true)}>
+          Retargeting
+        </ListItem>
+        <ListItem supportingText="Paused since Monday" swipeActions={swipeSides(true, true)}>
+          Brand search
+        </ListItem>
+      </FieldGroup.Section>
+      <FieldGroup.Section title="Without icons">
+        <ListItem swipeActions={swipeSides(false)}>Newsletter</ListItem>
+        <ListItem supportingText="Active" swipeActions={swipeSides(false, true)}>
+          Black Friday
+        </ListItem>
+      </FieldGroup.Section>
+    </List>
+  </>
+);
+
 const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   settings: Settings,
   picker: Picker,
   inbox: Inbox,
+  swipes: Swipes,
   edit: Edit,
   select: Select,
   long: Long,

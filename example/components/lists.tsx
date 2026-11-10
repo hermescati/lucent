@@ -26,6 +26,11 @@ export const listModes: ListMode[] = [
     summary: 'Swipe actions on each row, and pull to refresh',
   },
   {
+    slug: 'swipes',
+    name: 'Swipe styles',
+    summary: 'Swipe actions on one-line and two-line rows, and without icons',
+  },
+  {
     slug: 'edit',
     name: 'Edit',
     summary: 'Edit mode: delete controls and reorder handles, with swipe to delete',

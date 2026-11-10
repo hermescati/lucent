@@ -11,6 +11,13 @@ export const list = {
   // Rows are at least this tall, and this much room above and below taller content: a one-line row is 52, a row with a
   // second line 72, a 29pt icon's row 55.
   rowMinHeight: 52,
+  // Pressed, a row's content draws at 75% (measured on iOS 27: title, value, icon and chevron alike, the row's fill
+  // unchanged), once the touch has been down `pressDelay` without becoming a scroll, as UIScrollView holds it.
+  pressedOpacity: 0.75,
+  // On wide phones (414 across and up, the Plus and Max iPhones) UIKit's margins are 20, not 16: a card's margin and a
+  // row's padding alike, measured on the iPhone 18 Pro (402, 16) and Pro Max (440, 20).
+  wide: { from: 414, margin: 20 },
+  pressDelay: 150,
   rowPaddingVertical: 13,
   // From this text size (about where iOS's accessibility sizes begin) a row's value goes under its title.
   stackedFrom: 1.35,
@@ -30,27 +37,66 @@ export const list = {
   // iOS 27's swipe actions: capsules beside the row, labels under them, the row slid aside on a grey fill.
   swipe: {
     width: 60,
-    height: 44,
+    height: 43,
+    // Slid more than this, the row's slot in the card turns the page's grey (measured: at once, both ways).
+    slot: 4,
+    // The row's grey comes in once it has slid `tintFrom`, and goes once it's closed, on this spring (measured: critically
+    // damped, half way in about 0.14s and there by 0.45s, both ways).
+    tintFrom: 1,
+    tint: { stiffness: 144, damping: 24, mass: 1 },
+    // Slid, the row draws with the card's corner radius on Apple's continuous curve (fitted to iOS's outline within
+    // 0.2pt); the corners are all there by `quick` of the grey as it opens, and go with the grey as it closes (measured).
+    shape: { quick: 0.12 },
     gap: 10,
     edge: 10,
-    labelSize: 12,
+    labelSize: 13,
     labelGap: 2,
     iconSize: 22,
-    // Each button pops in once the row has slid past its slot (the edge and the buttons up to it, gaps aside), from
-    // this scale, and all shrink away together as the row closes.
-    popFrom: 0.35,
-    pop: { duration: 300, dampingRatio: 1 },
-    drop: 170,
+    // Each button grows out from its middle, behind the row, as the row slides past it (measured frame by frame at four
+    // speeds): from `after` past its middle, full `over` further on (or once the row is open), easing into its size and
+    // fading in over the first `fade` of the way; on `spring` (about 0.2s to full, a slight bulge), which trails a fast
+    // slide. The same as the row closes, and whatever slides it.
+    grow: {
+      after: 5,
+      over: 38,
+      least: 20,
+      ease: 1.3,
+      fade: 0.66,
+      spring: { stiffness: 484, damping: 35, mass: 1 },
+      // Once it's `seen`, from against the row's edge into its place on `place` (critically damped, measured).
+      seen: 0.02,
+      place: { stiffness: 324, damping: 36, mass: 1 },
+    },
+    // Dragged past the buttons, the inner ones dim to `to` (labels too) while the finger is down, and come back once
+    // it lets go; on a clock, measured: about 0.25s in, 0.3s out.
+    // Armed for a full swipe, they dim on to `armedTo`, and stay so as the row slides out (measured).
+    // A non-destructive outermost action's inner buttons dim to `softTo` (measured).
+    dim: { to: 0.62, armedTo: 0.32, softTo: 0.35, in: 250, out: 300 },
     // Dragged past this much of the row's width, a full swipe is armed: the row jumps on by `armJump`, the outermost
     // button's icon moves to its leading end and its label fades; let go there, it runs.
     fullSwipe: 0.79,
+    // A non-destructive outermost action arms at half the row's width, past which the row follows the finger at
+    // `softBand` (measured: 1:1 to about 194 of 386, then a fifth).
+    // Let go, the row opens if it would be past half its buttons this many seconds on at its speed (measured: a row let
+    // go at 64 of 150, moving at about 150pt/s, opens).
+    project: 0.2,
+    softSwipe: 0.5,
+    softBand: 0.2,
+    // Let go armed, it runs and its button shrinks away (without fading) over `leave` ms, quickening, as the row
+    // closes (measured: 58% at 0.08s).
+    leave: 130,
     armJump: 45,
     commit: 200,
     // A full swipe arming jumps the row on this quickly, measured (iOS: 291 to 336 in about 120ms).
     arm: { duration: 150, dampingRatio: 1 },
     // A destructive action takes its row away: the row's height closes up, measured on the simulator.
     remove: 120,
-    spring: { duration: 380, dampingRatio: 0.9 },
+    // Let go, the row settles open or shut carrying the finger's speed, on a critically damped spring (measured from
+    // rows released past open and flicked: half way in about 0.14s, settled by 0.5s).
+    spring: { stiffness: 144, damping: 24, mass: 1 },
+    // Closed by a tap, or by another row opening, the row goes back more softly than a finger lets it go (measured:
+    // half way in about 0.12s, 93% in 0.33s).
+    close: { duration: 650, dampingRatio: 1 },
   },
   // Edit mode (SwiftUI's, measured on the simulator): a row that can be deleted moves its content `shift` along for the
   // delete control, a red circle centred `controlAt` in with a white minus; one that can be moved shows the reorder
@@ -64,17 +110,34 @@ export const list = {
     handle: { width: 21, line: 1, gap: 3.8, end: 18 },
     handleRoom: 47,
     spring: { duration: 350, dampingRatio: 1 },
-    // Dragging by the handle (measured): the row lifts at once, 85% opaque on a card that reaches `widen` further out
-    // at its leading end, with a soft shadow; the rows it passes slide aside, and let go it settles into its place.
-    lift: { duration: 150, opacity: 0.85, widen: 11, radius: 10, shadow: '0px 0px 30px rgba(0, 0, 0, 0.25)' },
+    // Dragging by the handle (measured): the row lifts at once, 85% opaque on a card a little wider than it, with a soft shadow; the rows it passes slide aside, and let go it settles into its place.
+    // Lifted: square-cornered, on a card `widen` wider at each end, its content where it was.
+    lift: { duration: 150, opacity: 0.85, widen: 6, radius: 0, shadow: '0px 0px 30px rgba(0, 0, 0, 0.25)' },
+    // The faded copy a dragged row leaves in its place (measured): its content at half opacity, on `ghost`.
+    ghost: { opacity: 0.5 },
     move: { duration: 250, dampingRatio: 1 },
-    drop: { duration: 330, dampingRatio: 1 },
+    // Let go, it glides into its place and settles down there: its card and shadow going over `settle` ms,
+    // gently in and out.
+    drop: { duration: 450, dampingRatio: 1 },
+    settle: 450,
     // Selecting (measured): a 22 circle in the delete control's place, ringed in grey or filled with the accent and a
-    // white tick; a selected row turns grey and loses the separators beside it. Deselected, the fill fades.
-    select: { circle: 22, ring: 1.5, tick: { width: 10, height: 8, stroke: 1.8 }, fade: 120 },
+    // white tick; a selected row turns grey and loses the separators beside it. Ticked, the fill comes in over `fillIn`
+    // and the tick draws itself on, from `draw.delay` for `draw.duration` (measured: about 40ms, then 55 to 290ms, slow
+    // at the short leg and quick through the long one); unticked, the fill and tick fade together over `fade`.
+    select: {
+      circle: 22,
+      ring: 1.5,
+      tick: { width: 10, height: 8, stroke: 1.8 },
+      fillIn: 40,
+      draw: { delay: 55, duration: 235 },
+      fade: 130,
+    },
     // A dragged row near the list's visible top or bottom (under the bars) scrolls it, faster the deeper into this zone,
     // as iOS's does (measured: from about 50 above the tab bar, about 140 a second 7 in and 220 at 16).
     autoScroll: { zone: 50, speed: 700 },
+    // The delete control opens the row's Delete action on a softer spring than a swipe's (measured: 93% in about
+    // 0.25s, settled by 0.6s); its button comes up as a swipe's does.
+    reveal: { spring: { duration: 550, dampingRatio: 1 } },
   },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
@@ -113,6 +176,7 @@ export const listColors = {
     handle: '#C8C8CA',
     selectRing: '#C5C5C7',
     selected: '#D1D1D6',
+    ghost: '#F9F9FB',
   },
   dark: {
     page: '#000000',
@@ -129,5 +193,6 @@ export const listColors = {
     handle: '#5A5A5E',
     selectRing: '#5A5A5E',
     selected: '#3A3A3C',
+    ghost: '#0E0E0F',
   },
 } as const;
