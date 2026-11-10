@@ -1,6 +1,6 @@
-import { SegmentedControl } from 'expo-lucent';
+import { ListItem, SegmentedControl } from 'expo-lucent';
 import { TabScrollView } from 'expo-lucent/navigation';
-import { Link, type Href } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
@@ -180,6 +180,16 @@ export const LinkRow = ({
         </Row>
       </Pressable>
     </Link>
+  );
+};
+
+/** A link to a screen as a row of Lucent's own list: its name, a line about it, and a chevron. */
+export const LinkItem = ({ href, label, detail }: { href: Href; label: string; detail?: string }) => {
+  const router = useRouter();
+  return (
+    <ListItem supportingText={detail} accessory="disclosure" onPress={() => router.push(href)}>
+      {label}
+    </ListItem>
   );
 };
 
