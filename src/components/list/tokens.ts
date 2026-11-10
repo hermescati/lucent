@@ -58,14 +58,15 @@ export const list = {
     edge: 10,
     // A one-line row's buttons have their icon and label side by side in the capsule, from a row `under` tall their label
     // under it (measured: one-line rows beside, two-line under). A capsule with its label in it (side by side, or text
-    // alone) is the row's height less `inset` (44 on a 52 row), its content `inside.pad` from its ends, a 13pt label in
-    // white and a smaller icon `inside.gap` before it (measured: Delete 82, Read 55 without an icon). A side's buttons
+    // alone) is the row's height less `inset` (44 on a 52 row), its content `inside.pad` from its ends, a 13pt regular
+    // label in white and a smaller icon `inside.gap` before it (measured: Delete 82, Read 55 without an icon). A side's buttons
     // all take its widest one's width while that's at most `equalUpTo` times its narrowest's (measured: about 1.2
     // times, all equal; 1.8 times or more, each its own).
     under: 60,
     inset: 8,
-    // Taller than a one-line row's, a capsule keeps a one-line one's corners (measured: a two-line row's text-only Delete).
-    corner: 22,
+    // A text-only button is a rounded rectangle with this continuous corner on any row, where one with an icon is a
+    // capsule (measured: fitted to iOS's outline within 0.1pt on one- and two-line rows).
+    textCorner: 16,
     inside: { pad: 13, gap: 6, iconSize: 16 },
     equalUpTo: 1.5,
     labelSize: 13,

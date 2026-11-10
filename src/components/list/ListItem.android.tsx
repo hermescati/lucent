@@ -339,13 +339,25 @@ const ActionButton = ({
       transform: [{ translateX: towardRow * shift.get() }, { scale: scale * left }],
     };
   });
-  const capsule = useAnimatedStyle(() => {
-    if (!outermost) return { width };
-    const slid = Math.abs(shownOffset(offset.get(), armed.get(), soft));
+  // Its width now: the outermost one stretches as the row is dragged past its buttons.
+  const widthNow = (slid: number, a: number) => {
+    'worklet';
+    if (!outermost) return width;
     const stretched = width + Math.max(0, slid - open);
     // Armed, a non-destructive one grows over the other buttons, up to a gap short of the row (measured).
-    const fill = Math.max(stretched, slid - edge - list.swipe.gap);
-    return { width: soft ? stretched + (fill - stretched) * armed.get() : stretched };
+    const grown = Math.max(stretched, slid - edge - list.swipe.gap);
+    return soft ? stretched + (grown - stretched) * a : stretched;
+  };
+  const capsule = useAnimatedStyle(() => {
+    const a = armed.get();
+    return { width: widthNow(Math.abs(shownOffset(offset.get(), a, soft)), a) };
+  });
+  // Its fill on Apple's continuous curve: a capsule with an icon in it or under it, but text alone a rounded rectangle
+  // of `textCorner` whatever the row's height (measured: one- and two-line rows alike).
+  const corner = look === 'text' ? list.swipe.textCorner : height / 2;
+  const shape = useAnimatedProps(() => {
+    const a = armed.get();
+    return { d: continuousRect(widthNow(Math.abs(shownOffset(offset.get(), a, soft)), a), height, corner) };
   });
   // Armed, a destructive one's content moves to its leading end, its label going.
   const content = useAnimatedStyle(() => {
@@ -392,12 +404,10 @@ const ActionButton = ({
         )}
       </View>
       <Animated.View style={[styles.action, button]}>
-        <Animated.View
-          style={[
-            styles.capsule,
-            { backgroundColor: fill, height, borderRadius: Math.min(height / 2, list.swipe.corner) },
-            capsule,
-          ]}>
+        <Animated.View style={[styles.capsule, { height }, capsule]}>
+          <Svg style={StyleSheet.absoluteFill}>
+            <AnimatedPath animatedProps={shape} fill={fill} />
+          </Svg>
           {look === 'under' ? (
             <Animated.View style={content}>{icon}</Animated.View>
           ) : (
@@ -1345,7 +1355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionLabel: { fontSize: list.swipe.labelSize },
-  actionLabelInside: { color: '#FFFFFF', fontWeight: '500' },
+  actionLabelInside: { color: '#FFFFFF' },
   beside: { flexDirection: 'row', alignItems: 'center', gap: list.swipe.inside.gap },
   measure: { position: 'absolute', opacity: 0 },
   swipeable: { overflow: 'hidden' },
