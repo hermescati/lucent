@@ -425,12 +425,52 @@ const Contacts = ({ mode }: ScreenProps) => (
   </>
 );
 
+// The kit's header and row options: a header with an action, a prominent one, the info accessory and action rows.
+const Headers = ({ mode }: ScreenProps) => {
+  const [note, setNote] = useState('Tap a row, its ⓘ or a header action');
+  return (
+    <>
+      <Stack.Screen options={{ title: mode.name }} />
+      <List>
+        <FieldGroup.Section title="Account" headerAction={{ label: 'Edit', onPress: () => setNote('Edit') }}>
+          <ListItem detail="ClickFlare" accessory="info" onAccessoryPress={() => setNote('Organization info')}>
+            Organization
+          </ListItem>
+          <ListItem accessory="disclosure" onPress={() => setNote('Billing')}>
+            Billing
+          </ListItem>
+          <FieldGroup.SectionFooter>{note}</FieldGroup.SectionFooter>
+        </FieldGroup.Section>
+        <FieldGroup.Section
+          title="Campaigns"
+          headerProminence="increased"
+          headerAction={{ label: 'See All', onPress: () => setNote('See All') }}>
+          <ListItem detail="Active">Spring sale</ListItem>
+          <ListItem detail="Paused">Germany offer</ListItem>
+        </FieldGroup.Section>
+        <FieldGroup.Section>
+          <ListItem button onPress={() => setNote('Add campaign')}>
+            Add campaign
+          </ListItem>
+          <ListItem button destructive onPress={() => setNote('Delete all')}>
+            Delete all
+          </ListItem>
+          <ListItem button disabled onPress={() => {}}>
+            Export
+          </ListItem>
+        </FieldGroup.Section>
+      </List>
+    </>
+  );
+};
+
 const screens: Record<string, (props: ScreenProps) => ReactNode> = {
   settings: Settings,
   picker: Picker,
   inbox: Inbox,
   swipes: Swipes,
   contacts: Contacts,
+  headers: Headers,
   edit: Edit,
   select: Select,
   long: Long,

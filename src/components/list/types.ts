@@ -53,9 +53,10 @@ export interface ListIcon {
 
 /**
  * What a row shows at its trailing edge, as UIKit's cell accessories: `disclosure` is the chevron of a row that opens
- * another screen, `checkmark` the tick of the chosen row in a list of choices.
+ * another screen, `checkmark` the tick of the chosen row in a list of choices, `info` the ⓘ button of UIKit's detail
+ * button, which `onAccessoryPress` answers apart from the row.
  */
-export type ListItemAccessory = 'disclosure' | 'checkmark';
+export type ListItemAccessory = 'disclosure' | 'checkmark' | 'info';
 
 /** A button revealed by swiping a row, as SwiftUI's `swipeActions`. */
 export interface SwipeAction {
@@ -82,8 +83,15 @@ export interface SwipeActions {
 export interface ListItemProps extends Omit<ExpoListItemProps, 'colors'> {
   /** Lucent. A value shown in secondary text at the trailing edge, as a settings row's current choice. */
   detail?: string;
-  /** Lucent. A chevron or a checkmark at the trailing edge, after `trailing` and `detail`. */
+  /** Lucent. A chevron, a checkmark or an ⓘ at the trailing edge, after `trailing` and `detail`. */
   accessory?: ListItemAccessory;
+  /** Lucent. Called when the `info` accessory is tapped, apart from the row's `onPress`. */
+  onAccessoryPress?: () => void;
+  /**
+   * Lucent. The row is an action rather than an item, as a SwiftUI `Button` in a list: its headline in the accent
+   * colour (red when `destructive`, grey when `disabled`).
+   */
+  button?: boolean;
   /** Lucent. The headline in red, for a row that deletes or signs out. */
   destructive?: boolean;
   /** Lucent. Buttons revealed by swiping the row. */
@@ -101,5 +109,9 @@ export interface FieldSectionProps extends ExpoFieldSectionProps {
    * shows the index along its trailing edge, and a tap or a drag along it scrolls to the section.
    */
   indexLabel?: string;
+  /** Lucent. SwiftUI's `headerProminence`: `increased` draws the header larger, in the primary colour. */
+  headerProminence?: 'standard' | 'increased';
+  /** Lucent. An action at the header's trailing end, in the accent colour, as an "Edit" or "See All". */
+  headerAction?: { label: string; onPress: () => void };
 }
 export type { FieldSectionFooterProps, FieldSectionHeaderProps };

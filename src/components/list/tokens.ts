@@ -29,8 +29,15 @@ export const list = {
   detailGap: 12,
   chevron: { width: 7, height: 12, stroke: 2, end: 4 },
   checkmark: { width: 15, height: 14, stroke: 2.2 },
+  // UIKit's detail button, the accent ⓘ (measured: about 22 across, 9 after the value, its end the row's padding in);
+  // Material's glyph fills less of its box, so it's drawn larger.
+  info: { size: 26, gap: 7, hitSlop: 10 },
   // Section headers (body semibold, sentence case) and footers (footnote), in the card's inset; spacing around them.
   header: { fontSize: 17, lineHeight: 22, fontWeight: '600', above: 26, below: 10, first: 6 },
+  // SwiftUI's `headerProminence(.increased)`, and an action at a header's end: 17pt regular in the accent, on the
+  // header's baseline (measured).
+  prominent: { fontSize: 20, lineHeight: 25, fontWeight: '600' },
+  headerAction: { fontSize: 17, lineHeight: 22 },
   footer: { fontSize: 13, lineHeight: 18, fontWeight: '400', above: 7, below: 0 },
   // Between two sections without a header between them.
   sectionGap: 22,

@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { useNativeGesture } from 'react-native-gesture-handler';
 import Animated, {
   makeMutable,
@@ -340,15 +340,29 @@ const rowsOf = (
   return { header, footer, rows };
 };
 
-const Caption = ({ children, kind }: { children: ReactNode; kind: 'header' | 'footer' }) => {
+const Caption = ({
+  children,
+  kind,
+  prominent = false,
+}: {
+  children: ReactNode;
+  kind: 'header' | 'footer';
+  prominent?: boolean;
+}) => {
   const colors = useListColors();
-  const type = kind === 'header' ? list.header : list.footer;
+  const type = kind === 'footer' ? list.footer : prominent ? list.prominent : list.header;
   if (typeof children !== 'string' && typeof children !== 'number') return <>{children}</>;
   return (
     <Text
       style={[
         styles.caption,
-        { fontSize: type.fontSize, lineHeight: type.lineHeight, fontWeight: type.fontWeight, color: colors.caption },
+        {
+          fontSize: type.fontSize,
+          lineHeight: type.lineHeight,
+          fontWeight: type.fontWeight,
+          // An increased header is in the primary colour, as SwiftUI's.
+          color: prominent ? colors.text : colors.caption,
+        },
       ]}>
       {children}
     </Text>
@@ -365,8 +379,11 @@ export const Section = ({
   hidden,
   testID,
   indexLabel,
+  headerProminence,
+  headerAction,
   first = false,
 }: FieldSectionProps & { first?: boolean }) => {
+  const { color } = useLucentTheme();
   const style = useContext(ListStyleContext) ?? 'insetGrouped';
   const index = useContext(ListIndexContext);
   useEffect(() => {
@@ -428,7 +445,23 @@ export const Section = ({
             { paddingHorizontal: margin },
             { paddingTop: first ? list.header.first : list.header.above, paddingBottom: list.header.below },
           ]}>
-          <Caption kind="header">{header}</Caption>
+          {headerAction ? (
+            // An action at the header's end, in the accent, on its baseline (measured).
+            <View style={styles.headerRow}>
+              <View style={styles.headerText}>
+                <Caption kind="header" prominent={headerProminence === 'increased'}>
+                  {header}
+                </Caption>
+              </View>
+              <Pressable accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
+                <Text style={[styles.headerAction, { color: color.tint }]}>{headerAction.label}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Caption kind="header" prominent={headerProminence === 'increased'}>
+              {header}
+            </Caption>
+          )}
         </View>
       ) : (
         <View style={{ height: first ? 0 : list.sectionGap }} />
@@ -496,6 +529,9 @@ export const sectionsOf = (children: ReactNode) => {
 };
 
 const styles = StyleSheet.create({
+  headerRow: { flexDirection: 'row', alignItems: 'baseline' },
+  headerText: { flex: 1 },
+  headerAction: { fontSize: list.headerAction.fontSize, lineHeight: list.headerAction.lineHeight },
   topSeparator: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth },
   caption: { textAlign: 'auto' },
 });

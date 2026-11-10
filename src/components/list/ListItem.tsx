@@ -2,6 +2,7 @@ import { ListItem as UniversalListItem } from '@expo/ui';
 import { Button, HStack, Image, RNHostView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
+  buttonStyle,
   contentShape,
   disabled as disabledModifier,
   font,
@@ -55,6 +56,8 @@ export const ListItem = ({
   supportingText,
   swipeActions,
   disabled = false,
+  button = false,
+  onAccessoryPress,
   modifiers,
   ...props
 }: ListItemProps) => {
@@ -88,6 +91,11 @@ export const ListItem = ({
             systemName="checkmark"
             modifiers={[font({ textStyle: 'body', weight: 'semibold' }), foregroundStyle(PlatformColor('tintColor'))]}
           />
+        ) : accessory === 'info' ? (
+          // UIKit's detail button: a tap on it answers apart from the row's.
+          <Button onPress={onAccessoryPress} modifiers={[buttonStyle('borderless')]}>
+            <Image systemName="info.circle" modifiers={[foregroundStyle(PlatformColor('tintColor'))]} />
+          </Button>
         ) : null}
       </HStack>
     ) : undefined;
@@ -115,7 +123,12 @@ export const ListItem = ({
     ...(accessory === 'checkmark' ? [accessibilityAddTraits(['isSelected'])] : []),
     ...(modifiers ?? []),
   ];
-  const rowModifiers = [...(disabled ? [disabledModifier(true)] : []), ...ownModifiers];
+  // An action row is a SwiftUI button as it draws in a list, its headline in the accent colour.
+  const rowModifiers = [
+    ...(disabled ? [disabledModifier(true)] : []),
+    ...(button ? [buttonStyle('automatic')] : []),
+    ...ownModifiers,
+  ];
   // In a list that selects, the row is no button, laid out as `@expo/ui`'s row lays it out, and drawn the same selecting
   // or not, so SwiftUI moves it into edit mode rather than fading it into another row. A tap presses it; selecting,
   // it's off, so the list takes the tap and ticks it, animated as its own selection is.

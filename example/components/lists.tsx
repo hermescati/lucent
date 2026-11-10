@@ -36,6 +36,11 @@ export const listModes: ListMode[] = [
     summary: 'A plain list by first letter, with the index along its edge',
   },
   {
+    slug: 'headers',
+    name: 'Headers and actions',
+    summary: 'Header actions, a prominent header, the ⓘ accessory and action rows',
+  },
+  {
     slug: 'edit',
     name: 'Edit',
     summary: 'Edit mode: delete controls and reorder handles, with swipe to delete',

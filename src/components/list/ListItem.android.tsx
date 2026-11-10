@@ -1033,6 +1033,8 @@ export const ListItem = ({
   destructive = false,
   swipeActions,
   disabled = false,
+  button = false,
+  onAccessoryPress,
   testID,
 }: ListItemProps) => {
   const colors = useListColors();
@@ -1079,7 +1081,15 @@ export const ListItem = ({
   const swipes = Boolean(deleteAction || swipeActions?.leading?.length || swipeActions?.trailing?.length);
   const openRow = useContext(OpenRowContext);
 
-  const textColor = destructive ? colors.destructive : colors.text;
+  // An action row's headline is the accent colour, as a SwiftUI button's in a list; disabled, a light grey (measured:
+  // #BFBFBF, the secondary label at the row's disabled opacity).
+  const textColor = destructive
+    ? colors.destructive
+    : button
+      ? disabled
+        ? colors.secondary
+        : color.tint
+      : colors.text;
   const separatorStart = margin + (leading != null ? leadingWidth + list.leadingGap : 0);
   const content = (
     pressed: boolean,
@@ -1156,6 +1166,16 @@ export const ListItem = ({
             <Animated.View style={styles.checkmark}>
               <Checkmark color={color.tint} />
             </Animated.View>
+          ) : accessory === 'info' ? (
+            // UIKit's detail button: a tap on it answers apart from the row's.
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="More info"
+              hitSlop={list.info.hitSlop}
+              onPress={onAccessoryPress}
+              style={styles.info}>
+              <MaterialSymbol name="info" size={list.info.size} tintColor={color.tint} />
+            </Pressable>
           ) : null}
         </Animated.View>
         {motion && selectable ? (
@@ -1293,6 +1313,7 @@ const styles = StyleSheet.create({
   detail: { marginStart: list.leadingGap, flexShrink: 1, textAlign: 'right' },
   chevron: { marginStart: list.detailGap, marginEnd: list.chevron.end },
   checkmark: { marginStart: list.detailGap },
+  info: { marginStart: list.info.gap },
   separator: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
   editSlot: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
   controlSlot: { start: list.edit.controlAt - list.edit.control / 2 },

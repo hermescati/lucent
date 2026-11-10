@@ -89,25 +89,27 @@ Swipe actions and pull to refresh:
 
 ## `ListItem`
 
-| Prop             | Type                                        | Default | Notes                                                                           |
-| ---------------- | ------------------------------------------- | ------- | ------------------------------------------------------------------------------- |
-| `children`       | `ReactNode`                                 | —       | The headline. `ListItem.Leading`, `.Trailing` and `.Supporting` slots work too. |
-| `onPress`        | `() => void`                                | —       | Makes the row tappable; its content dims under a finger.                        |
-| `leading`        | `ReactNode`                                 | —       | Before the text, as a Settings icon.                                            |
-| `trailing`       | `ReactNode`                                 | —       | At the end, before `detail` and the accessory.                                  |
-| `supportingText` | `string \| ReactNode`                       | —       | A second line, in secondary text.                                               |
-| `detail`         | `string`                                    | —       | **Lucent.** A value at the end in secondary text, as a settings row's choice.   |
-| `accessory`      | `'disclosure' \| 'checkmark'`               | —       | **Lucent.** A chevron, or the accent's checkmark.                               |
-| `destructive`    | `boolean`                                   | `false` | **Lucent.** The headline in red.                                                |
-| `disabled`       | `boolean`                                   | `false` | **Lucent.** Greyed out and not tappable.                                        |
-| `swipeActions`   | `{ leading?, trailing?, allowsFullSwipe? }` | —       | **Lucent.** Buttons a swipe reveals; see below.                                 |
-| `testID`         | `string`                                    | —       |                                                                                 |
+| Prop               | Type                                        | Default | Notes                                                                                                                                  |
+| ------------------ | ------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `children`         | `ReactNode`                                 | —       | The headline. `ListItem.Leading`, `.Trailing` and `.Supporting` slots work too.                                                        |
+| `onPress`          | `() => void`                                | —       | Makes the row tappable; its content dims under a finger.                                                                               |
+| `leading`          | `ReactNode`                                 | —       | Before the text, as a Settings icon.                                                                                                   |
+| `trailing`         | `ReactNode`                                 | —       | At the end, before `detail` and the accessory.                                                                                         |
+| `supportingText`   | `string \| ReactNode`                       | —       | A second line, in secondary text.                                                                                                      |
+| `detail`           | `string`                                    | —       | **Lucent.** A value at the end in secondary text, as a settings row's choice.                                                          |
+| `accessory`        | `'disclosure' \| 'checkmark' \| 'info'`     | —       | **Lucent.** A chevron, the accent's checkmark, or UIKit's ⓘ detail button.                                                             |
+| `onAccessoryPress` | `() => void`                                | —       | **Lucent.** Called when the `info` accessory is tapped, apart from `onPress`.                                                          |
+| `button`           | `boolean`                                   | `false` | **Lucent.** An action row, as a SwiftUI `Button` in a list: the headline in the accent (red when `destructive`, grey when `disabled`). |
+| `destructive`      | `boolean`                                   | `false` | **Lucent.** The headline in red.                                                                                                       |
+| `disabled`         | `boolean`                                   | `false` | **Lucent.** Greyed out and not tappable.                                                                                               |
+| `swipeActions`     | `{ leading?, trailing?, allowsFullSwipe? }` | —       | **Lucent.** Buttons a swipe reveals; see below.                                                                                        |
+| `testID`           | `string`                                    | —       |                                                                                                                                        |
 
 Each swipe action has a `label`, an `icon` (`sf` on iOS, `md` on Android), `onPress`, and optionally `destructive` (red) or a `tintColor`. The first action in each array is the outermost, and a full swipe runs it unless `allowsFullSwipe` is `false`.
 
 ## `FieldGroup`
 
-SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, or a `FieldGroup.SectionHeader` child, and a `FieldGroup.SectionFooter`. **Lucent:** its `indexLabel` (usually a letter) puts the section in the list's index, as SwiftUI's `sectionIndexLabel`: a list whose sections have them shows the index along its trailing edge, and a tap or drag along it jumps to the section. A header or footer given as a string is drawn as iOS's caption text. Sections also work inside a `List`.
+SwiftUI's `Form`: inset grouped sections. `FieldGroup.Section` takes a `title`, or a `FieldGroup.SectionHeader` child, and a `FieldGroup.SectionFooter`. **Lucent:** `headerProminence: 'increased'` draws its header larger and in the primary colour, as SwiftUI's `headerProminence`; `headerAction: { label, onPress }` puts an action at the header's end, in the accent, on its baseline; and its `indexLabel` (usually a letter) puts the section in the list's index, as SwiftUI's `sectionIndexLabel`: a list whose sections have them shows the index along its trailing edge, and a tap or drag along it jumps to the section. A header or footer given as a string is drawn as iOS's caption text. Sections also work inside a `List`.
 
 ## Android behaviour
 

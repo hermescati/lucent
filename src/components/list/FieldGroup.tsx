@@ -1,6 +1,6 @@
 import { FieldGroup as UniversalFieldGroup, Host } from '@expo/ui';
-import { Text } from '@expo/ui/swift-ui';
-import { sectionIndexLabel } from '@expo/ui/swift-ui/modifiers';
+import { Button, HStack, Section as SwiftSection, Spacer, Text } from '@expo/ui/swift-ui';
+import { headerProminence as prominence, sectionIndexLabel } from '@expo/ui/swift-ui/modifiers';
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -27,14 +27,61 @@ const wrapped = (children: ReactNode): ReactNode =>
       : child;
   });
 
-// Its index label as SwiftUI's `sectionIndexLabel`, which iOS 26 draws the list's index from.
-const Section = ({ children, indexLabel, modifiers, ...props }: FieldSectionProps) => (
-  <UniversalSection
-    {...props}
-    modifiers={indexLabel !== undefined ? [sectionIndexLabel(indexLabel), ...(modifiers ?? [])] : modifiers}>
-    {wrapped(children)}
-  </UniversalSection>
-);
+// A section's header and footer slots, apart from its rows.
+const slotsOf = (children: ReactNode) => {
+  let header: ReactNode = undefined;
+  let footer: ReactNode = undefined;
+  const rows: ReactNode[] = [];
+  Children.forEach(wrapped(children), (child) => {
+    if (isValidElement<{ children?: ReactNode }>(child) && child.type === SectionHeader) header = child.props.children;
+    else if (isValidElement<{ children?: ReactNode }>(child) && child.type === SectionFooter)
+      footer = child.props.children;
+    else rows.push(child);
+  });
+  return { header, footer, rows };
+};
+
+/**
+ * `@expo/ui`'s section, with Lucent's: its index label as SwiftUI's `sectionIndexLabel` (iOS 26 draws the list's index
+ * from them), its header's prominence as SwiftUI's `headerProminence`, and an action at the header's end.
+ */
+const Section = ({
+  children,
+  indexLabel,
+  headerProminence,
+  headerAction,
+  modifiers,
+  title,
+  ...props
+}: FieldSectionProps) => {
+  const own = [
+    ...(indexLabel !== undefined ? [sectionIndexLabel(indexLabel)] : []),
+    ...(headerProminence ? [prominence(headerProminence)] : []),
+    ...(modifiers ?? []),
+  ];
+  if (!headerAction)
+    return (
+      <UniversalSection {...props} title={title} modifiers={own.length > 0 ? own : undefined}>
+        {wrapped(children)}
+      </UniversalSection>
+    );
+  const slots = slotsOf(children);
+  const heading = slots.header ?? (title !== undefined ? <Text>{title}</Text> : undefined);
+  const header = headerAction ? (
+    <HStack>
+      {heading}
+      <Spacer />
+      <Button label={headerAction.label} onPress={headerAction.onPress} />
+    </HStack>
+  ) : (
+    heading
+  );
+  return (
+    <SwiftSection header={header} footer={slots.footer} modifiers={own}>
+      {slots.rows}
+    </SwiftSection>
+  );
+};
 
 FieldGroup.Section = Section;
 FieldGroup.SectionHeader = SectionHeader;
