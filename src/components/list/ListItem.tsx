@@ -2,15 +2,18 @@ import { ListItem as UniversalListItem } from '@expo/ui';
 import { Button, HStack, Image, RNHostView, Spacer, SwipeActions, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
+  contentShape,
   disabled as disabledModifier,
   font,
   foregroundStyle,
+  onTapGesture,
+  shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { Children, isValidElement, useContext, type ReactElement, type ReactNode } from 'react';
 import { PlatformColor } from 'react-native';
 
-import { ListSelectableContext } from './selectable';
+import { ListSelectingContext } from './selectable';
 import type { ListItemProps, SwipeAction } from './types';
 
 // A `<ListItem.Trailing>` among the children: taken out, so the row's own trailing content (detail, accessory) can go
@@ -107,15 +110,17 @@ export const ListItem = ({
     ) : (
       supportingText
     );
-  const rowModifiers = [
-    ...(disabled ? [disabledModifier(true)] : []),
+  const ownModifiers = [
     // The ticked choice reads as selected, as a checkmarked cell does with VoiceOver.
     ...(accessory === 'checkmark' ? [accessibilityAddTraits(['isSelected'])] : []),
     ...(modifiers ?? []),
   ];
-  // Selecting, the row is no button, so the list takes the tap: laid out as `@expo/ui`'s row lays it out.
-  const selectable = useContext(ListSelectableContext);
-  if (selectable) {
+  const rowModifiers = [...(disabled ? [disabledModifier(true)] : []), ...ownModifiers];
+  // In a list that selects, the row is no button, laid out as `@expo/ui`'s row lays it out, and drawn the same selecting
+  // or not, so SwiftUI moves it into edit mode rather than fading it into another row. A tap presses it; selecting,
+  // it's off, so the list takes the tap and ticks it, animated as its own selection is.
+  const selecting = useContext(ListSelectingContext);
+  if (selecting !== null) {
     const leadingSlot = Children.toArray(headline).find(
       (child) => isValidElement(child) && child.type === UniversalListItem.Leading,
     ) as ReactElement<{ children?: ReactNode }> | undefined;
@@ -124,7 +129,14 @@ export const ListItem = ({
     );
     const lead = leadingSlot?.props.children ?? props.leading;
     return (
-      <HStack spacing={12} modifiers={rowModifiers}>
+      <HStack
+        spacing={12}
+        modifiers={[
+          contentShape(shapes.rectangle()),
+          onTapGesture(() => props.onPress?.()),
+          disabledModifier(disabled || selecting),
+          ...ownModifiers,
+        ]}>
         {isValidElement(lead) ? <RNHostView matchContents>{lead}</RNHostView> : null}
         <VStack alignment="leading" spacing={2}>
           {title.map((child, index) =>

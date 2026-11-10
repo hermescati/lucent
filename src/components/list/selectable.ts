@@ -1,7 +1,9 @@
 import { createLucentContext } from '../../theme/context';
 
 /**
- * Whether the list's rows select rather than press: a list with `selection`, in edit mode. On iOS a row is then no
- * button, so SwiftUI's list takes the tap and selects it.
+ * A list with `selection`, for its rows on iOS: whether it's selecting (in edit mode), or `null` without one. Its rows
+ * are no buttons, drawn the same selecting or not, so SwiftUI moves them into edit mode, their selection circles
+ * sliding in, rather than fading one row into another. A tap presses a row; selecting, the list takes it and ticks the
+ * row, as its own selection animates it.
  */
-export const ListSelectableContext = createLucentContext<boolean>('ListSelectable', false);
+export const ListSelectingContext = createLucentContext<boolean | null>('ListSelecting', null);

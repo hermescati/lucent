@@ -10,7 +10,7 @@ import {
 import type { ReactElement } from 'react';
 import { StyleSheet } from 'react-native';
 
-import { ListSelectableContext } from './selectable';
+import { ListSelectingContext } from './selectable';
 import type { ListForEachProps, ListProps } from './types';
 
 /** SwiftUI's `List`, hosted for the screen: it fills its room and scrolls itself, under the bars. */
@@ -24,7 +24,7 @@ export const List = ({
   testID,
   style,
 }: ListProps) => (
-  <ListSelectableContext value={editMode && selection !== undefined}>
+  <ListSelectingContext value={selection === undefined ? null : editMode}>
     <Host style={[styles.fill, style]}>
       <SwiftList
         testID={testID}
@@ -40,7 +40,7 @@ export const List = ({
         {children}
       </SwiftList>
     </Host>
-  </ListSelectableContext>
+  </ListSelectingContext>
 );
 
 // SwiftUI's own, which takes `onDelete` and `onMove` as well.
