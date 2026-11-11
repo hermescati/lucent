@@ -11,6 +11,9 @@ export const list = {
   // Rows are at least this tall, and this much room above and below taller content: a one-line row is 52, a row with a
   // second line 72, a 29pt icon's row 55.
   rowMinHeight: 52,
+  // Separators, and the lines over a plain list's first row and under its last, are a full point thick, not a device
+  // pixel (measured: 3px at 3x, plain and inset grouped, light and dark).
+  separatorWidth: 1,
   // Pressed, a row's content draws at 75% (measured on iOS 27: title, value, icon and chevron alike, the row's fill
   // unchanged), once the touch has been down `pressDelay` without becoming a scroll, as UIScrollView holds it.
   pressedOpacity: 0.75,

@@ -670,6 +670,6 @@ const styles = StyleSheet.create({
   pinnedCopy: { position: 'absolute', top: 0, left: 0 },
   headerText: { flex: 1 },
   headerAction: { fontSize: list.headerAction.fontSize, lineHeight: list.headerAction.lineHeight },
-  topSeparator: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth },
+  topSeparator: { position: 'absolute', top: 0, height: list.separatorWidth },
   caption: { textAlign: 'auto' },
 });

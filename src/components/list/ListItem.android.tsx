@@ -1324,7 +1324,7 @@ const styles = StyleSheet.create({
   chevron: { marginStart: list.detailGap, marginEnd: list.chevron.end },
   checkmark: { marginStart: list.detailGap },
   info: { marginStart: list.info.gap },
-  separator: { position: 'absolute', bottom: 0, height: StyleSheet.hairlineWidth },
+  separator: { position: 'absolute', bottom: 0, height: list.separatorWidth },
   editSlot: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
   controlSlot: { start: list.edit.controlAt - list.edit.control / 2 },
   selectSlot: { start: list.edit.controlAt - list.edit.select.circle / 2 },
