@@ -1,6 +1,6 @@
 # Lucent API design
 
-Status: glass, tabs, the search bar, the navigation bar and bottom toolbar (`Stack`), `Switch`, `Slider`, `SegmentedControl`, `Button`, `ProgressView`, `Stepper` and `ContentUnavailableView` are built (Android implementation, iOS pass-through); see [Built](#built). Everything under [Planned](#planned) is not built yet. Targets Expo SDK 58 (`expo` 58.0.x, `expo-router` 58.0.x, `expo-glass-effect` 58.0.x, `@expo/ui` 58.0.x). Prop names below were read from those packages' installed type definitions.
+Status: glass, tabs, the search bar, the navigation bar and bottom toolbar (`Stack`), `Switch`, `Slider`, `SegmentedControl`, `Button`, `ProgressView`, `Stepper`, `ContentUnavailableView` and the lists (`List`, `ListItem`, `FieldGroup`) are built (Android implementation, iOS pass-through); see [Built](#built). Everything under [Planned](#planned) is not built yet. Targets Expo SDK 58 (`expo` 58.0.x, `expo-router` 58.0.x, `expo-glass-effect` 58.0.x, `@expo/ui` 58.0.x). Prop names below were read from those packages' installed type definitions.
 
 ## What Lucent is
 
@@ -56,7 +56,7 @@ These have their own pages, with props and Android behaviour:
 - [Tab bar](components/tabs.md): `NativeTabs`, `TabScrollView` and the scroll hooks
 - [Navigation bar](components/stack.md): `Stack` with its navigation bar, bottom toolbar and swipe back, `useHeaderScroll`, `useHeaderInset`, `useToolbarInset`
 - [Search bar](components/search.md): `SearchBar`, `useTabSearch`
-- [Switch](components/switch.md), [Slider](components/slider.md), [Segmented control](components/segmented-control.md), [Button](components/button.md), [Progress view](components/progress-view.md), [Stepper](components/stepper.md), [Content unavailable view](components/content-unavailable.md)
+- [Switch](components/switch.md), [Slider](components/slider.md), [Segmented control](components/segmented-control.md), [Button](components/button.md), [Progress view](components/progress-view.md), [Stepper](components/stepper.md), [Content unavailable view](components/content-unavailable.md), [Lists](components/lists.md)
 - [Theming](theming.md): `LucentProvider`
 
 ## Planned

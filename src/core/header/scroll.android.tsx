@@ -41,8 +41,24 @@ export const searchLift = (routeKey: string) => {
   return lift;
 };
 
+/**
+ * How far below the navigation bar something the content pins under it reaches, by route key: a plain list's section
+ * header, which iOS takes into the bar's scroll edge (measured). The content writes it and the header reads it.
+ */
+const reaches = new Map<string, SharedValue<number>>();
+
+export const contentReach = (routeKey: string) => {
+  let reach = reaches.get(routeKey);
+  if (!reach) {
+    reach = makeMutable(0);
+    reaches.set(routeKey, reach);
+  }
+  return reach;
+};
+
 interface HeaderScroll {
   offset: SharedValue<number>;
+  reach: SharedValue<number>;
   lift: SharedValue<number>;
   // The header sits over the content rather than above it, so scroll views inset themselves by its height.
   transparent: boolean;
@@ -82,13 +98,22 @@ export const HeaderScrollProvider = ({
     () => () => {
       offsets.delete(routeKey);
       lifts.delete(routeKey);
+      reaches.delete(routeKey);
     },
     [routeKey],
   );
   // The same object while nothing in it changes: the navigator re-renders this on every options change, and a new
   // value would re-render the screen, whose Stack.Screen would set its options again, round and round.
   const value = useMemo(
-    () => ({ offset: headerOffset(routeKey), lift: searchLift(routeKey), transparent, toolbar, snap, start }),
+    () => ({
+      offset: headerOffset(routeKey),
+      lift: searchLift(routeKey),
+      reach: contentReach(routeKey),
+      transparent,
+      toolbar,
+      snap,
+      start,
+    }),
     [routeKey, transparent, toolbar, snap, start],
   );
   return <HeaderScrollContext.Provider value={value}>{children}</HeaderScrollContext.Provider>;
@@ -142,11 +167,20 @@ export const useHeaderInset = (): number => {
   return scroll?.transparent ? height : 0;
 };
 
+/**
+ * The screen's scroll offset as its header reads it, for a list's pull to refresh: pulled down, the list writes the pull
+ * as a negative offset and the large title comes down with the content, as iOS's does.
+ */
+export const useHeaderOffset = (): SharedValue<number> | undefined => useContext(HeaderScrollContext)?.offset;
+
 /** Where the screen's scroll view starts scrolled to (see `HeaderScroll.start`). */
 export const useHeaderStart = (): number => useContext(HeaderScrollContext)?.start ?? 0;
 
 /** How far the screen's content has moved up for a search in its navigation bar (see `searchLift`), or none. */
 export const useSearchLift = (): SharedValue<number> | undefined => useContext(HeaderScrollContext)?.lift;
+
+/** Where content pinned under the navigation bar ends, below it (see `contentReach`), or none. */
+export const useContentReach = (): SharedValue<number> | undefined => useContext(HeaderScrollContext)?.reach;
 
 /** How far a scroll view's content has to end up from the bottom to clear a Lucent bottom toolbar, as iOS insets it. */
 export const useToolbarInset = (): number => useContext(HeaderScrollContext)?.toolbar ?? 0;

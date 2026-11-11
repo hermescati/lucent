@@ -12,7 +12,11 @@ export const useHeaderStart = (): number => 0;
 
 export const useHeaderSnap = (): number => 0;
 
+export const useHeaderOffset = (): SharedValue<number> | undefined => undefined;
+
 export const useSearchLift = (): SharedValue<number> | undefined => undefined;
+
+export const useContentReach = (): SharedValue<number> | undefined => undefined;
 
 export const HeaderScrollProvider = ({
   children,

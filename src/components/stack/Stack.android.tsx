@@ -12,10 +12,20 @@ import {
   cloneElement,
   isValidElement,
   type ComponentProps,
+  type ComponentType,
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { BackHandler, processColor, StyleSheet, useWindowDimensions, View, type ColorValue } from 'react-native';
+import {
+  BackHandler,
+  processColor,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ColorValue,
+  ScrollView,
+  type ScrollViewProps,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useEvent, useSharedValue } from 'react-native-reanimated';
@@ -54,8 +64,11 @@ import { useBackClaimed } from '../../core/back/claims';
 import { displayCornerRadius } from '../../core/display/corner.android';
 import { InsideGlassBackdrop, useInsideGlassBackdrop } from '../../core/glass/BackdropContext';
 import { NativeGlassBackdrop } from '../../core/glass/NativeGlass';
+import { HeaderScrollView } from '../../core/header/HeaderScrollView';
 import { HeaderScrollProvider } from '../../core/header/scroll.android';
 import { useHasKeyboardProvider } from '../../core/keyboard';
+import { ScreenOverlayHost } from '../../core/overlay';
+import { ListScrollViewContext } from '../../core/scroll';
 import { useInsideTabs, useTabBarReach } from '../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../theme/LucentProvider';
 import { createLucentContext } from '../../theme/context';
@@ -261,6 +274,10 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
   const search = useSearch(key);
   const offset = useToolbarOffset();
   const tabBar = useTabBarReach();
+  // A list on the screen scrolls in a view its header follows; one the tabs above gave already does, and minimizes the
+  // tab bar as well.
+  const outerListScroll = useContext(ListScrollViewContext);
+  const listScroll = outerListScroll === ScrollView ? headerListScrollView : outerListScroll;
   const tint = typeof options.headerTintColor === 'string' ? options.headerTintColor : undefined;
   const inTabs = useInsideTabs();
   const placement = search ? searchPlacement(search.props, bottomToolbar, inTabs) : undefined;
@@ -398,56 +415,60 @@ const ScreenLayout = ({ args, layout }: { args: LayoutArgs; layout: StackProps['
       <Animated.View style={[styles.page, enterStyle]}>
         {arriving ? <AnimatedScreenEnter armed style={styles.enter} onEnter={onEnter} /> : null}
         <MenuHost>
-          <SwipeFrame top={top} background={backgroundOf(options, colors.background)}>
-            {layout ? layout(args) : args.children}
-          </SwipeFrame>
-          <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
-            <StackBackContext value={goBack}>
-              {/* Up with the screen, unseen with it: lifted glass takes its ancestors' opacity. */}
-              <ScreenHiddenContext value={hidden}>
-                <HeaderOverlay routeKey={key} />
-              </ScreenHiddenContext>
-            </StackBackContext>
-          </SwipeRoleContext>
-          {/* iOS dims all of the screen a swipe uncovers, its title and bar background too; only the buttons of its one
-            bar stay clear, and here they're the top screen's, held in place over this one. */}
-          {below ? <SwipeDim /> : null}
-          {bottomToolbar && (!searching || placement === 'slot') ? (
-            // Its buttons hold and melt through a push or a pop, as the bar's do.
+          {/* What a screen lifts over its bars (a list's dragged row) draws over them, under the bars' menus. */}
+          <ScreenOverlayHost>
+            <SwipeFrame top={top} background={backgroundOf(options, colors.background)}>
+              {/* A list on the screen scrolls in a view that follows the bars, as a SwiftUI list under UIKit's. */}
+              <ListScrollViewContext value={listScroll}>{layout ? layout(args) : args.children}</ListScrollViewContext>
+            </SwipeFrame>
             <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
-              <ScreenHiddenContext value={hidden}>
-                <SearchBubbleContext value={placement === 'slot' ? bubble : null}>
-                  <BottomToolbar
-                    toolbar={bottomToolbar}
-                    tintColor={tint}
-                    routeKey={key}
-                    pushed={routeIndex > 0}
-                    searching={searching && placement === 'slot'}
-                    returning={focusShown && !searching && placement === 'slot'}
-                    stayDown={Boolean(search?.focused) && (placement === 'header' || placement === 'barButton')}
-                    background={backgroundOf(options, colors.background)}
-                  />
-                </SearchBubbleContext>
-              </ScreenHiddenContext>
+              <StackBackContext value={goBack}>
+                {/* Up with the screen, unseen with it: lifted glass takes its ancestors' opacity. */}
+                <ScreenHiddenContext value={hidden}>
+                  <HeaderOverlay routeKey={key} />
+                </ScreenHiddenContext>
+              </StackBackContext>
             </SwipeRoleContext>
-          ) : null}
-          {placement === 'bottom' ? <BottomSearch routeKey={key} bubble={bubble} /> : null}
-          {placement === 'button' ? <BottomSearchButton routeKey={key} bubble={bubble} /> : null}
-          {focusShown || placement === 'button' || placement === 'bottom' || placement === 'slot' ? (
-            <FocusedSearch
-              routeKey={key}
-              from={
-                placement === 'slot' && !slotIsButton(bottomToolbar)
-                  ? 'slot'
-                  : placement === 'button' || placement === 'slot'
-                    ? 'button'
-                    : 'bottom'
-              }
-              open={searching}
-              onClosed={closeFocus}
-              bubble={placement === 'button' || placement === 'bottom' || placement === 'slot' ? bubble : undefined}
-            />
-          ) : null}
+            {/* iOS dims all of the screen a swipe uncovers, its title and bar background too; only the buttons of its one
+            bar stay clear, and here they're the top screen's, held in place over this one. */}
+            {below ? <SwipeDim /> : null}
+            {bottomToolbar && (!searching || placement === 'slot') ? (
+              // Its buttons hold and melt through a push or a pop, as the bar's do.
+              <SwipeRoleContext value={top ? 'top' : below ? 'below' : null}>
+                <ScreenHiddenContext value={hidden}>
+                  <SearchBubbleContext value={placement === 'slot' ? bubble : null}>
+                    <BottomToolbar
+                      toolbar={bottomToolbar}
+                      tintColor={tint}
+                      routeKey={key}
+                      pushed={routeIndex > 0}
+                      searching={searching && placement === 'slot'}
+                      returning={focusShown && !searching && placement === 'slot'}
+                      stayDown={Boolean(search?.focused) && (placement === 'header' || placement === 'barButton')}
+                      background={backgroundOf(options, colors.background)}
+                    />
+                  </SearchBubbleContext>
+                </ScreenHiddenContext>
+              </SwipeRoleContext>
+            ) : null}
+            {placement === 'bottom' ? <BottomSearch routeKey={key} bubble={bubble} /> : null}
+            {placement === 'button' ? <BottomSearchButton routeKey={key} bubble={bubble} /> : null}
+            {focusShown || placement === 'button' || placement === 'bottom' || placement === 'slot' ? (
+              <FocusedSearch
+                routeKey={key}
+                from={
+                  placement === 'slot' && !slotIsButton(bottomToolbar)
+                    ? 'slot'
+                    : placement === 'button' || placement === 'slot'
+                      ? 'button'
+                      : 'bottom'
+                }
+                open={searching}
+                onClosed={closeFocus}
+                bubble={placement === 'button' || placement === 'bottom' || placement === 'slot' ? bubble : undefined}
+              />
+            ) : null}
+          </ScreenOverlayHost>
         </MenuHost>
       </Animated.View>
     </HeaderScrollProvider>
@@ -572,3 +593,5 @@ const styles = StyleSheet.create({
   enter: { position: 'absolute', width: 0, height: 0 },
   shadow: { position: 'absolute', top: 0, left: 0, boxShadow: swipeMotion.shadow },
 });
+
+const headerListScrollView = HeaderScrollView as ComponentType<ScrollViewProps>;

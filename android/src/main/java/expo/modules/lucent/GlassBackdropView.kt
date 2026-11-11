@@ -32,6 +32,9 @@ class GlassBackdropView(context: Context, appContext: AppContext) :
   private val lifted = LinkedHashSet<GlassBackdrops>()
   private val order = ArrayList<GlassBackdrops>()
   private var orderDirty = false
+  // Lifted glass the last look through the tree missed, and for how many frames: a stack moving a screen as another is
+  // pushed draws it for a frame without it being one of its children, and its glass would go with it for that frame.
+  private val held = HashMap<GlassBackdrops, Int>()
   private val toGlobal = Matrix()
   private val toHost = Matrix()
 
@@ -153,9 +156,28 @@ class GlassBackdropView(context: Context, appContext: AppContext) :
 
   private fun sortLifted() {
     if (!orderDirty) return
+    val previous = ArrayList(order)
     order.clear()
     for (i in 0 until childCount) collect(getChildAt(i))
     orderDirty = false
+    // Glass still lifted but not found keeps its place and its last drawing for a few frames, and the tree is looked
+    // through again on the next: gone for longer, it's let go.
+    for ((index, view) in previous.withIndex()) {
+      if (view !in lifted || view in order) {
+        held.remove(view)
+        continue
+      }
+      val frames = (held[view] ?: 0) + 1
+      if (frames > HOLD_FRAMES) {
+        held.remove(view)
+        continue
+      }
+      held[view] = frames
+      order.add(minOf(index, order.size), view)
+      orderDirty = true
+    }
+    held.keys.retainAll(order.toSet())
+    if (orderDirty) postInvalidateOnAnimation()
   }
 
   internal fun drawSource(canvas: Canvas, upTo: GlassBackdrops?) {
@@ -225,7 +247,7 @@ class GlassBackdropView(context: Context, appContext: AppContext) :
     toGlobal.invert(toHost)
     for ((index, view) in order.withIndex()) {
       if (toned && view.aboveTone && toneCount < 0) recordTone(recorder, index)
-      view.recordLifted(this, toHost)
+      if (view !in held) view.recordLifted(this, toHost)
     }
     if (toned && toneCount < 0) recordTone(recorder, order.size)
     composite.setPosition(0, 0, width, height)
@@ -249,3 +271,5 @@ class GlassBackdropView(context: Context, appContext: AppContext) :
     if (!offscreen) canvas.drawRenderNode(composite)
   }
 }
+
+private const val HOLD_FRAMES = 3

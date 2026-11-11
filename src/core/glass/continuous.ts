@@ -44,3 +44,39 @@ export const continuousCapsule = (width: number, height: number, radius?: number
   }
   return `${points.join(' ')} Z`;
 };
+
+// Apple's rounded-rect corner (UIBezierPath's since iOS 7) for a corner at the origin, in units of its radius: three
+// cubics from the straight edge, 1.5287 radii along, round to the other. Each entry is two control points and an end.
+const corner = [
+  [1.08849323, 0, 0.86840689, 0, 0.66993427, 0.065496],
+  [0.37282392, 0.16905899, 0.16905883, 0.37282401, 0.07491176, 0.63149399],
+  [0, 0.86840701, 0, 1.08849299, 0, 1.52866483],
+] as const;
+const reach = 1.52866483;
+
+/**
+ * A rectangle with Apple's continuous corners of `radius` (UIBezierPath's rounded rect), as an SVG path: unlike
+ * `continuousCapsule`, the curve starts about one and a half radii along each edge, as iOS's rounded rects do. A
+ * worklet, so an animated outline can be rebuilt on the UI thread.
+ */
+export const continuousRect = (width: number, height: number, radius: number) => {
+  'worklet';
+  // Up to half the shorter side, as SwiftUI's continuous rounded rectangle: past a third of it the curves of two corners
+  // meet near the middle of the side, where both are all but straight.
+  const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+  const f = (n: number) => n.toFixed(3);
+  // Each corner: its point, and the directions along the edge it leaves (u) and the one it turns into (v).
+  const corners = [
+    [width, 0, -1, 0, 0, 1],
+    [width, height, 0, -1, -1, 0],
+    [0, height, 1, 0, 0, -1],
+    [0, 0, 0, 1, 1, 0],
+  ] as const;
+  let d = `M${f(r * reach)} 0`;
+  for (const [cx, cy, ux, uy, vx, vy] of corners) {
+    const at = (a: number, b: number) => `${f(cx + (ux * a + vx * b) * r)} ${f(cy + (uy * a + vy * b) * r)}`;
+    d += ` L${at(reach, 0)}`;
+    for (const [a1, b1, a2, b2, a3, b3] of corner) d += ` C${at(a1, b1)} ${at(a2, b2)} ${at(a3, b3)}`;
+  }
+  return `${d} Z`;
+};

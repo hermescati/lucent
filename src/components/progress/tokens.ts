@@ -1,20 +1,4 @@
 /** SwiftUI's `ProgressView` on iOS 26, measured on the iPhone 18 Pro simulator, in points. */
-export const spinner = {
-  size: 20,
-  spokes: 8,
-  // From the middle: where each spoke starts and ends, and how thick it is.
-  inner: 3.5,
-  outer: 10,
-  width: 2.6,
-  // The spoke at the head of the turn, the three behind it fading off, and the rest.
-  shade: [0.85, 0.69, 0.53, 0.38],
-  rest: 0.3,
-  // One turn, taken in a step per spoke.
-  period: 1000,
-  // Between the spinner and its label.
-  gap: 5,
-} as const;
-
 export const bar = {
   height: 4,
   // Between the label's line and the bar.
