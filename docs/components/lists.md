@@ -86,7 +86,7 @@ Swipe actions and pull to refresh:
 `List.ForEach` takes `@expo/ui`'s `data`, `keyExtractor` and render function, and SwiftUI's `onDelete` and `onMove`. It also takes `@expo/ui`'s `recycling` (on by default), `overscanCount` (10) and `estimatedItemSize` (64): on Android only the rows near the screen are drawn, with room kept for the rest at the height each had, or `estimatedItemSize` until drawn, so set it near your rows' height. Rows are drawn by key rather than reused for other items, so a row's own state stays with its item.
 
 - `onDelete(indices)`: its rows get SwiftUI's Delete action, swiped to from the trailing edge unless a row has trailing actions of its own, and a delete control in edit mode that opens it.
-- `onMove(from, to)`: its rows show a reorder handle in edit mode. The destination counts places before the row is taken out, as SwiftUI's; update the data in it, or the row goes back.
+- `onMove(from, to)`: its rows show a reorder handle in edit mode, and a row held anywhere for about half a second lifts as by its handle, as iOS's does. The destination counts places before the row is taken out, as SwiftUI's; update the data in it, or the row goes back.
 
 ## `ListItem`
 

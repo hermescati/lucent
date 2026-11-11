@@ -152,6 +152,8 @@ export const list = {
     // gently in and out.
     drop: { duration: 450, dampingRatio: 1 },
     settle: 450,
+    // Held this long anywhere on a row in edit mode, it lifts as by its handle (measured: about 0.5s).
+    holdToLift: 500,
     // Selecting (measured): a 22 circle in the delete control's place, ringed in grey or filled with the accent and a
     // white tick; a selected row turns grey, without a separator where it meets one that isn't (two selected keep theirs). Ticked, the fill comes in over `fillIn`
     // and the tick draws itself on, from `draw.delay` for `draw.duration` (measured: about 40ms, then 55 to 290ms, slow

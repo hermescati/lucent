@@ -800,6 +800,8 @@ const Swipeable = ({
 /** What a row's reorder drag lets the rest of it do. */
 interface ReorderControls {
   handleDrag: ReturnType<typeof usePanGesture>;
+  // Held anywhere on the row in edit mode, it lifts as by the handle.
+  rowDrag: ReturnType<typeof usePanGesture>;
   moveTo: (from: number, to: number) => void;
 }
 
@@ -988,6 +990,26 @@ const Reorderable = ({
       drop(0, 0);
     },
   });
+  // Held anywhere in edit mode, the row lifts too, as iOS's does (measured: about half a second's hold, as a long press);
+  // moved sooner, it's a scroll.
+  const rowDrag = usePanGesture({
+    enabled: editing,
+    activateAfterLongPress: list.edit.holdToLift,
+    onActivate: (event) => {
+      pickUp(event.absoluteY);
+    },
+    onUpdate: (event) => {
+      group.drag.set(event.translationY);
+      across.set(event.translationX);
+      auto?.finger.set(event.absoluteY);
+    },
+    onDeactivate: (event) => {
+      drop(event.velocityY, event.velocityX);
+    },
+    onFinalize: () => {
+      drop(0, 0);
+    },
+  });
   // Lifted, over the rows it passes.
   const above = useAnimatedStyle(() => ({ zIndex: lift.get() > 0 ? 1 : 0 }));
   // While it's dragged, a faded copy of the row holds the place it would land in, as iOS 27's does; let go, it's gone
@@ -1021,7 +1043,7 @@ const Reorderable = ({
       ) : null}
       <Animated.View style={moved}>
         <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
-        {children({ handleDrag, moveTo })}
+        {children({ handleDrag, rowDrag, moveTo })}
       </Animated.View>
     </Animated.View>
   );
@@ -1266,13 +1288,19 @@ export const ListItem = ({
       {({ pressed }) => content(pressed, motion, swipe, drag)}
     </Pressable>
   );
+  const held = (motion: EditMotionStyles | null, swipe: SwipeControls | null, drag: ReorderControls | null) =>
+    drag ? (
+      <GestureDetector gesture={drag.rowDrag}>{row(motion, swipe, drag)}</GestureDetector>
+    ) : (
+      row(motion, swipe, drag)
+    );
   const moving = (drag: ReorderControls | null, swipe: SwipeControls | null) =>
     editStart !== 0 || editEnd !== 0 ? (
       <EditMotion editStart={editStart} editEnd={editEnd} separatorStart={separatorStart}>
-        {(motion) => row(motion, swipe, drag)}
+        {(motion) => held(motion, swipe, drag)}
       </EditMotion>
     ) : (
-      row(null, swipe, drag)
+      held(null, swipe, drag)
     );
   const body = (drag: ReorderControls | null) =>
     swipes ? (
