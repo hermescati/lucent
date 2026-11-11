@@ -172,6 +172,19 @@ export const list = {
   // their middles 8 from the screen's edge, centred between the compact bar and the bottom; a touch or drag along it
   // jumps the list (no animation) so the section's header sits under the bar. `touch` widens where it can be touched.
   index: { fontSize: 11, pitch: 13.67, width: 16, touch: 16 },
+  // `indexLens`: Lucent's own, drawn as Apple draws a lens under a finger (the slider's thumb, the keyboard's key
+  // preview): a glass circle `gap` inward of the index, centred on the finger, the letter in the accent. It comes up on
+  // a quick spring from `from` of its size and goes in `out`; each new letter comes in over `swap`.
+  indexLens: {
+    size: 56,
+    gap: 12,
+    fontSize: 28,
+    lineHeight: 34,
+    from: 0.8,
+    out: 120,
+    swap: 160,
+    spring: { duration: 250, dampingRatio: 0.8 },
+  },
   // Pull to refresh, measured on the simulator with slow held drags. The content follows the finger one to one for
   // `lead`, then with UIScrollView's rubber band (`band` against the list's height). The spinner, 30 across, draws its
   // spokes as the content comes down (spokes drawn against pull, in `spokes`) and the refresh starts as the last one is

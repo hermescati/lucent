@@ -32,6 +32,12 @@ export interface ListProps extends ExpoListProps {
   selection?: string[];
   /** Lucent. Called with the selected keys as rows are tapped in edit mode. */
   onSelectionChange?: (selection: string[]) => void;
+  /**
+   * Lucent, Android only. While a finger is on the section index, a Liquid Glass lens beside it shows the section's
+   * letter large. iOS shows no such thing (SwiftUI's index can't be changed), so it's off by default.
+   * @default false
+   */
+  indexLens?: boolean;
 }
 
 /** `@expo/ui`'s `List.ForEach`, with SwiftUI's `onDelete` and `onMove`. */

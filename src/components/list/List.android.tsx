@@ -10,6 +10,7 @@ import Animated, {
   useAnimatedRef,
   useAnimatedScrollHandler,
   useFrameCallback,
+  useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
@@ -33,6 +34,8 @@ import {
 } from './section.android';
 import { list } from './tokens';
 import type { ListProps } from './types';
+import { AnimatedNativeGlassView } from '../../core/glass/NativeGlass';
+import { useGlassMaterial } from '../../core/glass/material';
 import {
   useContentReach,
   useHeaderInset,
@@ -52,8 +55,10 @@ export const ListScroll = ({
   children,
   style,
   testID,
+  indexLens = false,
 }: {
   background: string;
+  indexLens?: boolean;
   onRefresh?: () => Promise<void>;
   children: ReactNode;
   style?: ScrollViewProps['style'];
@@ -139,14 +144,48 @@ export const ListScroll = ({
     scrollTo(scrollRef, 0, to, false);
     scheduleOnRN(onIndexTick);
   };
+  // `indexLens`: where the finger is along the index, whether it's down, and each new letter's coming in.
+  const fingerAt = useSharedValue(0);
+  const touching = useSharedValue(0);
+  const swap = useSharedValue(1);
+  const { indexLens: lens } = list;
+  useAnimatedReaction(
+    () => picked.get(),
+    (now, before) => {
+      if (indexLens && now >= 0 && before !== null && before >= 0 && now !== before) {
+        swap.set(0);
+        swap.set(withTiming(1, { duration: lens.swap, easing: Easing.out(Easing.cubic) }));
+      }
+    },
+  );
   const indexPan = usePanGesture({
     minDistance: 0,
     onBegin: (event) => {
       picked.set(-1);
       pick(event.y);
+      fingerAt.set(event.y);
+      if (indexLens) touching.set(withSpring(1, lens.spring));
     },
-    onUpdate: (event) => pick(event.y),
+    onUpdate: (event) => {
+      pick(event.y);
+      fingerAt.set(event.y);
+    },
+    onFinalize: () => {
+      if (indexLens) touching.set(withTiming(0, { duration: lens.out, easing: Easing.out(Easing.quad) }));
+    },
   });
+  const lensProps = useAnimatedProps(() => ({ presence: Math.min(1, touching.get()) }));
+  const lensStyle = useAnimatedStyle(() => {
+    const t = touching.get();
+    return {
+      transform: [{ translateY: fingerAt.get() - lens.size / 2 }, { scale: lens.from + (1 - lens.from) * t }],
+    };
+  });
+  const lensLetter = useAnimatedStyle(() => ({
+    opacity: Math.min(1, touching.get()) * (0.3 + 0.7 * swap.get()),
+    transform: [{ scale: 0.92 + 0.08 * swap.get() }],
+  }));
+  const glass = useGlassMaterial('regular');
   // To a screen reader the index is one adjustable element, as iOS's: its value the section last picked, and a swipe up
   // or down moving to the next or previous one.
   const [readAt, setReadAt] = useState(0);
@@ -181,6 +220,20 @@ export const ListScroll = ({
                 {label}
               </Text>
             ))}
+            {indexLens ? (
+              <Animated.View pointerEvents="none" style={[styles.lens, lensStyle]}>
+                <AnimatedNativeGlassView
+                  {...glass}
+                  lift
+                  animatedProps={lensProps}
+                  cornerRadius={lens.size / 2}
+                  style={styles.lensGlass}>
+                  <Animated.Text style={[styles.lensLetter, { color: color.tint }, lensLetter]}>
+                    {entries[Math.min(readAt, entries.length - 1)]?.[0]}
+                  </Animated.Text>
+                </AnimatedNativeGlassView>
+              </Animated.View>
+            ) : null}
           </View>
         </GestureDetector>
       </View>
@@ -359,6 +412,7 @@ export const List = ({
   onSelectionChange,
   testID,
   style,
+  indexLens,
 }: ListProps) => {
   const colors = useListColors();
   // With `selection`, edit mode selects: rows show circles and a tap toggles them.
@@ -388,7 +442,8 @@ export const List = ({
             background={colors.page}
             onRefresh={onRefresh}
             style={style}
-            testID={testID}>
+            testID={testID}
+            indexLens={indexLens}>
             {sectionsOf(children)}
           </ListScroll>
         </ListStyleContext>
@@ -407,6 +462,20 @@ const styles = StyleSheet.create({
   index: { position: 'absolute', end: 0, justifyContent: 'center' },
   // Touchable inward of it too: Android's back gesture takes a drag that starts at the screen's edge.
   indexTouch: { paddingStart: list.index.touch },
+  lens: {
+    position: 'absolute',
+    top: 0,
+    end: list.index.width + list.index.touch + list.indexLens.gap,
+    width: list.indexLens.size,
+    height: list.indexLens.size,
+  },
+  lensGlass: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  lensLetter: {
+    fontSize: list.indexLens.fontSize,
+    lineHeight: list.indexLens.lineHeight,
+    fontWeight: '600',
+    includeFontPadding: false,
+  },
   indexLabel: {
     width: list.index.width,
     height: list.index.pitch,

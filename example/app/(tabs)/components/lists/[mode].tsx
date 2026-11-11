@@ -3,6 +3,7 @@ import { Stack } from 'expo-lucent/navigation';
 import { useLocalSearchParams } from 'expo-router';
 import type { AndroidSymbol, SFSymbol } from 'expo-symbols';
 import { useCallback, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 
 import { findListMode, RowIcon, UnreadDot, type ListMode } from '@/components/lists';
 import { Page, Paragraph } from '@/components/ui';
@@ -408,22 +409,33 @@ const byLetter = people.reduce<Record<string, string[]>>((groups, name) => {
   return groups;
 }, {});
 
-const Contacts = ({ mode }: ScreenProps) => (
-  <>
-    <Stack.Screen options={{ title: mode.name }} />
-    <List listStyle="plain">
-      {Object.entries(byLetter).map(([letter, names]) => (
-        <FieldGroup.Section key={letter} title={letter} indexLabel={letter}>
-          {names.map((name) => (
-            <ListItem key={name} onPress={() => {}}>
-              {name}
-            </ListItem>
-          ))}
-        </FieldGroup.Section>
-      ))}
-    </List>
-  </>
-);
+// Lens (Android): `indexLens`, Lucent's glass lens beside a finger on the index; iOS draws none.
+const Contacts = ({ mode }: ScreenProps) => {
+  const [lens, setLens] = useState(false);
+  return (
+    <>
+      <Stack.Screen options={{ title: mode.name }} />
+      {Platform.OS === 'android' ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button onPress={() => setLens((now) => !now)}>
+            {lens ? 'No lens' : 'Lens'}
+          </Stack.Toolbar.Button>
+        </Stack.Toolbar>
+      ) : null}
+      <List listStyle="plain" indexLens={lens}>
+        {Object.entries(byLetter).map(([letter, names]) => (
+          <FieldGroup.Section key={letter} title={letter} indexLabel={letter}>
+            {names.map((name) => (
+              <ListItem key={name} onPress={() => {}}>
+                {name}
+              </ListItem>
+            ))}
+          </FieldGroup.Section>
+        ))}
+      </List>
+    </>
+  );
+};
 
 // The kit's header and row options: a header with an action, a prominent one, the info accessory and action rows.
 const Headers = ({ mode }: ScreenProps) => {

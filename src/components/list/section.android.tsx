@@ -454,13 +454,12 @@ export const Section = ({
   const [me] = useState(() => Math.random());
   // Whether it's scrolled past where its header pins, counted in `pinnedBy`.
   const past = useSharedValue(false);
-  // How far the section has scrolled past where its header pins: the header moves down by as much, up to where the next
-  // one starts, and the rest is how far that one pushes it.
+  // Whether the section has scrolled past where its header pins.
   useAnimatedReaction(
     () => {
       if (!pins || !scroll) return -1;
       const y = scroll.scrollY.get();
-      const { y: at, height } = laid.get();
+      const { y: at } = laid.get();
       const pinned = pinHeight.get();
       const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
       return over > 0 ? pinned : -1;
