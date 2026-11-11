@@ -107,7 +107,7 @@ export interface ReorderGroup {
   // Whether a row is lifted: its section lets its rows draw outside its card meanwhile, for the lifted row's shadow.
   lifted: SharedValue<boolean>;
   // Whether that row is still held: drawn in the screen's overlay, its card clips its faded copy; let go, it settles in
-  // the list with its widened card and shadow, so the card lets it draw outside until it has.
+  // the list with its grown card and shadow, so the card lets it draw outside until it has.
   held: SharedValue<boolean>;
   // The rows' heights on the JS thread too, for the room a recycling `List.ForEach` keeps for the rows it doesn't draw.
   sizes: Map<string, number>;

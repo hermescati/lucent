@@ -867,6 +867,18 @@ const Reorderable = ({
   // finger every way, off the screen's edges too, as iOS's does (measured).
   const holding = useSharedValue(false);
   const across = useSharedValue(0);
+  // Lifted, the row grows at once about its middle, then over `lift.duration` about the finger instead, so the part
+  // under the finger stays under it (measured on iOS 27.2): `grown` and `anchored`, with how far the finger is from the
+  // row's middle (`fromMiddle`, x and y). Read in each style itself: a style only follows the values it reads.
+  const grown = useSharedValue(0);
+  const anchored = useSharedValue(0);
+  const fromMiddle = useSharedValue({ x: 0, y: 0 });
+  const liftScale = (grownNow: number, anchoredNow: number, off: { x: number; y: number }) => {
+    'worklet';
+    const scale = 1 + (list.edit.lift.scale - 1) * grownNow;
+    const toward = (1 - scale) * anchoredNow;
+    return [{ translateX: off.x * toward }, { translateY: off.y * toward }, { scale }];
+  };
   useAnimatedReaction(
     () => slotAt(group.order.get(), group.heights.get(), myKey),
     (y, before) => {
@@ -876,40 +888,50 @@ const Reorderable = ({
   );
   const moved = useAnimatedStyle(() => {
     if (!group.moving.get() && !group.pending.get() && group.active.get() !== myKey)
-      return { opacity: 1, transform: [{ translateY: 0 }] };
+      // Still under its settling copy, it stays unseen until the copy has settled.
+      return { opacity: overlaid.get() ? 0 : 1, transform: [{ translateY: 0 }] };
     // The list's scroll read here, not in a helper: a style only follows the shared values it reads itself.
     const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
     const y = group.active.get() === myKey ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
     return {
-      opacity: overlaid.get() ? 0 : 1 - (1 - list.edit.lift.opacity) * lift.get(),
-      transform: [{ translateY: y - slotAt(laidOut, group.heights.get(), myKey) }],
+      opacity: overlaid.get() ? 0 : 1,
+      transform: [
+        { translateY: y - slotAt(laidOut, group.heights.get(), myKey) },
+        ...liftScale(grown.get(), anchored.get(), fromMiddle.get()),
+      ],
     };
   });
+  // The card comes up solid, hiding the faded copy under it, and the row's content on it dims a little (measured).
   const liftedCard = useAnimatedStyle(() => ({ opacity: lift.get() }));
+  const liftedContent = useAnimatedStyle(() => ({ opacity: 1 - (1 - list.edit.lift.opacity) * lift.get() }));
   // The copy follows the finger, and let go, the row's settling into its place, until it has settled.
   const copyAt = useAnimatedStyle(() => {
     const at = liftedAt.get();
     const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
     const y = holding.get() ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
     return {
-      opacity: overlaid.get() ? 1 - (1 - list.edit.lift.opacity) * lift.get() : 0,
+      opacity: overlaid.get() ? 1 : 0,
       left: at.x,
       top: at.y,
       width: at.width,
-      transform: [{ translateX: across.get() }, { translateY: y - liftedFrom.get() - scrolled }],
+      transform: [
+        { translateX: across.get() },
+        { translateY: y - liftedFrom.get() - scrolled },
+        ...liftScale(grown.get(), anchored.get(), fromMiddle.get()),
+      ],
     };
   });
   const copy = still ? (
     <Animated.View style={[styles.copy, copyAt]}>
       <Animated.View style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
-      {still}
+      <Animated.View style={liftedContent}>{still}</Animated.View>
     </Animated.View>
   ) : null;
   const present = (shown: boolean) => overlay?.show(shown ? copy : null);
   // Let go in a new place: SwiftUI's `onMove`, whose destination counts places before the row is taken out.
   const moveTo = (from: number, to: number) => group.onMove?.([from], to > from ? to + 1 : to);
   const scrollGesture = useContext(ListScrollGestureContext);
-  function pickUp(fingerY: number) {
+  function pickUp(fingerX: number, fingerY: number) {
     'worklet';
     if (holding.get()) return;
     holding.set(true);
@@ -920,10 +942,18 @@ const Reorderable = ({
     across.set(0);
     group.active.set(myKey);
     group.moving.set(true);
-    lift.set(withTiming(1, { duration: list.edit.lift.duration, easing: Easing.out(Easing.cubic) }));
+    // Lifted at once, as iOS's is (measured): full size on the first frame and its card and shadow half up, the rest
+    // coming over `lift.duration` as it slides under the finger.
+    const rise = { duration: list.edit.lift.duration, easing: Easing.out(Easing.cubic) };
+    lift.set(list.edit.lift.from);
+    lift.set(withTiming(1, rise));
+    grown.set(1);
+    anchored.set(0);
+    anchored.set(withTiming(1, rise));
     group.lifted.set(true);
     group.held.set(true);
     const row = measure(self);
+    if (row) fromMiddle.set({ x: fingerX - row.pageX - row.width / 2, y: fingerY - row.pageY - row.height / 2 });
     const layer = overlayRef ? measure(overlayRef) : null;
     if (row && layer) {
       // Where the row is drawn now: where it's laid out, and any way it's still moving from a drop.
@@ -951,6 +981,7 @@ const Reorderable = ({
         if (finished) group.moving.set(false);
       }),
     );
+    grown.set(withTiming(0, { duration: list.edit.settle, easing: Easing.inOut(Easing.quad) }));
     lift.set(
       withTiming(0, { duration: list.edit.settle, easing: Easing.inOut(Easing.quad) }, (finished) => {
         if (!finished) return;
@@ -973,10 +1004,10 @@ const Reorderable = ({
     block: scrollGesture ?? undefined,
     // Lifted as the handle is pressed, as iOS's is, before the finger moves; let go without moving, it settles back.
     onBegin: (event) => {
-      pickUp(event.absoluteY);
+      pickUp(event.absoluteX, event.absoluteY);
     },
     onActivate: (event) => {
-      pickUp(event.absoluteY);
+      pickUp(event.absoluteX, event.absoluteY);
     },
     onUpdate: (event) => {
       group.drag.set(event.translationY);
@@ -995,8 +1026,10 @@ const Reorderable = ({
   const rowDrag = usePanGesture({
     enabled: editing,
     activateAfterLongPress: list.edit.holdToLift,
+    // Held by its handle, it's lifted already: the hold doesn't lift it again.
+    requireToFail: handleDrag,
     onActivate: (event) => {
-      pickUp(event.absoluteY);
+      pickUp(event.absoluteX, event.absoluteY);
     },
     onUpdate: (event) => {
       group.drag.set(event.translationY);
@@ -1043,7 +1076,7 @@ const Reorderable = ({
       ) : null}
       <Animated.View style={moved}>
         <Animated.View pointerEvents="none" style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
-        {children({ handleDrag, rowDrag, moveTo })}
+        <Animated.View style={liftedContent}>{children({ handleDrag, rowDrag, moveTo })}</Animated.View>
       </Animated.View>
     </Animated.View>
   );
@@ -1392,8 +1425,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    start: -list.edit.lift.widen,
-    end: -list.edit.lift.widen,
+    start: 0,
+    end: 0,
     borderRadius: list.edit.lift.radius,
     boxShadow: list.edit.lift.shadow,
   },

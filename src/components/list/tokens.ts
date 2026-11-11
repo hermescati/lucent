@@ -142,9 +142,17 @@ export const list = {
     handle: { width: 21, line: 1, gap: 3.8, end: 18 },
     handleRoom: 47,
     spring: { duration: 350, dampingRatio: 1 },
-    // Dragging by the handle (measured): the row lifts at once, 85% opaque on a card a little wider than it, with a soft shadow; the rows it passes slide aside, and let go it settles into its place.
-    // Lifted: square-cornered, on a card `widen` wider at each end, its content where it was.
-    lift: { duration: 150, opacity: 0.85, widen: 6, radius: 0, shadow: '0px 0px 30px rgba(0, 0, 0, 0.25)' },
+    // Dragging by the handle (measured): the row lifts at once, a little bigger, on a solid card with a soft shadow; the rows it passes slide aside, and let go it settles into its place.
+    // Lifted: on a solid square-cornered card, its content at `opacity`, the row and its card `scale` times bigger; on the
+    // first frame it's full size and its card and shadow `from` up, the rest coming over `duration`.
+    lift: {
+      duration: 150,
+      from: 0.5,
+      opacity: 0.85,
+      scale: 1.032,
+      radius: 0,
+      shadow: '0px 0px 30px rgba(0, 0, 0, 0.25)',
+    },
     // The faded copy a dragged row leaves in its place (measured): its content at half opacity, on `ghost`.
     ghost: { opacity: 0.5 },
     move: { duration: 250, dampingRatio: 1 },
