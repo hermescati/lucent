@@ -153,7 +153,7 @@ export const list = {
     drop: { duration: 450, dampingRatio: 1 },
     settle: 450,
     // Selecting (measured): a 22 circle in the delete control's place, ringed in grey or filled with the accent and a
-    // white tick; a selected row turns grey and loses the separators beside it. Ticked, the fill comes in over `fillIn`
+    // white tick; a selected row turns grey, without a separator where it meets one that isn't (two selected keep theirs). Ticked, the fill comes in over `fillIn`
     // and the tick draws itself on, from `draw.delay` for `draw.duration` (measured: about 40ms, then 55 to 290ms, slow
     // at the short leg and quick through the long one); unticked, the fill and tick fade together over `fade`.
     select: {
@@ -215,8 +215,9 @@ export const listColors = {
     page: '#F2F2F7',
     card: '#FFFFFF',
     plain: '#FFFFFF',
-    separator: '#E8E8E8',
-    plainSeparator: '#E8E8E8',
+    // Translucent, as iOS's: 232 over white, and over a selected row's grey too (measured, iOS 27.2).
+    separator: 'rgba(60, 60, 67, 0.12)',
+    plainSeparator: 'rgba(60, 60, 67, 0.12)',
     text: '#000000',
     // iOS's secondary and tertiary labels, translucent: #8A8A8E and #C5C5C7 on white, darker on a selected row's grey.
     secondary: 'rgba(60, 60, 67, 0.6)',
@@ -233,8 +234,8 @@ export const listColors = {
     page: '#000000',
     card: '#1C1C1E',
     plain: '#000000',
-    separator: '#38383B',
-    plainSeparator: '#2A2A2C',
+    separator: 'rgba(84, 84, 88, 0.5)',
+    plainSeparator: 'rgba(84, 84, 88, 0.5)',
     text: '#FFFFFF',
     secondary: 'rgba(235, 235, 245, 0.6)',
     caption: '#8D8D93',

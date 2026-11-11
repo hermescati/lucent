@@ -1209,7 +1209,7 @@ export const ListItem = ({
         {motion && drag ? <GestureDetector gesture={drag.handleDrag}>{handle}</GestureDetector> : null}
         {motion && ghost && rowEdit.movable ? handle : null}
         {/* A plain list's last row has one too, as iOS 27's does; an inset grouped card's doesn't. */}
-        {ghost || (last && style !== 'plain') || (selecting && (selected || nextSelected)) ? null : (
+        {ghost || (last && style !== 'plain') || (selecting && selected !== nextSelected) ? null : (
           <Animated.View
             style={[
               styles.separator,
