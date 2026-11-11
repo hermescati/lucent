@@ -1,9 +1,0 @@
----
-'expo-lucent': patch
----
-
-Open search in the navigation bar as iOS 27 does, matched frame by frame. The trailing capsule turns into the field: the field is up ahead of time, out of sight, so it grows out of the capsule on the first frame; the magnifier goes at once and the capsule's other items fade out on the field as it grows; the title and back button go at once. The field stretches on a strong ease-out over about 230ms and gets bigger as it does, the whole island the one height, close button and all: about 11pt taller from its top with its content about 8% bigger, settling as the close button breaks free. Its content and cross come in blurred and are sharp by 170ms, when it focuses. The close button buds off the field's end from the start, whole by about 150ms and necked to it until it breaks free at about 255ms, where it waited for the field to finish first. The field's glass keeps up with it, where its content could show past it for a frame, and the trailing capsule's glass no longer stays behind it. Its placeholder, cursor and text sit in the middle of the field again, where they'd drawn high: the blur its content comes in through measured the text input at its text's own height. The clear button sits level with the magnifier, in the middle of the field, where it sat a couple of points low.
-
-It starts at the magnifier's press, on the UI thread, rather than a render later. Search mode starts as the field sharpens, and the field is focused once that render has landed: focused before it, Android dropped the focus straight away.
-
-The field's glass now takes over from the capsule's at the press, so its first frame shows the field already stretching, with the magnifier gone that same frame. Search mode starts about 90ms in, and the field is focused once it's sharp, so the cursor comes about 70ms sooner.

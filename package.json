@@ -1,6 +1,6 @@
 {
   "name": "expo-lucent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "iOS 26 Liquid Glass for Expo and React Native: Apple's native glass, tab bar and search on iOS, a matching recreation on Android",
   "main": "build/index.js",
   "types": "build/index.d.ts",
