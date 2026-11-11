@@ -174,8 +174,10 @@ export const list = {
   index: { fontSize: 11, pitch: 13.67, width: 16, touch: 16 },
   // `indexLens`: Lucent's own, drawn as Apple draws a lens under a finger (the slider's thumb, the keyboard's key
   // preview): a glass circle `gap` inward of the index, centred on the finger, the letter in the accent. It comes up on
-  // a quick spring from `from` of its size and goes in `out`; each new letter comes in over `swap`.
+  // a quick spring from `from` of its size and goes in `out`; each new letter comes in over `swap`. While it's up, the
+  // index's other letters draw at `dim`, the touched one at full, so the bar shows where the finger is too.
   indexLens: {
+    dim: 0.3,
     size: 56,
     gap: 12,
     fontSize: 28,

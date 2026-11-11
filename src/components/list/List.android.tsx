@@ -1,6 +1,6 @@
 import { AndroidHaptics, performAndroidHapticsAsync } from 'expo-haptics';
 import { createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
+import { ScrollView, StyleSheet, View, type LayoutChangeEvent, type ScrollViewProps } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -16,6 +16,7 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
@@ -47,6 +48,27 @@ import { ListScrollViewContext } from '../../core/scroll';
 import { Spinner } from '../../core/spinner';
 import { useTabBarReach } from '../../core/tabs/TabBarReach';
 import { useLucentTheme } from '../../theme/LucentProvider';
+
+/** One of the index's letters: with `indexLens`, dimmed while the finger is on another. */
+const IndexLetter = ({
+  label,
+  at,
+  color,
+  picked,
+  touching,
+}: {
+  label: string;
+  at: number;
+  color: string;
+  picked: SharedValue<number>;
+  touching?: SharedValue<number>;
+}) => {
+  const style = useAnimatedStyle(() => {
+    if (!touching || picked.get() === at) return { opacity: 1 };
+    return { opacity: 1 - (1 - list.indexLens.dim) * Math.min(1, touching.get()) };
+  });
+  return <Animated.Text style={[styles.indexLabel, { color }, style]}>{label}</Animated.Text>;
+};
 
 /** The scroll view the screen gives lists (`ListScrollViewContext`), with Lucent's background and no overscroll glow. */
 export const ListScroll = ({
@@ -216,10 +238,15 @@ export const ListScroll = ({
             accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
             onAccessibilityAction={(event) => readTo(readAt + (event.nativeEvent.actionName === 'increment' ? 1 : -1))}
             style={styles.indexTouch}>
-            {entries.map(([label]) => (
-              <Text key={label} style={[styles.indexLabel, { color: color.tint }]}>
-                {label}
-              </Text>
+            {entries.map(([label], at) => (
+              <IndexLetter
+                key={label}
+                label={label}
+                at={at}
+                color={color.tint}
+                picked={picked}
+                touching={indexLens ? touching : undefined}
+              />
             ))}
             {indexLens ? (
               <Animated.View pointerEvents="none" style={[styles.lens, lensStyle]}>
