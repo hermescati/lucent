@@ -40,7 +40,7 @@ export const list = {
   // A plain list's header: further from the rows above it, and pinned under the navigation bar while its section scrolls
   // under it, `pinned` above its text, until the next one pushes it up, the two moving together, and it fades evenly
   // over `fade` of the push; while pinned it has no grey, and the bar's scroll edge reaches down to its bottom, following
-  // it up as it's pushed (measured: 62 from the rows above to the rows below, of which 40 pin; the text's top 14 under
+  // it up as it's pushed until its section's last row is under the bar (measured: 62 from the rows above to the rows below, of which 40 pin; the text's top 14 under
   // the bar; frame by frame, the pushed text half gone 7 up and gone by 15).
   plainHeader: { above: 31, below: 9, pinned: 9, fade: 15 },
   // SwiftUI's `headerProminence(.increased)`, and an action at a header's end: 17pt regular in the accent, on the

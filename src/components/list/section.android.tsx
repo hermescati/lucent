@@ -461,7 +461,9 @@ export const Section = ({
       const pinned = pinHeight.get();
       const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
       const push = Math.max(0, over - (height + nextGap - gap - pinned));
-      return over > 0 && push < plainHeader.fade ? pinned - push : -1;
+      // It stays pinned, the edge down to its bottom, while any of its section is below the bar, its text gone by then:
+      // let go as the last row goes under, the next one's gap meets the bar, without a seam (measured).
+      return over > 0 && over < height - gap ? pinned - push : -1;
     },
     (below, before) => {
       if (!scroll) return;
