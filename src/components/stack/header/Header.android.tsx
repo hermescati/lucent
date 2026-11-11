@@ -42,7 +42,7 @@ import { useHeaderSearchBlock } from './searchBlock.android';
 import { getHeader } from './store.android';
 import { useSwipeMelt } from './swipeMelt.android';
 import { AnimatedNativeGlassBlur, AnimatedNativeGlassView } from '../../../core/glass/NativeGlass';
-import { headerOffset, searchLift } from '../../../core/header/scroll.android';
+import { contentReach, headerOffset, searchLift } from '../../../core/header/scroll.android';
 import { withReturnDip } from '../../../core/motion/island';
 import { useLucentTheme } from '../../../theme/LucentProvider';
 import type { MenuTree } from '../menu/items';
@@ -716,7 +716,11 @@ export const Header = ({ options, route, navigation, back }: NativeStackHeaderPr
   // A field that stays under the row is in the edge too, down to its bottom (iOS 27 simulator). One that scrolls away is
   // gone before the edge comes in. Rising into the row, focused, it takes the edge back up with it.
   const pinnedReach = pinned ? bar.inline + searchMetrics.header.height - bar.row - barMotion.edgeReach : 0;
-  const edgeReach = useDerivedValue(() => pinnedReach * (1 - Math.min(Math.max(searchProgress.get(), 0), 1)));
+  // So is a plain list's pinned section header, down to its bottom (iOS 27 simulator).
+  const pinnedBelow = contentReach(route.key);
+  const edgeReach = useDerivedValue(
+    () => pinnedReach * (1 - Math.min(Math.max(searchProgress.get(), 0), 1)) + pinnedBelow.get(),
+  );
   const rowMiddle = top + bar.row / 2;
   const washStops: [number, number][] | null = untitled
     ? [

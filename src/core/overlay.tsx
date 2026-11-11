@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedRef, type AnimatedRef } from 'react-native-reanimated';
 
@@ -11,7 +11,8 @@ import { createLucentContext } from '../theme/context';
  * `ref` is the layer, which a component measures to place its content.
  */
 export interface ScreenOverlay {
-  show: (node: ReactNode) => void;
+  // What to draw there, in its own slot by `key`, so that several components can share the layer; null takes it away.
+  show: (node: ReactNode, key?: string) => void;
   ref: AnimatedRef<Animated.View>;
 }
 
@@ -19,18 +20,35 @@ export const ScreenOverlayContext = createLucentContext<ScreenOverlay | null>('S
 
 /** A screen's overlay, drawn after `children`. What it shows takes no touches. */
 export const ScreenOverlayHost = ({ children }: { children: ReactNode }) => {
-  const [node, setNode] = useState<ReactNode>(null);
+  const [nodes, setNodes] = useState<Record<string, ReactNode>>({});
   const ref = useAnimatedRef<Animated.View>();
-  const overlay = useMemo(() => ({ show: setNode, ref }), [ref]);
+  const overlay = useMemo(
+    () => ({
+      show: (node: ReactNode, key = 'main') =>
+        setNodes((now) => {
+          if (node == null) {
+            if (!(key in now)) return now;
+            const { [key]: _gone, ...rest } = now;
+            return rest;
+          }
+          return { ...now, [key]: node };
+        }),
+      ref,
+    }),
+    [ref],
+  );
+  const shown = Object.entries(nodes);
   return (
     <ScreenOverlayContext value={overlay}>
       {children}
       <Animated.View ref={ref} pointerEvents="none" style={styles.layer}>
         {/* The bars' buttons are lifted glass, which the screen's backdrop draws over everything else: its content goes
           in glass of its own, lifted after theirs but drawing none, so it draws over them. */}
-        {node != null ? (
+        {shown.length > 0 ? (
           <NativeGlassView lift presence={0} style={styles.fill}>
-            {node}
+            {shown.map(([key, node]) => (
+              <Fragment key={key}>{node}</Fragment>
+            ))}
           </NativeGlassView>
         ) : null}
       </Animated.View>

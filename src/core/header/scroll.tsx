@@ -16,6 +16,8 @@ export const useHeaderOffset = (): SharedValue<number> | undefined => undefined;
 
 export const useSearchLift = (): SharedValue<number> | undefined => undefined;
 
+export const useContentReach = (): SharedValue<number> | undefined => undefined;
+
 export const HeaderScrollProvider = ({
   children,
 }: {

@@ -56,6 +56,13 @@ export interface ListAutoScroll {
   scrollRef: AnimatedRef<Animated.ScrollView>;
   // How far down the scroll view its content shows from, under the navigation bar.
   barTop: number;
+  // The large title's block, which the bar loses as the content scrolls, and how far down the content the sections are
+  // laid out from.
+  snap: number;
+  contentTop: number;
+  // Which section's header is pinned under the bar, and how far under it it reaches, for the bar's scroll edge.
+  pinnedBy: SharedValue<number>;
+  reach?: SharedValue<number>;
 }
 
 export const ListAutoScrollContext = createLucentContext<ListAutoScroll | null>('ListAutoScroll', null);
@@ -429,17 +436,145 @@ export const Section = ({
     }
   });
   const margin = useListMargin();
-  if (hidden) return null;
   const header = slot ?? title;
   const inset = style === 'insetGrouped';
+  // A plain list's header pins under the navigation bar while its section scrolls under it, as iOS's do: the part of it
+  // `plainHeader.pinned` above its text pins, the rest is the gap to the rows above. The next header pushes it up,
+  // and it fades as it goes. Pinned, its text draws in the screen's overlay, over the bar's scroll edge, which reaches
+  // down over it; the copy in the list goes unseen.
+  const { plainHeader } = list;
+  const pins = !inset && header != null && scroll !== null && !hidden;
+  const gap = (first ? list.header.first : plainHeader.above) - plainHeader.pinned;
+  const nextGap = plainHeader.above - plainHeader.pinned;
+  const laid = useSharedValue({ y: 0, height: 0 });
+  const pinHeight = useSharedValue(0);
+  const overlay = useContext(ScreenOverlayContext);
+  const overlayRef = overlay?.ref;
+  const [me] = useState(() => Math.random());
+  // How far the section has scrolled past where its header pins: the header moves down by as much, up to where the next
+  // one starts, and the rest is how far that one pushes it.
+  useAnimatedReaction(
+    () => {
+      if (!pins || !scroll) return -1;
+      const y = scroll.scrollY.get();
+      const { y: at, height } = laid.get();
+      const pinned = pinHeight.get();
+      const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
+      const push = Math.max(0, over - (height + nextGap - gap - pinned));
+      return over > 0 && push < plainHeader.fade ? pinned - push : -1;
+    },
+    (below, before) => {
+      if (!scroll) return;
+      if (below >= 0) {
+        scroll.pinnedBy.set(me);
+        scroll.reach?.set(below);
+      } else if (before !== null && before >= 0 && scroll.pinnedBy.get() === me) {
+        scroll.pinnedBy.set(-1);
+        scroll.reach?.set(0);
+      }
+    },
+  );
+  useEffect(
+    () => () => {
+      if (scroll && scroll.pinnedBy.get() === me) {
+        scroll.pinnedBy.set(-1);
+        scroll.reach?.set(0);
+      }
+    },
+    [scroll, me],
+  );
+  const pinStyle = useAnimatedStyle(() => {
+    if (!pins || !scroll) return { opacity: 1, transform: [{ translateY: 0 }] };
+    const y = scroll.scrollY.get();
+    const { y: at, height } = laid.get();
+    const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
+    if (over <= 0) return { opacity: 1, transform: [{ translateY: 0 }] };
+    const most = height + nextGap - gap - pinHeight.get();
+    const push = Math.max(0, over - most);
+    return {
+      opacity: overlayRef ? 0 : 1 - Math.min(1, push / plainHeader.fade),
+      transform: [{ translateY: Math.min(over, most) }],
+    };
+  });
+  // The pinned copy, where the list's would be on the screen.
+  const copyStyle = useAnimatedStyle(() => {
+    if (!pins || !scroll || !overlayRef) return { opacity: 0 };
+    const y = scroll.scrollY.get();
+    const { y: at, height } = laid.get();
+    const line = scroll.barTop - Math.min(Math.max(y, 0), scroll.snap);
+    const over = y + line - (at + scroll.contentTop + gap);
+    const push = Math.max(0, over - (height + nextGap - gap - pinHeight.get()));
+    if (over <= 0 || push >= plainHeader.fade) return { opacity: 0 };
+    const box = measure(scroll.scrollRef);
+    const layer = measure(overlayRef);
+    if (!box || !layer) return { opacity: 0 };
+    return {
+      opacity: 1 - push / plainHeader.fade,
+      width: box.width,
+      transform: [{ translateX: box.pageX - layer.pageX }, { translateY: box.pageY - layer.pageY + line - push }],
+    };
+  });
+  const prominent = headerProminence === 'increased';
+  const headerContent =
+    header == null ? null : headerAction ? (
+      // An action at the header's end, in the accent, on its baseline (measured).
+      <View style={styles.headerRow}>
+        <View style={styles.headerText}>
+          <Caption kind="header" prominent={prominent}>
+            {header}
+          </Caption>
+        </View>
+        <Pressable accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
+          <Text style={[styles.headerAction, { color: color.tint }]}>{headerAction.label}</Text>
+        </Pressable>
+      </View>
+    ) : (
+      <Caption kind="header" prominent={prominent}>
+        {header}
+      </Caption>
+    );
+  const show = overlay?.show;
+  const copyKey = `pinned-${me}`;
+  useEffect(() => {
+    if (!pins || !show) return;
+    show(
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.pinnedCopy,
+          { paddingHorizontal: margin, paddingTop: plainHeader.pinned, paddingBottom: plainHeader.below },
+          copyStyle,
+        ]}>
+        {headerContent}
+      </Animated.View>,
+      copyKey,
+    );
+  }, [pins, show, copyKey, margin, header, prominent, headerAction?.label, headerAction?.onPress]);
+  useEffect(() => (show ? () => show(null, copyKey) : undefined), [show, copyKey]);
+  if (hidden) return null;
   return (
     <View
       testID={testID}
       style={inset ? { marginHorizontal: margin } : null}
-      onLayout={
-        indexLabel !== undefined && index ? (event) => index(indexLabel, event.nativeEvent.layout.y) : undefined
-      }>
-      {header != null ? (
+      onLayout={(event) => {
+        const { y, height } = event.nativeEvent.layout;
+        laid.set({ y, height });
+        if (indexLabel !== undefined && index) index(indexLabel, y);
+      }}>
+      {header != null && pins ? (
+        <>
+          <View style={{ height: Math.max(0, gap) }} />
+          <Animated.View
+            onLayout={(event) => pinHeight.set(event.nativeEvent.layout.height)}
+            style={[
+              styles.pinned,
+              { paddingHorizontal: margin, paddingTop: plainHeader.pinned, paddingBottom: plainHeader.below },
+              pinStyle,
+            ]}>
+            {headerContent}
+          </Animated.View>
+        </>
+      ) : header != null ? (
         <View
           style={[
             { paddingHorizontal: margin },
@@ -530,6 +665,9 @@ export const sectionsOf = (children: ReactNode) => {
 
 const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'baseline' },
+  // Over its section's rows as it moves down with them.
+  pinned: { zIndex: 1 },
+  pinnedCopy: { position: 'absolute', top: 0, left: 0 },
   headerText: { flex: 1 },
   headerAction: { fontSize: list.headerAction.fontSize, lineHeight: list.headerAction.lineHeight },
   topSeparator: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth },

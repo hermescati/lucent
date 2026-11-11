@@ -33,7 +33,13 @@ import {
 } from './section.android';
 import { list } from './tokens';
 import type { ListProps } from './types';
-import { useHeaderInset, useHeaderOffset, useHeaderSnap, useToolbarInset } from '../../core/header/scroll';
+import {
+  useContentReach,
+  useHeaderInset,
+  useHeaderOffset,
+  useHeaderSnap,
+  useToolbarInset,
+} from '../../core/header/scroll';
 import { ListScrollViewContext } from '../../core/scroll';
 import { Spinner } from '../../core/spinner';
 import { useTabBarReach } from '../../core/tabs/TabBarReach';
@@ -60,7 +66,16 @@ export const ListScroll = ({
   const finger = useSharedValue(-1);
   const contentHeight = useSharedValue(0);
   const barTop = useHeaderInset();
-  const autoScroll = useMemo(() => ({ finger, scrollY, scrollRef, barTop }), [finger, scrollY, scrollRef, barTop]);
+  // For a plain list's pinned headers: the large title's block, where the sections start in the content, which header
+  // is pinned, and how far under the bar it reaches, for the bar's scroll edge.
+  const snap = useHeaderSnap();
+  const contentTop = onRefresh ? barTop : 0;
+  const pinnedBy = useSharedValue(-1);
+  const reach = useContentReach();
+  const autoScroll = useMemo(
+    () => ({ finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach }),
+    [finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach],
+  );
   const toolbar = useToolbarInset();
   const tabBar = useTabBarReach();
   const scrolling = useFrameCallback((frame) => {
