@@ -5,6 +5,10 @@
 - **iOS:** SwiftUI's `List` and `Form`, through `@expo/ui`. Lucent places the `Host` and draws its extras as SwiftUI does.
 - **Android:** Lucent's recreation, in a scroll view that the navigation bar and tab bar follow: the large title collapses as the list scrolls, the tab bar minimizes, and the list clears both bars.
 
+<p align="center">
+  <img src="../media/lists.webp" width="360" alt="Lucent's lists on Android in dark mode: an inbox row swiped open to its Flag and Archive actions and closed, another swiped the other way to Read, then edit mode with a row lifted by its handle and dragged two places down, then a contacts list jumping through its sections along the index" />
+</p>
+
 > Try it: in the [playground](../../example), open **Components → Lists**.
 
 ## Usage
