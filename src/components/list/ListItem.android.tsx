@@ -912,15 +912,17 @@ const Reorderable = ({
   const liftedCard = useAnimatedStyle(() => ({ opacity: lift.get() }));
   const liftedContent = useAnimatedStyle(() => ({ opacity: 1 - (1 - list.edit.lift.opacity) * lift.get() }));
   // The copy follows the finger, and let go, the row's settling into its place, until it has settled.
-  const copyAt = useAnimatedStyle(() => {
+  // Where it was lifted from, set once on its own: a style sends all it holds whenever any of it changes, and these, sent
+  // with the drag's every frame, would lay the copy out every frame.
+  const copyPlace = useAnimatedStyle(() => {
     const at = liftedAt.get();
+    return { left: at.x, top: at.y, width: at.width };
+  });
+  const copyAt = useAnimatedStyle(() => {
     const scrolled = auto ? auto.scrollY.get() - scrolledFrom.get() : 0;
     const y = holding.get() ? liftedFrom.get() + group.drag.get() + scrolled : placed.get();
     return {
       opacity: overlaid.get() ? 1 : 0,
-      left: at.x,
-      top: at.y,
-      width: at.width,
       transform: [
         { translateX: across.get() },
         { translateY: y - liftedFrom.get() - scrolled },
@@ -929,7 +931,7 @@ const Reorderable = ({
     };
   });
   const copy = still ? (
-    <Animated.View style={[styles.copy, copyAt]}>
+    <Animated.View style={[styles.copy, copyPlace, copyAt]}>
       <Animated.View style={[styles.liftedCard, { backgroundColor: colors.card }, liftedCard]} />
       <Animated.View style={liftedContent}>{still}</Animated.View>
     </Animated.View>

@@ -455,7 +455,7 @@ export const Section = ({
   // The first section's header sits closer under the bar than the pinned part's own room above its text: no gap there.
   const gap = Math.max(0, (first ? list.header.first : plainHeader.above) - plainHeader.pinned);
   const nextGap = plainHeader.above - plainHeader.pinned;
-  const laid = useSharedValue({ y: 0, height: 0 });
+  const laid = useSharedValue({ y: 0, height: 0, width: 0 });
   const pinHeight = useSharedValue(0);
   const overlay = useContext(ScreenOverlayContext);
   const overlayRef = overlay?.ref;
@@ -514,6 +514,9 @@ export const Section = ({
     };
   });
   // The pinned copy, where the list's would be on the screen.
+  // The copy is as wide as the section, a plain list's being edge to edge: on its own, as a style sends all it holds
+  // whenever any of it changes, and a width sent with the scroll's every frame would lay the copy out every frame.
+  const copyWidth = useAnimatedStyle(() => ({ width: laid.get().width }));
   const copyStyle = useAnimatedStyle(() => {
     if (!pins || !scroll || !overlayRef) return { opacity: 0 };
     const y = scroll.scrollY.get();
@@ -529,7 +532,6 @@ export const Section = ({
     if (!box || !layer) return { opacity: 0 };
     return {
       opacity: 1 - push / plainHeader.fade,
-      width: box.width,
       transform: [
         { translateX: box.pageX - layer.pageX },
         { translateY: box.pageY - layer.pageY + line - (over > 0 ? push : over) },
@@ -567,6 +569,7 @@ export const Section = ({
         style={[
           styles.pinnedCopy,
           { paddingHorizontal: margin, paddingTop: plainHeader.pinned, paddingBottom: plainHeader.below },
+          copyWidth,
           copyStyle,
         ]}>
         {headerContent}
@@ -581,8 +584,8 @@ export const Section = ({
       testID={testID}
       style={inset ? { marginHorizontal: margin } : null}
       onLayout={(event) => {
-        const { y, height } = event.nativeEvent.layout;
-        laid.set({ y, height });
+        const { y, height, width } = event.nativeEvent.layout;
+        laid.set({ y, height, width });
         // The index jumps a pinning header itself under the bar, not the gap above it, as iOS's does.
         if (indexLabel !== undefined && index) index(indexLabel, y + (pins ? gap : 0));
       }}>
