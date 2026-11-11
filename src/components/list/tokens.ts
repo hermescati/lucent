@@ -38,10 +38,11 @@ export const list = {
   // Section headers (body semibold, sentence case) and footers (footnote), in the card's inset; spacing around them.
   header: { fontSize: 17, lineHeight: 22, fontWeight: '600', above: 26, below: 10, first: 6 },
   // A plain list's header: further from the rows above it, and pinned under the navigation bar while its section scrolls
-  // under it, `pinned` above its text, until the next one pushes it up and it fades within `fade` of the push; while
-  // pinned it has no grey, and the bar's scroll edge reaches down over it (measured: 62 from the rows above to the rows
-  // below, of which 40 pin; the text's top 14 under the bar).
-  plainHeader: { above: 31, below: 9, pinned: 9, fade: 6 },
+  // under it, `pinned` above its text, until the next one pushes it up, the two moving together, and it fades evenly
+  // over `fade` of the push; while pinned it has no grey, and the bar's scroll edge reaches down to its bottom, following
+  // it up as it's pushed (measured: 62 from the rows above to the rows below, of which 40 pin; the text's top 14 under
+  // the bar; frame by frame, the pushed text half gone 7 up and gone by 15).
+  plainHeader: { above: 31, below: 9, pinned: 9, fade: 15 },
   // SwiftUI's `headerProminence(.increased)`, and an action at a header's end: 17pt regular in the accent, on the
   // header's baseline (measured).
   prominent: { fontSize: 20, lineHeight: 25, fontWeight: '600' },
