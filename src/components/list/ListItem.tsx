@@ -80,7 +80,7 @@ export const ListItem = ({
         {detail != null ? <Text modifiers={[foregroundStyle(PlatformColor('secondaryLabel'))]}>{detail}</Text> : null}
         {accessory === 'disclosure' ? (
           <Image
-            systemName="chevron.right"
+            systemName="chevron.forward"
             modifiers={[
               font({ textStyle: 'footnote', weight: 'semibold' }),
               foregroundStyle(PlatformColor('tertiaryLabel')),
