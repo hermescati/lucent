@@ -35,6 +35,9 @@ export const list = {
   // UIKit's detail button, the accent ⓘ (measured: about 22 across, 9 after the value, its end the row's padding in);
   // Material's glyph fills less of its box, so it's drawn larger.
   info: { size: 26, gap: 7, hitSlop: 10 },
+  // A borderless button's highlight, a header's action and the ⓘ alike: at once to `pressed` (21%, measured on iOS 27.2,
+  // held as long as the finger is), back over `back` ms, quick at first, as UIKit's.
+  highlight: { pressed: 0.21, back: 450 },
   // Section headers (body semibold, sentence case) and footers (footnote), in the card's inset; spacing around them.
   header: { fontSize: 17, lineHeight: 22, fontWeight: '600', above: 26, below: 10, first: 6 },
   // A plain list's header: further from the rows above it, and pinned under the navigation bar while its section scrolls

@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { useNativeGesture } from 'react-native-gesture-handler';
 import Animated, {
   makeMutable,
@@ -23,6 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { HighlightButton } from './highlight.android';
 import { list, listColors } from './tokens';
 import type { FieldSectionProps, ListForEachProps, ListStyle } from './types';
 import { ScreenOverlayContext } from '../../core/overlay';
@@ -541,9 +542,9 @@ export const Section = ({
             {header}
           </Caption>
         </View>
-        <Pressable accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
+        <HighlightButton accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
           <Text style={[styles.headerAction, { color: color.tint }]}>{headerAction.label}</Text>
-        </Pressable>
+        </HighlightButton>
       </View>
     ) : (
       <Caption kind="header" prominent={prominent}>
@@ -606,9 +607,9 @@ export const Section = ({
                   {header}
                 </Caption>
               </View>
-              <Pressable accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
+              <HighlightButton accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
                 <Text style={[styles.headerAction, { color: color.tint }]}>{headerAction.label}</Text>
-              </Pressable>
+              </HighlightButton>
             </View>
           ) : (
             <Caption kind="header" prominent={headerProminence === 'increased'}>

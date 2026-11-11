@@ -29,6 +29,7 @@ import Animated, {
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { HighlightButton } from './highlight.android';
 import {
   ListAutoScrollContext,
   ListEditContext,
@@ -1178,14 +1179,14 @@ export const ListItem = ({
             </Animated.View>
           ) : accessory === 'info' ? (
             // UIKit's detail button: a tap on it answers apart from the row's.
-            <Pressable
+            <HighlightButton
               accessibilityRole="button"
               accessibilityLabel="More info"
               hitSlop={list.info.hitSlop}
               onPress={onAccessoryPress}
               style={styles.info}>
               <MaterialSymbol name="info" size={list.info.size} tintColor={color.tint} />
-            </Pressable>
+            </HighlightButton>
           ) : null}
         </Animated.View>
         {motion && selectable ? (
