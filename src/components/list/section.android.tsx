@@ -60,7 +60,8 @@ export interface ListAutoScroll {
   // laid out from.
   snap: number;
   contentTop: number;
-  // Which section's header is pinned under the bar, and how far under it it reaches, for the bar's scroll edge.
+  // How many sections have scrolled past where their headers pin, and how far under the bar the pinned one reaches,
+  // for the bar's scroll edge.
   pinnedBy: SharedValue<number>;
   reach?: SharedValue<number>;
 }
@@ -451,6 +452,8 @@ export const Section = ({
   const overlay = useContext(ScreenOverlayContext);
   const overlayRef = overlay?.ref;
   const [me] = useState(() => Math.random());
+  // Whether it's scrolled past where its header pins, counted in `pinnedBy`.
+  const past = useSharedValue(false);
   // How far the section has scrolled past where its header pins: the header moves down by as much, up to where the next
   // one starts, and the rest is how far that one pushes it.
   useAnimatedReaction(
@@ -460,37 +463,40 @@ export const Section = ({
       const { y: at, height } = laid.get();
       const pinned = pinHeight.get();
       const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
-      const push = Math.max(0, over - (height + nextGap - gap - pinned));
-      // It stays pinned, the edge down to its bottom, while any of its section is below the bar, its text gone by then:
-      // let go as the last row goes under, the next one's gap meets the bar, without a seam (measured).
-      return over > 0 && over < height - gap ? pinned - push : -1;
+      return over > 0 ? pinned : -1;
     },
+    // The bar's edge reaches down over the pinned headers at one height from the first one's pinning on, through every
+    // push and hand over: iOS draws back to the bar for a moment as one lets go and the next comes up, but a height lands
+    // a frame or more behind the scroll on Android, which showed as a strip of the next one's gap under the bar.
     (below, before) => {
       if (!scroll) return;
-      if (below >= 0) {
-        scroll.pinnedBy.set(me);
+      const was = before !== null && before >= 0;
+      if (below >= 0 && !was) {
+        scroll.pinnedBy.set(scroll.pinnedBy.get() + 1);
         scroll.reach?.set(below);
-      } else if (before !== null && before >= 0 && scroll.pinnedBy.get() === me) {
-        scroll.pinnedBy.set(-1);
-        scroll.reach?.set(0);
+      } else if (below < 0 && was) {
+        scroll.pinnedBy.set(Math.max(0, scroll.pinnedBy.get() - 1));
+        if (scroll.pinnedBy.get() === 0) scroll.reach?.set(0);
       }
+      past.set(below >= 0);
     },
   );
   useEffect(
     () => () => {
-      if (scroll && scroll.pinnedBy.get() === me) {
-        scroll.pinnedBy.set(-1);
-        scroll.reach?.set(0);
-      }
+      if (!scroll || !past.get()) return;
+      scroll.pinnedBy.set(Math.max(0, scroll.pinnedBy.get() - 1));
+      if (scroll.pinnedBy.get() === 0) scroll.reach?.set(0);
     },
-    [scroll, me],
+    [scroll, past],
   );
   const pinStyle = useAnimatedStyle(() => {
     if (!pins || !scroll) return { opacity: 1, transform: [{ translateY: 0 }] };
     const y = scroll.scrollY.get();
     const { y: at, height } = laid.get();
     const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
-    if (over <= 0) return { opacity: 1, transform: [{ translateY: 0 }] };
+    // Coming up under the edge while another's pinned, it draws in the overlay already, over the edge.
+    const under = overlayRef && over > -pinHeight.get() && (scroll.reach?.get() ?? 0) > 0;
+    if (over <= 0) return { opacity: under ? 0 : 1, transform: [{ translateY: 0 }] };
     const most = height + nextGap - gap - pinHeight.get();
     const push = Math.max(0, over - most);
     return {
@@ -506,14 +512,19 @@ export const Section = ({
     const line = scroll.barTop - Math.min(Math.max(y, 0), scroll.snap);
     const over = y + line - (at + scroll.contentTop + gap);
     const push = Math.max(0, over - (height + nextGap - gap - pinHeight.get()));
-    if (over <= 0 || push >= plainHeader.fade) return { opacity: 0 };
+    // Pinned, or coming up under the edge that reaches over another's pinned header, where the list's would be washed.
+    const coming = over <= 0 && over > -pinHeight.get() && (scroll.reach?.get() ?? 0) > 0;
+    if ((over <= 0 && !coming) || push >= plainHeader.fade) return { opacity: 0 };
     const box = measure(scroll.scrollRef);
     const layer = measure(overlayRef);
     if (!box || !layer) return { opacity: 0 };
     return {
       opacity: 1 - push / plainHeader.fade,
       width: box.width,
-      transform: [{ translateX: box.pageX - layer.pageX }, { translateY: box.pageY - layer.pageY + line - push }],
+      transform: [
+        { translateX: box.pageX - layer.pageX },
+        { translateY: box.pageY - layer.pageY + line - (over > 0 ? push : over) },
+      ],
     };
   });
   const prominent = headerProminence === 'increased';

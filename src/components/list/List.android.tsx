@@ -70,7 +70,7 @@ export const ListScroll = ({
   // is pinned, and how far under the bar it reaches, for the bar's scroll edge.
   const snap = useHeaderSnap();
   const contentTop = onRefresh ? barTop : 0;
-  const pinnedBy = useSharedValue(-1);
+  const pinnedBy = useSharedValue(0);
   const reach = useContentReach();
   const autoScroll = useMemo(
     () => ({ finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach }),
