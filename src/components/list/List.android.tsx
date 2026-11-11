@@ -76,10 +76,11 @@ export const ListScroll = ({
   const snap = useHeaderSnap();
   const contentTop = onRefresh ? barTop : 0;
   const pinnedBy = useSharedValue(0);
+  const moving = useSharedValue(false);
   const reach = useContentReach();
   const autoScroll = useMemo(
-    () => ({ finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach }),
-    [finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach],
+    () => ({ finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach, moving }),
+    [finger, scrollY, scrollRef, barTop, snap, contentTop, pinnedBy, reach, moving],
   );
   const toolbar = useToolbarInset();
   const tabBar = useTabBarReach();
@@ -293,6 +294,16 @@ export const ListScroll = ({
     // Scrolling closes a row's open actions, as iOS's does.
     onBeginDrag: () => {
       openRow.set(-1);
+      moving.set(true);
+    },
+    onEndDrag: (event) => {
+      if (Math.abs(event.velocity?.y ?? 0) < 0.01) moving.set(false);
+    },
+    onMomentumBegin: () => {
+      moving.set(true);
+    },
+    onMomentumEnd: () => {
+      moving.set(false);
     },
   });
   const native = useNativeGesture({});

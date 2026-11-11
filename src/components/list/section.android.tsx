@@ -64,6 +64,8 @@ export interface ListAutoScroll {
   // for the bar's scroll edge.
   pinnedBy: SharedValue<number>;
   reach?: SharedValue<number>;
+  // Whether the list is being scrolled by a finger or a fling, rather than at rest or jumped.
+  moving: SharedValue<boolean>;
 }
 
 export const ListAutoScrollContext = createLucentContext<ListAutoScroll | null>('ListAutoScroll', null);
@@ -445,33 +447,36 @@ export const Section = ({
   // down over it; the copy in the list goes unseen.
   const { plainHeader } = list;
   const pins = !inset && header != null && scroll !== null && !hidden;
-  const gap = (first ? list.header.first : plainHeader.above) - plainHeader.pinned;
+  // The first section's header sits closer under the bar than the pinned part's own room above its text: no gap there.
+  const gap = Math.max(0, (first ? list.header.first : plainHeader.above) - plainHeader.pinned);
   const nextGap = plainHeader.above - plainHeader.pinned;
   const laid = useSharedValue({ y: 0, height: 0 });
   const pinHeight = useSharedValue(0);
   const overlay = useContext(ScreenOverlayContext);
   const overlayRef = overlay?.ref;
   const [me] = useState(() => Math.random());
-  // Whether it's scrolled past where its header pins, counted in `pinnedBy`.
+  // Whether it holds the bar's edge down over it, counted in `pinnedBy`.
   const past = useSharedValue(false);
-  // Whether the section has scrolled past where its header pins.
+  // At rest, as iOS's: the edge reaches down over a header while it's pinned, its section still under it. Moving, each
+  // section holds it from a point before its header comes up to the bar until its last row goes under, so that through a
+  // push and hand over the edge stays at one height: iOS draws back to the bar for a moment as one lets go and the next
+  // comes up, but a height lands a frame or more behind the scroll on Android, which showed as a strip under the bar.
   useAnimatedReaction(
     () => {
       if (!pins || !scroll) return -1;
       const y = scroll.scrollY.get();
-      const { y: at } = laid.get();
+      const { y: at, height } = laid.get();
       const pinned = pinHeight.get();
       const over = y + scroll.barTop - Math.min(Math.max(y, 0), scroll.snap) - (at + scroll.contentTop + gap);
-      return over > 0 ? pinned : -1;
+      const from = scroll.moving.get() ? -gap - 1 : 0;
+      return over > from && over < height - gap ? pinned : -1;
     },
-    // The bar's edge reaches down over the pinned headers at one height from the first one's pinning on, through every
-    // push and hand over: iOS draws back to the bar for a moment as one lets go and the next comes up, but a height lands
-    // a frame or more behind the scroll on Android, which showed as a strip of the next one's gap under the bar.
     (below, before) => {
       if (!scroll) return;
       const was = before !== null && before >= 0;
-      if (below >= 0 && !was) {
-        scroll.pinnedBy.set(scroll.pinnedBy.get() + 1);
+      if (below >= 0) {
+        // Also as the header's height comes in, which can be after it's past.
+        if (!was) scroll.pinnedBy.set(scroll.pinnedBy.get() + 1);
         scroll.reach?.set(below);
       } else if (below < 0 && was) {
         scroll.pinnedBy.set(Math.max(0, scroll.pinnedBy.get() - 1));
@@ -571,7 +576,8 @@ export const Section = ({
       onLayout={(event) => {
         const { y, height } = event.nativeEvent.layout;
         laid.set({ y, height });
-        if (indexLabel !== undefined && index) index(indexLabel, y);
+        // The index jumps a pinning header itself under the bar, not the gap above it, as iOS's does.
+        if (indexLabel !== undefined && index) index(indexLabel, y + (pins ? gap : 0));
       }}>
       {header != null && pins ? (
         <>
