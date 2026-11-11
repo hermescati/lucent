@@ -25,6 +25,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { HighlightButton } from './highlight.android';
 import { list, listColors } from './tokens';
+import { useListType } from './type.android';
 import type { FieldSectionProps, ListForEachProps, ListStyle } from './types';
 import { ScreenOverlayContext } from '../../core/overlay';
 import { useLucentTheme } from '../../theme/LucentProvider';
@@ -361,15 +362,17 @@ const Caption = ({
   prominent?: boolean;
 }) => {
   const colors = useListColors();
+  const sized = useListType();
   const type = kind === 'footer' ? list.footer : prominent ? list.prominent : list.header;
+  const size = kind === 'footer' ? sized.footer : prominent ? sized.prominent : sized.header;
   if (typeof children !== 'string' && typeof children !== 'number') return <>{children}</>;
   return (
     <Text
+      allowFontScaling={false}
       style={[
         styles.caption,
+        size,
         {
-          fontSize: type.fontSize,
-          lineHeight: type.lineHeight,
           fontWeight: type.fontWeight,
           // An increased header is in the primary colour, as SwiftUI's.
           color: prominent ? colors.text : colors.caption,
@@ -395,6 +398,7 @@ export const Section = ({
   first = false,
 }: FieldSectionProps & { first?: boolean }) => {
   const { color } = useLucentTheme();
+  const actionType = useListType().title;
   const style = useContext(ListStyleContext) ?? 'insetGrouped';
   const index = useContext(ListIndexContext);
   useEffect(() => {
@@ -543,7 +547,9 @@ export const Section = ({
           </Caption>
         </View>
         <HighlightButton accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
-          <Text style={[styles.headerAction, { color: color.tint }]}>{headerAction.label}</Text>
+          <Text allowFontScaling={false} style={[styles.headerAction, actionType, { color: color.tint }]}>
+            {headerAction.label}
+          </Text>
         </HighlightButton>
       </View>
     ) : (
@@ -608,7 +614,9 @@ export const Section = ({
                 </Caption>
               </View>
               <HighlightButton accessibilityRole="button" hitSlop={10} onPress={headerAction.onPress}>
-                <Text style={[styles.headerAction, { color: color.tint }]}>{headerAction.label}</Text>
+                <Text allowFontScaling={false} style={[styles.headerAction, actionType, { color: color.tint }]}>
+                  {headerAction.label}
+                </Text>
               </HighlightButton>
             </View>
           ) : (

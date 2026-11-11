@@ -67,7 +67,12 @@ const IndexLetter = ({
     if (!touching || picked.get() === at) return { opacity: 1 };
     return { opacity: 1 - (1 - list.indexLens.dim) * Math.min(1, touching.get()) };
   });
-  return <Animated.Text style={[styles.indexLabel, { color }, style]}>{label}</Animated.Text>;
+  // The index keeps its size at any text size, as iOS's does (measured on iOS 27.2: 11pt from Large to AX2).
+  return (
+    <Animated.Text allowFontScaling={false} style={[styles.indexLabel, { color }, style]}>
+      {label}
+    </Animated.Text>
+  );
 };
 
 /** The scroll view the screen gives lists (`ListScrollViewContext`), with Lucent's background and no overscroll glow. */
@@ -256,7 +261,9 @@ export const ListScroll = ({
                   animatedProps={lensProps}
                   cornerRadius={lens.size / 2}
                   style={styles.lensGlass}>
-                  <Animated.Text style={[styles.lensLetter, { color: color.tint }, lensLetter]}>
+                  <Animated.Text
+                    allowFontScaling={false}
+                    style={[styles.lensLetter, { color: color.tint }, lensLetter]}>
                     {entries[Math.min(readAt, entries.length - 1)]?.[0]}
                   </Animated.Text>
                 </AnimatedNativeGlassView>

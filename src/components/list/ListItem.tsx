@@ -12,9 +12,10 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { Children, isValidElement, useContext, type ReactElement, type ReactNode } from 'react';
-import { PlatformColor } from 'react-native';
+import { PlatformColor, useWindowDimensions } from 'react-native';
 
 import { ListSelectingContext } from './selectable';
+import { list } from './tokens';
 import type { ListItemProps, SwipeAction } from './types';
 
 // A `<ListItem.Trailing>` among the children: taken out, so the row's own trailing content (detail, accessory) can go
@@ -62,6 +63,11 @@ export const ListItem = ({
   ...props
 }: ListItemProps) => {
   const { slot, rest } = trailingSlot(children);
+  // At accessibility text sizes the value goes under the title, as UIKit's value cells and Settings' rows put it (measured
+  // on iOS 27.2: beside at XXXL, under from AX1), rather than squeezing both onto one line.
+  const stacked = useWindowDimensions().fontScale > list.stackedAbove;
+  const value =
+    detail != null ? <Text modifiers={[foregroundStyle(PlatformColor('secondaryLabel'))]}>{detail}</Text> : null;
   // SwiftUI draws text only in a `Text`: a bare string in its stack would crash it. A React Native view has no size of
   // its own there and would stretch across the row, so it's hosted at its laid-out size, as `@expo/ui`'s row does.
   const given = slot ?? trailing;
@@ -74,10 +80,10 @@ export const ListItem = ({
       given
     );
   const end =
-    own != null || detail != null || accessory ? (
+    own != null || (detail != null && !stacked) || accessory ? (
       <HStack spacing={6}>
         {own}
-        {detail != null ? <Text modifiers={[foregroundStyle(PlatformColor('secondaryLabel'))]}>{detail}</Text> : null}
+        {stacked ? null : value}
         {accessory === 'disclosure' ? (
           <Image
             systemName="chevron.forward"
@@ -110,13 +116,27 @@ export const ListItem = ({
     : rest;
   // A second line given as a string, in iOS's secondary grey at subheadline size: `@expo/ui` names the grey in a way its
   // native side doesn't read, and draws it black.
-  const supporting =
+  const second =
     typeof supportingText === 'string' ? (
       <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(PlatformColor('secondaryLabel'))]}>
         {supportingText}
       </Text>
     ) : (
       supportingText
+    );
+  // Stacked, the value comes under the second line.
+  const supporting =
+    stacked && value ? (
+      second != null ? (
+        <VStack alignment="leading" spacing={2}>
+          {second}
+          {value}
+        </VStack>
+      ) : (
+        value
+      )
+    ) : (
+      second
     );
   const ownModifiers = [
     // The ticked choice reads as selected, as a checkmarked cell does with VoiceOver.

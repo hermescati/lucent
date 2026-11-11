@@ -10,7 +10,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { I18nManager, PixelRatio, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { I18nManager, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -45,6 +45,7 @@ import {
   type RowEdit,
 } from './section.android';
 import { list } from './tokens';
+import { useListType } from './type.android';
 import type { ListItemProps, SwipeAction } from './types';
 import { continuousRect } from '../../core/glass/continuous';
 import { MaterialSymbol } from '../../core/icons/MaterialSymbol';
@@ -71,9 +72,13 @@ const slotsOf = (children: ReactNode) => {
 
 const textual = (node: ReactNode) => typeof node === 'string' || typeof node === 'number';
 
-// SF Symbols' `chevron.right` at footnote semibold, and `checkmark` at body semibold, as a cell's accessories draw.
-const Chevron = ({ color }: { color: string }) => {
-  const { width, height, stroke } = list.chevron;
+// SF Symbols' `chevron.right` at footnote semibold, and `checkmark` at body semibold, as a cell's accessories draw. They
+// grow with the text, as a symbol in a text style does (measured on iOS 27.2: the chevron 11.7pt tall at Large, 16 at
+// XXXL, 19.7 at AX1, 23 at AX2, as body text grows).
+const Chevron = ({ color, scale }: { color: string; scale: number }) => {
+  const width = list.chevron.width * scale;
+  const height = list.chevron.height * scale;
+  const stroke = list.chevron.stroke * scale;
   const inset = stroke / 2;
   return (
     <Svg width={width} height={height} style={mirrored ? styles.flipped : null}>
@@ -89,8 +94,10 @@ const Chevron = ({ color }: { color: string }) => {
   );
 };
 
-const Checkmark = ({ color }: { color: string }) => {
-  const { width, height, stroke } = list.checkmark;
+const Checkmark = ({ color, scale }: { color: string; scale: number }) => {
+  const width = list.checkmark.width * scale;
+  const height = list.checkmark.height * scale;
+  const stroke = list.checkmark.stroke * scale;
   const inset = stroke / 2;
   return (
     <Svg width={width} height={height}>
@@ -1112,12 +1119,14 @@ export const ListItem = ({
   const leading = slots.leading ?? leadingProp;
   const trailing = slots.trailing ?? trailingProp;
   const supporting = slots.supporting ?? supportingText;
-  const [leadingWidth, setLeadingWidth] = useState(0);
+  const [leadingSize, setLeadingSize] = useState({ width: 0, height: 0 });
+  const leadingWidth = leadingSize.width;
   // Rows grow with the text size, as iOS's do.
-  const scale = PixelRatio.getFontScale();
+  const type = useListType();
+  const scale = type.grow;
   // At accessibility text sizes iOS stacks a row's value under its title rather than beside it, where it would leave
   // the title too little room to fit a word.
-  const stacked = scale >= list.stackedFrom;
+  const stacked = type.stacked;
 
   // Edit mode: a row its `List.ForEach` can delete makes room for the delete control, one it can move shows the handle.
   const edit = useContext(ListEditContext);
@@ -1177,7 +1186,14 @@ export const ListItem = ({
       <View
         style={[
           styles.row,
-          { minHeight: list.rowMinHeight * scale },
+          // As tall as its text needs, or its leading view with room above and below it (measured on iOS 27.2: a row
+          // with a 29pt icon 59pt at Large, a row of text 52).
+          {
+            minHeight: Math.max(
+              list.rowMinHeight + type.taller,
+              leading != null ? leadingSize.height + 2 * list.leadingRoom : 0,
+            ),
+          },
           selecting && selected ? { backgroundColor: colors.selected } : null,
         ]}>
         <Animated.View
@@ -1191,46 +1207,68 @@ export const ListItem = ({
           {leading != null ? (
             <Animated.View
               style={styles.leading}
-              onLayout={(event: LayoutChangeEvent) => setLeadingWidth(event.nativeEvent.layout.width)}>
+              onLayout={(event: LayoutChangeEvent) => {
+                const { width, height } = event.nativeEvent.layout;
+                setLeadingSize((was) => (was.width === width && was.height === height ? was : { width, height }));
+              }}>
               {leading}
             </Animated.View>
           ) : null}
           <Animated.View style={styles.texts}>
             {slots.headline.length > 0 ? (
               slots.headline.every(textual) ? (
-                <Text style={[styles.title, { color: textColor }]}>{slots.headline}</Text>
+                <Text allowFontScaling={false} style={[styles.title, type.title, { color: textColor }]}>
+                  {slots.headline}
+                </Text>
               ) : (
                 slots.headline
               )
             ) : null}
             {supporting != null ? (
               textual(supporting) ? (
-                <Text style={[styles.supporting, { color: colors.secondary }]}>{supporting}</Text>
+                <Text
+                  allowFontScaling={false}
+                  style={[styles.supporting, type.supporting, { color: colors.secondary }]}>
+                  {supporting}
+                </Text>
               ) : (
                 supporting
               )
             ) : null}
             {detail != null && stacked ? (
-              <Text style={[styles.title, { color: colors.secondary }]}>{detail}</Text>
+              <Text
+                allowFontScaling={false}
+                style={[styles.title, type.title, styles.stackedDetail, { color: colors.secondary }]}>
+                {detail}
+              </Text>
             ) : null}
           </Animated.View>
           {trailing != null ? (
             <Animated.View style={styles.trailing}>
-              {textual(trailing) ? <Text style={[styles.title, { color: colors.text }]}>{trailing}</Text> : trailing}
+              {textual(trailing) ? (
+                <Text allowFontScaling={false} style={[styles.title, type.title, { color: colors.text }]}>
+                  {trailing}
+                </Text>
+              ) : (
+                trailing
+              )}
             </Animated.View>
           ) : null}
           {detail != null && !stacked ? (
-            <Animated.Text numberOfLines={1} style={[styles.title, styles.detail, { color: colors.secondary }]}>
+            <Animated.Text
+              allowFontScaling={false}
+              numberOfLines={1}
+              style={[styles.title, type.title, styles.detail, { color: colors.secondary }]}>
               {detail}
             </Animated.Text>
           ) : null}
           {accessory === 'disclosure' ? (
             <Animated.View style={styles.chevron}>
-              <Chevron color={colors.chevron} />
+              <Chevron color={colors.chevron} scale={scale} />
             </Animated.View>
           ) : accessory === 'checkmark' ? (
             <Animated.View style={styles.checkmark}>
-              <Checkmark color={color.tint} />
+              <Checkmark color={color.tint} scale={scale} />
             </Animated.View>
           ) : accessory === 'info' ? (
             // UIKit's detail button: a tap on it answers apart from the row's.
@@ -1381,6 +1419,7 @@ const styles = StyleSheet.create({
   texts: { flex: 1, gap: list.supportingGap },
   title: { fontSize: list.title.fontSize, lineHeight: list.title.lineHeight },
   supporting: { fontSize: list.supporting.fontSize, lineHeight: list.supporting.lineHeight },
+  stackedDetail: { marginTop: list.stackedGap },
   trailing: { marginStart: list.leadingGap },
   detail: { marginStart: list.leadingGap, flexShrink: 1, textAlign: 'right' },
   chevron: { marginStart: list.detailGap, marginEnd: list.chevron.end },

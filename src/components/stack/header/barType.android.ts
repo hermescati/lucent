@@ -1,5 +1,6 @@
 import { useWindowDimensions } from 'react-native';
 
+import { textCategory } from '../../../core/textSize';
 import { bar, barItem, search, title } from '../tokens';
 
 // UIKit's Dynamic Type sizes, extra small to the largest accessibility size, for the styles the bar uses: body and
@@ -16,12 +17,6 @@ const blockHolds = 38;
 
 const largeGrowth = (fontSize: number) => Math.max(0, fontSize - blockHolds);
 
-/** The iOS text size nearest Android's font scale, as an index into the tables above. */
-const categoryFor = (fontScale: number) => {
-  const want = body[standard] * fontScale;
-  return body.reduce((best, size, index) => (Math.abs(size - want) < Math.abs(body[best] - want) ? index : best), 0);
-};
-
 const scaled = (style: { fontSize: number; lineHeight: number }, by: number) => ({
   fontSize: style.fontSize * by,
   lineHeight: Math.round(style.lineHeight * by),
@@ -32,7 +27,7 @@ const scaled = (style: { fontSize: number; lineHeight: number }, by: number) => 
  * barely grows a large title. The texts these go on turn Android's own scaling off.
  */
 export const useBarType = () => {
-  const index = categoryFor(useWindowDimensions().fontScale);
+  const index = textCategory(useWindowDimensions().fontScale);
   const bodyBy = body[Math.min(index, rowCap)] / body[standard];
   const largeBy = large[index] / large[standard];
   const largeType = scaled(title.large, largeBy);

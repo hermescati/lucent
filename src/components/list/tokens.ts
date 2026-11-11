@@ -22,8 +22,14 @@ export const list = {
   wide: { from: 414, margin: 20 },
   pressDelay: 150,
   rowPaddingVertical: 13,
-  // From this text size (about where iOS's accessibility sizes begin) a row's value goes under its title.
-  stackedFrom: 1.35,
+  // Above this text size a row's value goes under its title, as iOS's do from its accessibility sizes (measured on iOS
+  // 27.2, Settings' About: beside at XXXL, under from AX1): past it, body text is nearer AX1's 28pt than XXXL's 23.
+  stackedAbove: 1.5,
+  // Under its title, a value sits this much further down than a second line does (measured on iOS 27.2: a stacked row
+  // 99.3pt at AX1 and 111.3 at AX2, two body lines and 3.3 more than a two-line row's spacing).
+  stackedGap: 3.33,
+  // Room above and below a row's leading view, which sets the row's height where it's taller than the text.
+  leadingRoom: 15,
   // The headline (body) and a second line under it (subheadline), 2 apart.
   title: { fontSize: 17, lineHeight: 22 },
   supporting: { fontSize: 15, lineHeight: 20 },

@@ -1,6 +1,8 @@
+import { useFonts } from 'expo-font';
 import type { Href } from 'expo-router';
 import { SymbolView, type SFSymbol, type AndroidSymbol } from 'expo-symbols';
-import { StyleSheet, View } from 'react-native';
+import regular from 'expo-symbols/androidWeights/regular';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 export interface ListMode {
   slug: string;
@@ -62,16 +64,30 @@ export const listHref = (mode: ListMode) => `/components/lists/${mode.slug}` as 
 export const findListMode = (slug: string) => listModes.find((mode) => mode.slug === slug);
 
 /** A Settings-style icon: a white symbol on a coloured rounded square, as iOS's Settings rows have. */
-export const RowIcon = ({ ios, android, color }: { ios: SFSymbol; android: AndroidSymbol; color: string }) => (
-  <View style={[styles.icon, { backgroundColor: color }]}>
-    <SymbolView name={{ ios, android }} size={18} tintColor="#FFFFFF" />
-  </View>
-);
+// On Android, SymbolView draws its glyph as text that grows with the font scale inside a box that doesn't, clipping it;
+// the glyph is drawn here unscaled instead, as Settings' icons keep their size at any text size.
+const symbolFonts = { [regular.name]: regular.font };
+
+export const RowIcon = ({ ios, android, color }: { ios: SFSymbol; android: AndroidSymbol; color: string }) => {
+  const [loaded] = useFonts(symbolFonts);
+  return (
+    <View style={[styles.icon, { backgroundColor: color }]}>
+      {Platform.OS !== 'android' ? (
+        <SymbolView name={{ ios, android }} size={18} tintColor="#FFFFFF" />
+      ) : loaded ? (
+        <Text aria-hidden allowFontScaling={false} style={[styles.glyph, { fontFamily: regular.name }]}>
+          {android}
+        </Text>
+      ) : null}
+    </View>
+  );
+};
 
 /** An unread message's blue dot, read out as "Unread". */
 export const UnreadDot = () => <View accessible accessibilityLabel="Unread" style={styles.dot} />;
 
 const styles = StyleSheet.create({
   icon: { width: 29, height: 29, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  glyph: { fontSize: 18, lineHeight: 18, color: '#FFFFFF' },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF' },
 });
